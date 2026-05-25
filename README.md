@@ -28,6 +28,8 @@ Lo que **sí** entra en v0.1:
 
 BattOS arranca como **lienzo en blanco**: vos creás los agentes, proyectos, skills y conexiones desde el panel/CLI. Los agentes se enrutan a runtimes externos (Claude Code, Codex, OpenClaw, Hermes, MCP, etc.) — BattOS no los reimplementa, los orquesta.
 
+A partir de **v0.3** se incorpora **NovaCore**, un asistente conversacional integrado que te ayuda a usar el OS (sugiere comandos, recomienda skills/runtimes/MCPs, diagnostica problemas, guía el onboarding). Ver [docs/12-novacore.md](docs/12-novacore.md).
+
 Lo que **no** entra en v0.1 (va para v0.2):
 - Ejecución de tareas / llamadas a LLM / workers.
 - Model Advisor con políticas reales (solo placeholder).
@@ -167,6 +169,7 @@ Detalle en [docs/09-security.md](docs/09-security.md).
 | [09-security.md](docs/09-security.md) | Modelo de seguridad |
 | [10-roadmap.md](docs/10-roadmap.md) | Qué viene después |
 | [11-agent-runtimes.md](docs/11-agent-runtimes.md) | Cómo se enrutan agentes a CLIs/MCPs/Hermes/OpenClaw |
+| [12-novacore.md](docs/12-novacore.md) | NovaCore: asistente conversacional para usar BattOS |
 | [go-primer.md](docs/go-primer.md) | Primer de Go para retomar el repo |
 | [adr/](docs/adr/) | Decisiones arquitecturales registradas |
 
