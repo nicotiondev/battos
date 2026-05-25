@@ -1,0 +1,33 @@
+# Configuración principal de BattOS — runtime
+#
+# Cargado por viper. Las variables sensibles (API keys, passwords) NO van acá,
+# van en infra/.env y se leen desde env vars.
+
+api:
+  host: "0.0.0.0"
+  port: 8000
+  # CORS — orígenes que pueden hablar con el API
+  cors_origins:
+    - "http://localhost:3000"
+
+memory:
+  # Path relativo al cwd del API
+  db_path: "data/memory/battos.db"
+  # Usar FTS5 (true) o LIKE (false) para search
+  use_fts5: true
+
+logs:
+  level: "info"   # debug | info | warn | error
+  format: "json"  # json | text
+  dir: "data/logs"
+
+sysmetrics:
+  # Frecuencia de muestreo del top bar (segundos)
+  sample_interval_s: 1
+  # Cuántas muestras mantener en memoria para sparklines
+  history_size: 60
+
+registries:
+  # Paths donde el API lee los archivos MD al boot
+  agents_dir: "agents"
+  skills_dir: "skills"

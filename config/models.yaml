@@ -1,0 +1,64 @@
+# Registry de modelos por tier — usado por Model Advisor (v0.2 lo consume real).
+# v0.1 solo lo muestra en el panel.
+#
+# Tiers (alineados con §21.4 del doc maestro):
+#   0 = sin LLM (template/regla)
+#   1 = local / pequeño / gratis
+#   2 = barato rápido
+#   3 = medio
+#   4 = avanzado
+#   5 = frontera / premium
+
+models:
+  - id: claude-opus-4-7
+    provider: anthropic
+    tier: 5
+    context_window: 200000
+    supports_tools: true
+    supports_vision: true
+    supports_code: true
+
+  - id: claude-sonnet-4-6
+    provider: anthropic
+    tier: 4
+    context_window: 200000
+    supports_tools: true
+    supports_vision: true
+    supports_code: true
+
+  - id: claude-haiku-4-5
+    provider: anthropic
+    tier: 2
+    context_window: 200000
+    supports_tools: true
+    supports_vision: true
+
+  - id: gpt-4o
+    provider: openai
+    tier: 4
+    context_window: 128000
+    supports_tools: true
+    supports_vision: true
+    supports_code: true
+
+  - id: gpt-4o-mini
+    provider: openai
+    tier: 2
+    context_window: 128000
+    supports_tools: true
+    supports_vision: true
+
+  - id: gemini-2.0-flash
+    provider: google
+    tier: 2
+    context_window: 1000000
+    supports_tools: true
+    supports_vision: true
+
+  - id: gemini-2.0-pro
+    provider: google
+    tier: 4
+    context_window: 2000000
+    supports_tools: true
+    supports_vision: true
+    supports_code: true

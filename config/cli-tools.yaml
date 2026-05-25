@@ -1,0 +1,64 @@
+# CLIs externas que BattOS intenta detectar al arrancar.
+#
+# v0.1 solo detecta (presencia + path + versión cuando es trivial obtenerla).
+# v0.2 podrá ejecutarlas con permisos controlados.
+
+cli_tools:
+  - id: claude-code
+    name: Claude Code
+    command: claude
+    kind: coding_agent
+    risk_level: high
+    requires_auth: true
+    capabilities: [code_editing, file_reading, terminal_commands, mcp]
+
+  - id: codex
+    name: Codex CLI
+    command: codex
+    kind: coding_agent
+    risk_level: high
+    requires_auth: true
+    capabilities: [code_generation, repo_editing, tests]
+
+  - id: opencode
+    name: OpenCode
+    command: opencode
+    kind: coding_agent
+    risk_level: medium
+    requires_auth: true
+    capabilities: [code_editing, local_agent, terminal_workflows]
+
+  - id: gemini
+    name: Gemini CLI
+    command: gemini
+    kind: coding_agent
+    risk_level: medium
+    requires_auth: true
+
+  - id: gh
+    name: GitHub CLI
+    command: gh
+    kind: dev_tool
+    risk_level: medium
+    requires_auth: true
+
+  - id: docker
+    name: Docker
+    command: docker
+    kind: infra
+    risk_level: high
+    requires_auth: false
+
+  - id: node
+    name: Node.js
+    command: node
+    kind: runtime
+    risk_level: low
+    requires_auth: false
+
+  - id: python
+    name: Python
+    command: python
+    kind: runtime
+    risk_level: low
+    requires_auth: false

@@ -1,0 +1,30 @@
+# Providers LLM — registry estático.
+#
+# v0.1 solo lee este archivo para mostrar status (configured/not_configured)
+# según si la API key correspondiente está presente en env.
+# v0.2 será el origen de truth para Model Advisor + LiteLLM gateway.
+
+providers:
+  - id: openai
+    name: OpenAI
+    kind: api
+    env_key: OPENAI_API_KEY
+    docs_url: https://platform.openai.com/docs/api-reference
+
+  - id: anthropic
+    name: Anthropic
+    kind: api
+    env_key: ANTHROPIC_API_KEY
+    docs_url: https://docs.anthropic.com/en/api/overview
+
+  - id: google
+    name: Google Gemini
+    kind: api
+    env_key: GOOGLE_API_KEY
+    docs_url: https://ai.google.dev/gemini-api/docs
+
+  - id: openrouter
+    name: OpenRouter
+    kind: gateway
+    env_key: OPENROUTER_API_KEY
+    docs_url: https://openrouter.ai/docs

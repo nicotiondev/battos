@@ -1,0 +1,13 @@
+# Servers MCP conocidos / configurados.
+#
+# v0.1 solo registra metadata. v0.2 inicia conexiones reales.
+
+mcp_servers: []
+# Ejemplo de cómo se ve un server registrado:
+# - id: engram
+#   name: Engram
+#   transport: stdio
+#   command: engram
+#   args: [mcp]
+#   description: Memoria persistente personal
+#   project_scope: all

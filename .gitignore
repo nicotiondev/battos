@@ -1,0 +1,63 @@
+# --- Go ---
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work.sum
+/bin/
+/dist/
+# Binarios compilados (no las carpetas fuente)
+/apps/cli/battos
+/apps/cli/battos.exe
+/apps/api/battos-api
+/apps/api/battos-api.exe
+/battos
+/battos.exe
+
+# --- Node / Next.js ---
+node_modules/
+.next/
+out/
+.npm/
+.pnpm-debug.log*
+.yarn/
+.turbo/
+
+# --- Env / secrets ---
+.env
+.env.*
+!.env.example
+*.local
+infra/.env
+infra/.env.*
+!infra/.env.example
+
+# --- Data local ---
+data/memory/*.db
+data/memory/*.db-shm
+data/memory/*.db-wal
+data/logs/*.jsonl
+data/workspaces/
+
+# --- Generados ---
+apps/api/internal/store/queries.sql.go
+apps/api/internal/store/models.go
+apps/api/internal/store/db.go
+apps/web/lib/api-client.ts
+packages/openapi/gen/
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# --- Coverage ---
+coverage.out
+coverage.html
+*.prof
