@@ -129,8 +129,8 @@ Memoria del agente: ya existe en Engram (proyecto `battos`). Antes de empezar tr
 
 | Fase | Objetivo | Estado |
 |---|---|---|
-| 0 | Bootstrap del repo | En curso |
-| 1 | `battos status` funcional | Pending |
+| 0 | Bootstrap del repo | ✅ Completado |
+| 1 | `battos status` funcional | En curso |
 | 2 | DB + Memory Core | Pending |
 | 3 | Registries API + CLI | Pending |
 | 4 | CLI Detector + Providers | Pending |
@@ -143,7 +143,7 @@ Plan completo: `C:\Users\nicoa\.claude\plans\adelante-y-haz-un-hidden-meerkat.md
 
 ## Decisiones críticas ya cerradas
 
-- **Repo en `C:\dev\battos`** — no `G:\dev\battos` ni `G:\Mi unidad\BattOS\` porque G: es Google Drive virtual (no soporta dev artifacts ni carpetas en raíz). `G:\Mi unidad\BattOS\` se queda para docs/mockups del producto.
+- **Repo en `C:\Users\nicoa\Desktop\CLAUDE CODE\battos`** — movido desde `C:\dev\battos` el 2026-05-25. No vive en `G:\` porque Google Drive virtual no soporta dev artifacts ni carpetas en raíz. `G:\Mi unidad\BattOS\` se mantiene para el spec original (`battOS.md`) + mockups del producto.
 - **Stack Go + TS** — ver `docs/adr/0001-go-stack.md`.
 - **Memory Core propio** (no Engram dep) — ver `docs/adr/0004-memory-core-propio.md` (Fase 2).
 - **SSE, no WebSockets** — ver `docs/adr/0002-sse-no-websockets.md` (Fase 1).

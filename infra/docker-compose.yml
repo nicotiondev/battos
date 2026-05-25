@@ -1,0 +1,79 @@
+# BattOS — Docker Compose para dev local y VPS.
+#
+# Servicios:
+#   battos-db    Postgres 16 (single-user, sin replicación en v0.1)
+#   battos-api   API Go (chi + sqlc + SSE)
+#
+# El frontend (apps/web) NO está acá todavía — se suma en Fase 5.
+# Memory Core (SQLite) vive embebido dentro de battos-api, no necesita servicio.
+#
+# Uso:
+#   cp .env.example .env  # editar POSTGRES_PASSWORD y secrets
+#   docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
+#   docker compose -f infra/docker-compose.yml logs -f battos-api
+
+name: battos
+
+services:
+  battos-db:
+    image: postgres:16-alpine
+    container_name: battos-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - battos_postgres_data:/var/lib/postgresql/data
+    ports:
+      # En producción NO exponer 5432 al host; en dev ayuda para conectar con TablePlus.
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  battos-api:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.api
+    container_name: battos-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # API
+      BATTOS_ENV: ${BATTOS_ENV:-production}
+      BATTOS_SECRET_KEY: ${BATTOS_SECRET_KEY}
+      # DB
+      DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@battos-db:5432/${POSTGRES_DB}?sslmode=disable"
+      # Providers (solo presencia se valida en v0.1, no se llaman)
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      # Guardrails
+      ALLOW_CLI_EXECUTION: ${ALLOW_CLI_EXECUTION:-false}
+      ALLOW_DOCKER_MUTATION: ${ALLOW_DOCKER_MUTATION:-false}
+      REQUIRE_APPROVAL_FOR_HIGH_RISK: ${REQUIRE_APPROVAL_FOR_HIGH_RISK:-true}
+    volumes:
+      # Persistir Memory Core (SQLite) y logs entre reinicios del contenedor.
+      - battos_data:/app/data
+      # Config y registries son read-only desde el host.
+      - ../config:/app/config:ro
+      - ../agents:/app/agents:ro
+      - ../skills:/app/skills:ro
+    depends_on:
+      battos-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  battos_postgres_data:
+  battos_data:
