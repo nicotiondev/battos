@@ -8,6 +8,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -84,19 +85,8 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("parseando config: %w", err)
 	}
 
-	// DATABASE_URL viene del entorno, no del YAML.
-	cfg.DatabaseURL = viper.New().GetString("DATABASE_URL")
-	// viper.New() no leyó env todavía — uso os directamente para evitar confusión.
-	cfg.DatabaseURL = getEnv("DATABASE_URL", "")
+	// DATABASE_URL viene del entorno (.env o shell), no del YAML.
+	cfg.DatabaseURL = os.Getenv("DATABASE_URL")
 
 	return &cfg, nil
-}
-
-func getEnv(key, fallback string) string {
-	v := viper.New()
-	v.AutomaticEnv()
-	if val := v.GetString(key); val != "" {
-		return val
-	}
-	return fallback
 }

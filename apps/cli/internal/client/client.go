@@ -29,6 +29,10 @@ func New(baseURL string) *Client {
 	}
 }
 
+// BaseURL expone la URL para que otros paquetes (commands) construyan requests propias.
+// Mantenemos la API mínima — en Fase 3 oapi-codegen va a reemplazar todo esto.
+func (c *Client) BaseURL() string { return c.baseURL }
+
 // --- Tipos espejo de packages/core ---
 // (En Fase 3 se reemplazan por el cliente generado vía oapi-codegen.)
 

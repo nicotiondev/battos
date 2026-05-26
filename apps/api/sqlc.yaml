@@ -1,0 +1,33 @@
+# sqlc — genera código Go tipado a partir de SQL puro.
+#
+# Comandos:
+#   sqlc generate         genera apps/api/internal/store/*.go a partir de queries/*.sql
+#   sqlc vet              corre análisis estático
+#   sqlc verify           valida que el código generado coincide con queries actuales
+#
+# Doc: https://docs.sqlc.dev/
+version: "2"
+
+sql:
+  - engine: postgresql
+    queries: "./queries"
+    schema: "./migrations"
+    gen:
+      go:
+        package: "store"
+        out: "./internal/store"
+        sql_package: "pgx/v5"
+
+        # Tipos que mapeamos especialmente
+        emit_json_tags: true
+        emit_db_tags: false
+        emit_prepared_queries: false
+        emit_interface: true          # genera interface Querier (útil para mocks)
+        emit_exact_table_names: false
+        emit_empty_slices: true       # devuelve [] en vez de nil en List queries
+
+        # JSONB → json.RawMessage (más ergonómico que []byte).
+        # Nullable JSONB → *json.RawMessage (sqlc agrega el puntero automáticamente).
+        overrides:
+          - db_type: "pg_catalog.jsonb"
+            go_type: "encoding/json.RawMessage"

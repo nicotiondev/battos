@@ -52,6 +52,7 @@ func newRootCmd() *cobra.Command {
 
 	// Subcomandos
 	root.AddCommand(commands.NewStatusCmd(getClient))
+	root.AddCommand(commands.NewMemoryCmd(getClient))
 
 	return root
 }

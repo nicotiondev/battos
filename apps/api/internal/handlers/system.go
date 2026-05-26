@@ -6,6 +6,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"runtime"
 	"time"
@@ -26,12 +27,17 @@ var (
 
 // SystemHandler maneja los endpoints de salud y estado del OS.
 type SystemHandler struct {
-	sampler *sysmetrics.Sampler
+	sampler  *sysmetrics.Sampler
+	pingDB   func(context.Context) error // null si DB no configurada
+	pingMem  func(context.Context) error // null si Memory no configurada
 }
 
 // NewSystemHandler crea el handler con sus dependencias.
-func NewSystemHandler(sampler *sysmetrics.Sampler) *SystemHandler {
-	return &SystemHandler{sampler: sampler}
+//
+// pingDB y pingMem son closures que el main inyecta — así desacoplamos
+// el handler del paquete concreto (pgxpool / memory.Core).
+func NewSystemHandler(sampler *sysmetrics.Sampler, pingDB, pingMem func(context.Context) error) *SystemHandler {
+	return &SystemHandler{sampler: sampler, pingDB: pingDB, pingMem: pingMem}
 }
 
 // writeJSON es una versión local para evitar import circular con package server.
@@ -78,9 +84,8 @@ func (h *SystemHandler) Status(w http.ResponseWriter, r *http.Request) {
 	subsystems := []core.SubsystemHealth{
 		{Name: "config", Status: core.HealthOK, Detail: "battos.yaml cargado"},
 		{Name: "sysmetrics", Status: sysmetricsHealth(h.sampler)},
-		// db, memory, registries — se sumarán en Fase 2/3.
-		{Name: "database", Status: core.HealthUnknown, Detail: "Fase 2"},
-		{Name: "memory", Status: core.HealthUnknown, Detail: "Fase 2"},
+		checkSubsystem(r.Context(), "database", h.pingDB, "Postgres conectado"),
+		checkSubsystem(r.Context(), "memory", h.pingMem, "SQLite + FTS5 listo"),
 	}
 
 	resp := core.StatusResponse{
@@ -106,6 +111,30 @@ func sysmetricsHealth(s *sysmetrics.Sampler) core.HealthStatus {
 		return core.HealthDegraded
 	}
 	return core.HealthOK
+}
+
+// checkSubsystem ejecuta el ping y devuelve el SubsystemHealth correspondiente.
+// Si la closure es nil → unknown (subsistema no inyectado).
+// Si el ping responde rápido → ok. Si tarda o falla → degraded/down.
+func checkSubsystem(ctx context.Context, name string, ping func(context.Context) error, okDetail string) core.SubsystemHealth {
+	if ping == nil {
+		return core.SubsystemHealth{Name: name, Status: core.HealthUnknown, Detail: "no inicializado"}
+	}
+	start := time.Now()
+	pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	err := ping(pingCtx)
+	latency := int(time.Since(start).Milliseconds())
+	if err != nil {
+		return core.SubsystemHealth{
+			Name: name, Status: core.HealthDown,
+			Detail: err.Error(), LatencyMs: latency,
+		}
+	}
+	return core.SubsystemHealth{
+		Name: name, Status: core.HealthOK,
+		Detail: okDetail, LatencyMs: latency,
+	}
 }
 
 // overallHealth agrega los subsistemas en un único veredicto.

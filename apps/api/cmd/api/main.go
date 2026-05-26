@@ -20,9 +20,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nicotion/battos/apps/api/internal/config"
 	"github.com/nicotion/battos/apps/api/internal/handlers"
+	"github.com/nicotion/battos/apps/api/internal/memory"
 	"github.com/nicotion/battos/apps/api/internal/server"
+	"github.com/nicotion/battos/apps/api/internal/store"
 	"github.com/nicotion/battos/apps/api/internal/sysmetrics"
 )
 
@@ -61,12 +64,44 @@ func run() error {
 	sampler.Start(ctx)
 	logger.Info("sysmetrics.sampler started", "interval_s", int(sampleInterval.Seconds()))
 
-	// --- 4. Router ---
-	systemHandler := handlers.NewSystemHandler(sampler)
+	// --- 4. Postgres pool (opcional — el API arranca aunque falle, en estado degraded) ---
+	var pgPool *pgxpool.Pool
+	if cfg.DatabaseURL != "" {
+		pgPool, err = store.OpenPool(ctx, cfg.DatabaseURL)
+		if err != nil {
+			logger.Warn("postgres pool init failed (subsystem 'database' será DOWN)", "error", err)
+			pgPool = nil
+		} else {
+			logger.Info("postgres pool ready")
+			defer pgPool.Close()
+		}
+	} else {
+		logger.Warn("DATABASE_URL no seteado — subsistema 'database' quedará UNKNOWN")
+	}
+
+	// --- 5. Memory Core (siempre disponible, embebido) ---
+	memCore, err := memory.Open(cfg.Memory.DBPath)
+	if err != nil {
+		return fmt.Errorf("memory core: %w", err)
+	}
+	defer memCore.Close()
+	logger.Info("memory core ready", "db_path", cfg.Memory.DBPath)
+
+	// Closures de healthcheck que el SystemHandler usa para reportar /status.
+	var pingDB func(context.Context) error
+	if pgPool != nil {
+		pingDB = func(ctx context.Context) error { return pgPool.Ping(ctx) }
+	}
+	pingMem := memCore.Ping
+
+	// --- 6. Router ---
+	systemHandler := handlers.NewSystemHandler(sampler, pingDB, pingMem)
+	memoryHandler := handlers.NewMemoryHandler(memCore)
 	router := server.NewRouter(server.Deps{
 		Config: cfg,
 		Logger: logger,
 		System: systemHandler,
+		Memory: memoryHandler,
 	})
 
 	// --- 5. HTTP server ---

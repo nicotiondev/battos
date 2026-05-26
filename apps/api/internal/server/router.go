@@ -20,9 +20,10 @@ import (
 // Deps agrupa las dependencias que los handlers necesitan inyectadas.
 // Se llena en cmd/api/main.go y se pasa a NewRouter.
 type Deps struct {
-	Config   *config.Config
-	Logger   *slog.Logger
-	System   *handlers.SystemHandler
+	Config *config.Config
+	Logger *slog.Logger
+	System *handlers.SystemHandler
+	Memory *handlers.MemoryHandler
 }
 
 // NewRouter construye el router chi con middleware base y todas las rutas.
@@ -48,6 +49,17 @@ func NewRouter(deps Deps) http.Handler {
 	r.Get("/health", deps.System.Health)
 	r.Get("/version", deps.System.Version)
 	r.Get("/status", deps.System.Status)
+
+	// --- Memory Core endpoints (Fase 2) ---
+	if deps.Memory != nil {
+		r.Route("/memory", func(r chi.Router) {
+			r.Get("/recent", deps.Memory.Recent)
+			r.Post("/search", deps.Memory.Search)
+			r.Post("/save", deps.Memory.Save)
+			r.Get("/stats", deps.Memory.Stats)
+			r.Get("/{id}", deps.Memory.GetByID)
+		})
+	}
 
 	// 404 prolijo en JSON, no HTML.
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
