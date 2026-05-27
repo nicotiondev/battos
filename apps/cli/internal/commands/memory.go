@@ -331,6 +331,7 @@ func doRequest(ctx context.Context, c *client.Client, method, path string, body 
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
+	c.Authorize(req)
 	httpClient := &http.Client{Timeout: 15 * time.Second}
 	return httpClient.Do(req)
 }

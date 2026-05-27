@@ -21,7 +21,7 @@ referencia:
 
 - `GET /health` y `GET /version` permanecen publicos para healthchecks.
 - `/status`, `/memory/*` y todas las superficies nuevas se protegen con
-  `Authorization: Bearer <token>` cuando el middleware de auth se implemente.
+  `Authorization: Bearer <token>` cuando `auth.mode` es `token`.
 - El token administrativo proviene de `BATTOS_API_TOKEN`; BattOS almacena solo
   un hash si en el futuro debe validarlo desde persistencia.
 - En desarrollo local se permitira desactivar auth de forma explicita, solo
@@ -62,7 +62,10 @@ referencia:
 ## Implementation notes
 
 - El contrato en `packages/openapi/openapi.yaml` define `bearerAuth`.
-- La implementacion del middleware entra antes de exponer endpoints mutantes.
+- El middleware esta implementado en API y la CLI envia el token mediante
+  `--token` o `BATTOS_API_TOKEN`.
+- La configuracion local de desarrollo usa `auth.mode: disabled` con
+  `api.host: 127.0.0.1`; el boot rechaza modo abierto sobre bind publico.
 - La configuracion debera distinguir claramente `dev` de `production`.
 
 ## Related

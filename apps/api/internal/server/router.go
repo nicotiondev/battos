@@ -6,6 +6,7 @@
 package server
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -45,21 +46,27 @@ func NewRouter(deps Deps) http.Handler {
 	r.Use(structuredLogger(deps.Logger))
 	r.Use(middleware.Timeout(30 * time.Second))
 
-	// --- System endpoints (Fase 1) ---
+	// Public endpoints stay available to process healthchecks.
 	r.Get("/health", deps.System.Health)
 	r.Get("/version", deps.System.Version)
-	r.Get("/status", deps.System.Status)
 
-	// --- Memory Core endpoints (Fase 2) ---
-	if deps.Memory != nil {
-		r.Route("/memory", func(r chi.Router) {
-			r.Get("/recent", deps.Memory.Recent)
-			r.Post("/search", deps.Memory.Search)
-			r.Post("/save", deps.Memory.Save)
-			r.Get("/stats", deps.Memory.Stats)
-			r.Get("/{id}", deps.Memory.GetByID)
-		})
-	}
+	r.Group(func(r chi.Router) {
+		r.Use(authMiddleware(deps.Config.Auth.Mode, deps.Config.APIToken))
+
+		// --- System endpoint (Fase 1) ---
+		r.Get("/status", deps.System.Status)
+
+		// --- Memory Core endpoints (Fase 2) ---
+		if deps.Memory != nil {
+			r.Route("/memory", func(r chi.Router) {
+				r.Get("/recent", deps.Memory.Recent)
+				r.Post("/search", deps.Memory.Search)
+				r.Post("/save", deps.Memory.Save)
+				r.Get("/stats", deps.Memory.Stats)
+				r.Get("/{id}", deps.Memory.GetByID)
+			})
+		}
+	})
 
 	// 404 prolijo en JSON, no HTML.
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
@@ -67,6 +74,25 @@ func NewRouter(deps Deps) http.Handler {
 	})
 
 	return r
+}
+
+func authMiddleware(mode, token string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if mode == "disabled" {
+				next.ServeHTTP(w, r)
+				return
+			}
+			const prefix = "Bearer "
+			auth := r.Header.Get("Authorization")
+			if len(auth) <= len(prefix) || auth[:len(prefix)] != prefix ||
+				subtle.ConstantTimeCompare([]byte(auth[len(prefix):]), []byte(token)) != 1 {
+				WriteError(w, http.StatusUnauthorized, "token de acceso invalido o ausente")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // WriteJSON serializa v como JSON y responde con el status code dado.

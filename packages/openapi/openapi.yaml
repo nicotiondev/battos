@@ -57,7 +57,7 @@ paths:
       tags: [System]
       operationId: getStatus
       x-battos-phase: implemented
-      x-battos-security: bearer-middleware-pending
+      x-battos-security: configurable-bearer-implemented
       summary: Command Center status snapshot
       responses:
         "200":
@@ -73,7 +73,7 @@ paths:
       tags: [Memory]
       operationId: listRecentMemory
       x-battos-phase: implemented
-      x-battos-security: bearer-middleware-pending
+      x-battos-security: configurable-bearer-implemented
       summary: List most recent memory observations
       parameters:
         - $ref: "#/components/parameters/Limit"
@@ -91,7 +91,7 @@ paths:
       tags: [Memory]
       operationId: searchMemory
       x-battos-phase: implemented
-      x-battos-security: bearer-middleware-pending
+      x-battos-security: configurable-bearer-implemented
       summary: Full-text memory search with filters
       requestBody:
         required: true
@@ -113,7 +113,7 @@ paths:
       tags: [Memory]
       operationId: saveMemory
       x-battos-phase: implemented
-      x-battos-security: bearer-middleware-pending
+      x-battos-security: configurable-bearer-implemented
       summary: Save or upsert an observation using topic_key
       requestBody:
         required: true
@@ -135,7 +135,7 @@ paths:
       tags: [Memory]
       operationId: getMemoryStats
       x-battos-phase: implemented
-      x-battos-security: bearer-middleware-pending
+      x-battos-security: configurable-bearer-implemented
       summary: Memory aggregate statistics
       responses:
         "200":
@@ -151,7 +151,7 @@ paths:
       tags: [Memory]
       operationId: getMemoryObservation
       x-battos-phase: implemented
-      x-battos-security: bearer-middleware-pending
+      x-battos-security: configurable-bearer-implemented
       summary: Get one observation
       parameters:
         - $ref: "#/components/parameters/NumericID"

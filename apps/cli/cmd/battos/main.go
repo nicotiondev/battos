@@ -32,6 +32,7 @@ func main() {
 
 func newRootCmd() *cobra.Command {
 	var apiURL string
+	var apiToken string
 
 	root := &cobra.Command{
 		Use:           "battos",
@@ -48,10 +49,11 @@ func newRootCmd() *cobra.Command {
 
 	// Flag global: URL del API. Por defecto localhost, override con --api o BATTOS_API_URL.
 	root.PersistentFlags().StringVar(&apiURL, "api", defaultAPIURL(), "URL del API BattOS")
+	root.PersistentFlags().StringVar(&apiToken, "token", defaultAPIToken(), "Token de acceso BattOS")
 
 	// Factory que devuelve un cliente con el apiURL resuelto en tiempo de ejecución.
 	getClient := func() *client.Client {
-		return client.New(apiURL)
+		return client.New(apiURL, apiToken)
 	}
 
 	// Subcomandos
@@ -69,6 +71,10 @@ func defaultAPIURL() string {
 		return v
 	}
 	return "http://localhost:8000"
+}
+
+func defaultAPIToken() string {
+	return os.Getenv("BATTOS_API_TOKEN")
 }
 
 const longDescription = `BattOS es una capa agentic self-hosted para orquestar proyectos,

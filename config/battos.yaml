@@ -4,11 +4,17 @@
 # van en infra/.env y se leen desde env vars.
 
 api:
-  host: "0.0.0.0"
+  # Dev sin token: escuchar solo local. En VPS usar 0.0.0.0 junto a auth token.
+  host: "127.0.0.1"
   port: 8000
   # CORS — orígenes que pueden hablar con el API
   cors_origins:
     - "http://localhost:3000"
+
+# Seguridad API en desarrollo local. En VPS usar `mode: "token"` y definir
+# BATTOS_API_TOKEN por variable de entorno.
+auth:
+  mode: "disabled"  # disabled | token
 
 memory:
   # Path relativo al cwd del API

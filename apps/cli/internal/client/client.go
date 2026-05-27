@@ -16,13 +16,15 @@ import (
 // Client habla con el API HTTP de BattOS.
 type Client struct {
 	baseURL string
+	token   string
 	http    *http.Client
 }
 
 // New crea un client apuntando a la baseURL dada (ej: http://localhost:8000).
-func New(baseURL string) *Client {
+func New(baseURL, token string) *Client {
 	return &Client{
 		baseURL: baseURL,
+		token:   token,
 		http: &http.Client{
 			Timeout: 5 * time.Second,
 		},
@@ -32,6 +34,13 @@ func New(baseURL string) *Client {
 // BaseURL expone la URL para que otros paquetes (commands) construyan requests propias.
 // Mantenemos la API mínima — en Fase 3 oapi-codegen va a reemplazar todo esto.
 func (c *Client) BaseURL() string { return c.baseURL }
+
+// Authorize agrega el token administrativo si fue configurado en CLI o entorno.
+func (c *Client) Authorize(req *http.Request) {
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+}
 
 // --- Tipos espejo de packages/core ---
 // (En Fase 3 se reemplazan por el cliente generado vía oapi-codegen.)
@@ -113,6 +122,7 @@ func (c *Client) getJSON(ctx context.Context, path string, out any) error {
 		return fmt.Errorf("construyendo request: %w", err)
 	}
 	req.Header.Set("Accept", "application/json")
+	c.Authorize(req)
 
 	resp, err := c.http.Do(req)
 	if err != nil {

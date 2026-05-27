@@ -7,8 +7,9 @@ Current implementation coverage:
 - `GET /health`, `GET /version`, `GET /status`
 - `/memory/*`
 
-The current handlers are still awaiting the ADR-0013 bearer middleware; the
-contract flags this as `x-battos-security: bearer-middleware-pending`.
+ADR-0013 bearer middleware is implemented for protected current endpoints.
+Local development explicitly uses disabled auth on loopback only; deployments
+use `auth.mode: token` and `BATTOS_API_TOKEN`.
 
 Operations marked with `x-battos-phase` define the v0.1 API that later
 phases implement. A declared endpoint is not available until its phase is

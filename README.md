@@ -27,6 +27,8 @@ Implementado actualmente:
   `save`, `stats`.
 - Contrato OpenAPI v0.1 y decisiones de autenticacion, secretos, runs y
   approvals.
+- Middleware Bearer configurable y soporte CLI para `BATTOS_API_TOKEN`; en
+  desarrollo sin token el API solo escucha en `127.0.0.1`.
 
 Objetivo final de **v0.1**:
 

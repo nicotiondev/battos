@@ -1,6 +1,6 @@
 // Package config carga la configuración de BattOS desde:
-//   1. config/battos.yaml en el cwd (o el path indicado por BATTOS_CONFIG)
-//   2. variables de entorno con prefijo BATTOS_
+//  1. config/battos.yaml en el cwd (o el path indicado por BATTOS_CONFIG)
+//  2. variables de entorno con prefijo BATTOS_
 //
 // Las variables sensibles (API keys, passwords) NO viven en battos.yaml:
 // se leen vía env (infra/.env cargado por docker-compose, o el shell en dev).
@@ -17,6 +17,7 @@ import (
 // Config es la representación tipada del archivo battos.yaml.
 type Config struct {
 	API        APIConfig        `mapstructure:"api"`
+	Auth       AuthConfig       `mapstructure:"auth"`
 	Memory     MemoryConfig     `mapstructure:"memory"`
 	Logs       LogsConfig       `mapstructure:"logs"`
 	Sysmetrics SysmetricsConfig `mapstructure:"sysmetrics"`
@@ -24,12 +25,17 @@ type Config struct {
 
 	// Database — viene del env (DATABASE_URL), no de battos.yaml.
 	DatabaseURL string `mapstructure:"-"`
+	APIToken    string `mapstructure:"-"`
 }
 
 type APIConfig struct {
 	Host        string   `mapstructure:"host"`
 	Port        int      `mapstructure:"port"`
 	CORSOrigins []string `mapstructure:"cors_origins"`
+}
+
+type AuthConfig struct {
+	Mode string `mapstructure:"mode"`
 }
 
 type MemoryConfig struct {
@@ -56,9 +62,9 @@ type RegistriesConfig struct {
 // Load lee el archivo de config y devuelve la struct tipada.
 //
 // Orden de búsqueda del archivo:
-//   1. Path explícito si BATTOS_CONFIG está seteado.
-//   2. ./config/battos.yaml relativo al cwd.
-//   3. /app/config/battos.yaml (dentro del contenedor).
+//  1. Path explícito si BATTOS_CONFIG está seteado.
+//  2. ./config/battos.yaml relativo al cwd.
+//  3. /app/config/battos.yaml (dentro del contenedor).
 func Load() (*Config, error) {
 	v := viper.New()
 	v.SetConfigName("battos")
@@ -87,6 +93,33 @@ func Load() (*Config, error) {
 
 	// DATABASE_URL viene del entorno (.env o shell), no del YAML.
 	cfg.DatabaseURL = os.Getenv("DATABASE_URL")
+	cfg.APIToken = os.Getenv("BATTOS_API_TOKEN")
+
+	switch cfg.Auth.Mode {
+	case "", "disabled":
+		cfg.Auth.Mode = "disabled"
+	case "token":
+		if strings.TrimSpace(cfg.APIToken) == "" {
+			return nil, fmt.Errorf("auth: BATTOS_API_TOKEN es obligatorio cuando auth.mode=token")
+		}
+	default:
+		return nil, fmt.Errorf("auth: mode invalido %q (use disabled o token)", cfg.Auth.Mode)
+	}
+	if err := validateAuth(&cfg); err != nil {
+		return nil, err
+	}
 
 	return &cfg, nil
+}
+
+func validateAuth(cfg *Config) error {
+	if cfg.Auth.Mode != "disabled" {
+		return nil
+	}
+	switch cfg.API.Host {
+	case "127.0.0.1", "localhost", "::1":
+		return nil
+	default:
+		return fmt.Errorf("auth: mode disabled solo puede usarse con api.host local")
+	}
 }

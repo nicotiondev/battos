@@ -9,9 +9,10 @@ Base URL en prod: configurable, normalmente detrás de Traefik/Nginx.
 
 ## Endpoints disponibles actualmente (Fases 1-2)
 
-Los endpoints actuales todavia corren sin middleware Bearer. El contrato de
-seguridad de ADR-0013 se implementara antes de exponer operaciones mutantes o
-runs; `/health` y `/version` permaneceran publicos.
+ADR-0013 ya esta implementado en la frontera actual: `/health` y `/version`
+son publicos; `/status` y `/memory/*` pasan por middleware Bearer cuando
+`auth.mode: token`. El modo local configurado usa `auth.mode: disabled` solo
+escuchando en `127.0.0.1`.
 
 ### `GET /health`
 Latido simple. Pensado para load balancers y healthchecks de Docker.
@@ -163,10 +164,13 @@ curl http://localhost:8000/memory/stats | jq
 ```
 
 ### Con el CLI
-```bash
+```powershell
 battos status
 battos memory stats
 battos memory search "FTS5"
+
+# Cuando auth.mode=token:
+$env:BATTOS_API_TOKEN="<token>"; battos status
 ```
 
 ### Desde el frontend (Fase 5)

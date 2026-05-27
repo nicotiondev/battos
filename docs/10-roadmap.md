@@ -49,6 +49,10 @@ La siguiente implementacion es **Fase 3B**: migraciones append-only, queries
 sqlc y handlers/CLI para work model y Knowledge Center, siguiendo el contrato
 de `packages/openapi/openapi.yaml`.
 
+Prerequisito seguro ya implementado para Fase 3B: middleware Bearer
+configurable, `BATTOS_API_TOKEN` en la CLI y rechazo de auth desactivada sobre
+bind publico.
+
 ### Que Podras Hacer En v0.1
 
 - Crear un proyecto, objetivo y task con artifacts de referencia.
