@@ -59,6 +59,10 @@ func newRootCmd() *cobra.Command {
 	// Subcomandos
 	root.AddCommand(commands.NewStatusCmd(getClient))
 	root.AddCommand(commands.NewMemoryCmd(getClient))
+	root.AddCommand(commands.NewDomainCmd(getClient))
+	root.AddCommand(commands.NewProjectCmd(getClient))
+	root.AddCommand(commands.NewGoalCmd(getClient))
+	root.AddCommand(commands.NewTaskCmd(getClient))
 
 	return root
 }

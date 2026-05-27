@@ -1,6 +1,6 @@
 # 10 - Roadmap
 
-> Estado revisado el 26 de mayo de 2026. El producto final y sus capacidades
+> Estado revisado el 27 de mayo de 2026. El producto final y sus capacidades
 > se describen en `docs/14-producto-final-y-roadmap.md`.
 
 ## Estado Actual Verificado
@@ -11,7 +11,7 @@
 | 1 | API `/health`, `/version`, `/status` y CLI `status` | Completada |
 | 2 | PostgreSQL base + Memory Core SQLite/FTS5 + CLI/HTTP memory | Completada |
 | 3A | OpenAPI, autenticacion/secretos y lifecycle de runs/approvals | Completada |
-| 3B | Work model y Knowledge Center | En curso: migracion/queries sqlc iniciadas |
+| 3B | Work model y Knowledge Center | En curso: persistencia y CRUD API/CLI de Work Board listos; Knowledge HTTP/CLI pendiente |
 
 Validacion disponible:
 
@@ -46,9 +46,11 @@ BattOS mantiene sus principios:
 | 5B | Dashboard | Command Center, Work Board, Control Room y Knowledge Center |
 | 6 | Hardening/release | Seguridad, backups, tests, instalacion VPS y tag `v0.1.0` |
 
-La siguiente implementacion es **Fase 3B**: migraciones append-only, queries
-sqlc y handlers/CLI para work model y Knowledge Center, siguiendo el contrato
-de `packages/openapi/openapi.yaml`.
+La siguiente implementacion de **Fase 3B** es exponer Knowledge Center
+(`workspaces`, `journals`, `artifacts`) por API/CLI. Ya estan activos el
+almacenamiento tipado y el CRUD API/CLI del Work Board para `domains`,
+`projects`, `goals` y `tasks`, siguiendo
+`packages/openapi/openapi.yaml`.
 
 Prerequisito seguro ya implementado para Fase 3B: middleware Bearer
 configurable, `BATTOS_API_TOKEN` en la CLI y rechazo de auth desactivada sobre

@@ -16,7 +16,8 @@ BattOS administra trabajo, agentes, memoria, ejecucion y aprobaciones.
 ## Estado actual
 
 **v0.1.0 - en construccion.** Las Fases 0, 1, 2 y 3A estan completadas. La
-siguiente etapa implementa el modelo de trabajo y Knowledge Center (Fase 3B).
+Fase 3B esta en curso: el Work Board ya se puede operar y sigue Knowledge
+Center.
 
 Implementado actualmente:
 
@@ -29,8 +30,9 @@ Implementado actualmente:
   approvals.
 - Middleware Bearer configurable y soporte CLI para `BATTOS_API_TOKEN`; en
   desarrollo sin token el API solo escucha en `127.0.0.1`.
-- Fase 3B en curso: migracion y store `sqlc` para domains, goals, tasks,
-  knowledge workspaces, journals y artifacts.
+- Fase 3B en curso: persistencia `sqlc` y API/CLI del Work Board para domains,
+  projects, goals y tasks; persistencia preparada para knowledge workspaces,
+  journals y artifacts.
 
 En Docker/VPS se debe definir `BATTOS_API_TOKEN`; el compose habilita
 `auth.mode: token` al publicar el API.
@@ -107,6 +109,7 @@ go run ./apps/api/cmd/api
 # Terminal 2: estado y memoria
 go run ./apps/cli/cmd/battos status
 go run ./apps/cli/cmd/battos memory stats
+go run ./apps/cli/cmd/battos project list
 
 # Verificacion disponible
 go test ./apps/api/... ./apps/cli/... ./packages/core/...
@@ -124,10 +127,15 @@ battos memory recent
 battos memory search "ficha"
 battos memory save --title "..."
 battos memory stats
+battos domain create clientes --name "Clientes"
+battos project create landing-acme --name "Landing Acme" --domain clientes
+battos goal create --project landing-acme --title "Publicar landing"
+battos task create --project landing-acme --title "Preparar brief"
+battos task list --project landing-acme
 ```
 
-La CLI de v0.1 agregara recursos de trabajo/conocimiento, repositorios,
-adapters, creacion y aprobacion de runs, logs y uso.
+La CLI de v0.1 agregara los recursos de conocimiento, repositorios, adapters,
+creacion y aprobacion de runs, logs y uso.
 
 ## Documentacion
 

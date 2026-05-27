@@ -200,7 +200,7 @@ paths:
       operationId: updateDomain
       x-battos-phase: 3B
       requestBody:
-        $ref: "#/components/requestBodies/DomainInput"
+        $ref: "#/components/requestBodies/DomainPatch"
       responses:
         "200":
           $ref: "#/components/responses/DomainItem"
@@ -236,7 +236,7 @@ paths:
       operationId: updateProject
       x-battos-phase: 3B
       requestBody:
-        $ref: "#/components/requestBodies/ProjectInput"
+        $ref: "#/components/requestBodies/ProjectPatch"
       responses:
         "200":
           $ref: "#/components/responses/ProjectItem"
@@ -274,7 +274,7 @@ paths:
       operationId: updateGoal
       x-battos-phase: 3B
       requestBody:
-        $ref: "#/components/requestBodies/GoalInput"
+        $ref: "#/components/requestBodies/GoalPatch"
       responses:
         "200":
           $ref: "#/components/responses/GoalItem"
@@ -312,7 +312,7 @@ paths:
       operationId: updateTask
       x-battos-phase: 3B
       requestBody:
-        $ref: "#/components/requestBodies/TaskInput"
+        $ref: "#/components/requestBodies/TaskPatch"
       responses:
         "200":
           $ref: "#/components/responses/TaskItem"
@@ -740,24 +740,48 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/DomainInput"
+    DomainPatch:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/DomainPatch"
     ProjectInput:
       required: true
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ProjectInput"
+    ProjectPatch:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ProjectPatch"
     GoalInput:
       required: true
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/GoalInput"
+    GoalPatch:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/GoalPatch"
     TaskInput:
       required: true
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/TaskInput"
+    TaskPatch:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/TaskPatch"
   responses:
     Unauthorized:
       description: Missing or invalid BattOS admin token
@@ -987,6 +1011,13 @@ components:
           required: [id]
           properties:
             id: { type: string }
+    DomainPatch:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string }
+        status:
+          $ref: "#/components/schemas/LifecycleStatus"
     DomainList:
       type: array
       items:
@@ -1009,6 +1040,14 @@ components:
           required: [id]
           properties:
             id: { type: string }
+    ProjectPatch:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string }
+        domain_id: { type: string }
+        status:
+          $ref: "#/components/schemas/LifecycleStatus"
     ProjectList:
       type: array
       items:
@@ -1031,6 +1070,14 @@ components:
           required: [id]
           properties:
             id: { type: string }
+    GoalPatch:
+      type: object
+      properties:
+        title: { type: string }
+        description: { type: string }
+        status:
+          type: string
+          enum: [planned, active, completed, cancelled]
     GoalList:
       type: array
       items:
@@ -1044,6 +1091,11 @@ components:
         title: { type: string }
         description: { type: string }
         assigned_agent_id: { type: string }
+        board_position:
+          type: integer
+          format: int32
+          minimum: 0
+          default: 0
         status:
           type: string
           enum: [backlog, ready, in_progress, review, done, cancelled]
@@ -1055,6 +1107,20 @@ components:
           required: [id]
           properties:
             id: { type: string }
+    TaskPatch:
+      type: object
+      properties:
+        goal_id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        assigned_agent_id: { type: string }
+        board_position:
+          type: integer
+          format: int32
+          minimum: 0
+        status:
+          type: string
+          enum: [backlog, ready, in_progress, review, done, cancelled]
     TaskList:
       type: array
       items:

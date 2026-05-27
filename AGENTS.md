@@ -7,8 +7,8 @@ Instrucciones para futuras sesiones de Codex que trabajen en este repo.
 BattOS es un Mission Control agentic self-hosted que organiza trabajo,
 conocimiento y agentes, y ejecuta tareas de forma supervisada.
 
-**Estado**: v0.1.0 en construccion. Fases 0-3A cerradas; el siguiente trabajo
-es Fase 3B. La especificacion final vive en
+**Estado**: v0.1.0 en construccion. Fases 0-3A cerradas; Fase 3B tiene
+persistencia y Work Board API/CLI, y continua con Knowledge Center. La especificacion final vive en
 `docs/14-producto-final-y-roadmap.md`; el avance implementable en
 `docs/10-roadmap.md`.
 
@@ -55,6 +55,7 @@ go build ./apps/cli/cmd/battos
 cd apps/api; go run ./cmd/api
 cd apps/cli; go run ./cmd/battos status
 cd apps/cli; go run ./cmd/battos memory stats
+cd apps/cli; go run ./cmd/battos project list
 
 go test ./apps/api/... ./apps/cli/... ./packages/core/...
 
@@ -116,7 +117,7 @@ docker compose -f infra/docker-compose.yml down
 | 1 | `battos status` funcional | Completado |
 | 2 | DB + Memory Core | Completado |
 | 3A | Contratos, ADRs finales y OpenAPI | Completado |
-| 3B | Work model y Knowledge Center | En curso: persistence/sqlc |
+| 3B | Work model y Knowledge Center | En curso: Work Board API/CLI; Knowledge pendiente |
 | 4A | Runtime adapters Claude Code/Codex | Pending |
 | 4B | Runs aislados, approvals y logs | Pending |
 | 4C | Repositories, diff, commit y push | Pending |

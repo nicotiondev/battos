@@ -25,6 +25,7 @@ type Deps struct {
 	Logger *slog.Logger
 	System *handlers.SystemHandler
 	Memory *handlers.MemoryHandler
+	Work   *handlers.WorkHandler
 }
 
 // NewRouter construye el router chi con middleware base y todas las rutas.
@@ -65,6 +66,29 @@ func NewRouter(deps Deps) http.Handler {
 				r.Get("/stats", deps.Memory.Stats)
 				r.Get("/{id}", deps.Memory.GetByID)
 			})
+		}
+
+		// --- Work Board endpoints (Fase 3B) ---
+		if deps.Work != nil {
+			r.Get("/domains", deps.Work.ListDomains)
+			r.Post("/domains", deps.Work.CreateDomain)
+			r.Get("/domains/{id}", deps.Work.GetDomain)
+			r.Patch("/domains/{id}", deps.Work.UpdateDomain)
+
+			r.Get("/projects", deps.Work.ListProjects)
+			r.Post("/projects", deps.Work.CreateProject)
+			r.Get("/projects/{id}", deps.Work.GetProject)
+			r.Patch("/projects/{id}", deps.Work.UpdateProject)
+
+			r.Get("/goals", deps.Work.ListGoals)
+			r.Post("/goals", deps.Work.CreateGoal)
+			r.Get("/goals/{id}", deps.Work.GetGoal)
+			r.Patch("/goals/{id}", deps.Work.UpdateGoal)
+
+			r.Get("/tasks", deps.Work.ListTasks)
+			r.Post("/tasks", deps.Work.CreateTask)
+			r.Get("/tasks/{id}", deps.Work.GetTask)
+			r.Patch("/tasks/{id}", deps.Work.UpdateTask)
 		}
 	})
 

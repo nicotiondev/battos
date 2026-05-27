@@ -1,12 +1,12 @@
 // Package main es el entrypoint del API HTTP de BattOS.
 //
 // Responsabilidades:
-//   1. Cargar config (viper).
-//   2. Inicializar logger estructurado (slog).
-//   3. Lanzar sampler de métricas en background.
-//   4. Construir el router chi con sus dependencias.
-//   5. Levantar el HTTP server.
-//   6. Manejar shutdown graceful en SIGINT/SIGTERM.
+//  1. Cargar config (viper).
+//  2. Inicializar logger estructurado (slog).
+//  3. Lanzar sampler de métricas en background.
+//  4. Construir el router chi con sus dependencias.
+//  5. Levantar el HTTP server.
+//  6. Manejar shutdown graceful en SIGINT/SIGTERM.
 package main
 
 import (
@@ -97,11 +97,16 @@ func run() error {
 	// --- 6. Router ---
 	systemHandler := handlers.NewSystemHandler(sampler, pingDB, pingMem)
 	memoryHandler := handlers.NewMemoryHandler(memCore)
+	var workHandler *handlers.WorkHandler
+	if pgPool != nil {
+		workHandler = handlers.NewWorkHandler(store.New(pgPool))
+	}
 	router := server.NewRouter(server.Deps{
 		Config: cfg,
 		Logger: logger,
 		System: systemHandler,
 		Memory: memoryHandler,
+		Work:   workHandler,
 	})
 
 	// --- 5. HTTP server ---

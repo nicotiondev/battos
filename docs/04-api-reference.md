@@ -7,7 +7,7 @@
 Base URL en dev: `http://localhost:8000`
 Base URL en prod: configurable, normalmente detrás de Traefik/Nginx.
 
-## Endpoints disponibles actualmente (Fases 1-2)
+## Endpoints disponibles actualmente (Fases 1-3B parcial)
 
 ADR-0013 ya esta implementado en la frontera actual: `/health` y `/version`
 son publicos; `/status` y `/memory/*` pasan por middleware Bearer cuando
@@ -101,11 +101,24 @@ POST /memory/search
 }
 ```
 
+### Work Board (Fase 3B)
+
+Estos recursos requieren PostgreSQL configurado con `DATABASE_URL`. Las
+colecciones de goals y tasks se consultan por proyecto.
+
+| Endpoint | Metodo | Descripcion |
+|---|---|---|
+| `/domains`, `/domains/{id}` | GET/POST/PATCH | Areas o clientes que agrupan proyectos |
+| `/projects`, `/projects/{id}` | GET/POST/PATCH | Proyectos operables por BattOS |
+| `/goals?project_id={id}`, `/goals/{id}` | GET/POST/PATCH | Objetivos del proyecto |
+| `/tasks?project_id={id}`, `/tasks/{id}` | GET/POST/PATCH | Tareas del board |
+
+Defaults al crear: domain/project `active`, goal `planned`, task `backlog`.
+
 ## Superficies contratadas para completar v0.1
 
 | Endpoint | Fase | Descripción |
 |---|---|---|
-| `GET/POST /projects`, `/domains`, `/goals`, `/tasks` | 3B | Modelo de trabajo y board |
 | `GET/POST /agents`, `/skills`, `/providers`, `/models` | 3B | Registries; skills versionadas |
 | `GET/POST /knowledge/workspaces`, `/journals`, `/artifacts` | 3B | Knowledge Center canonico |
 | `GET /runtime-adapters`, `POST /runtime-adapters/detect` | 4A | Adapters permitidos para Claude Code/Codex |
@@ -168,6 +181,10 @@ curl http://localhost:8000/memory/stats | jq
 battos status
 battos memory stats
 battos memory search "FTS5"
+battos domain create clientes --name "Clientes"
+battos project create landing-acme --name "Landing Acme" --domain clientes
+battos task create --project landing-acme --title "Preparar brief"
+battos task list --project landing-acme
 
 # Cuando auth.mode=token:
 $env:BATTOS_API_TOKEN="<token>"; battos status
