@@ -73,4 +73,4 @@ Si v0.5 expone un terminal interactivo real (input desde el browser hacia un age
 ## Related
 
 - `docs/04-api-reference.md` — lista de endpoints SSE planeados.
-- `docs/07-frontend-architecture.md` (Fase 5) — hook `useSSE` del lado React.
+- `docs/07-frontend-architecture.md` (a crear en Fase 5) — hook `useSSE` del lado React.

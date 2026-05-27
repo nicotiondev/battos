@@ -23,7 +23,7 @@ Factores que inclinan la decisión:
 
 ## Decision
 
-**Go 1.23 + TypeScript/Next.js.**
+**Go + TypeScript/Next.js.** El workspace/API usa actualmente Go 1.25; módulos auxiliares pueden conservar una versión mínima menor mientras compilen dentro del workspace.
 
 - Backend (API + CLI + workers): Go.
 - Frontend (panel): TypeScript + Next.js 15.
@@ -84,7 +84,7 @@ Factores que inclinan la decisión:
 - `go.work` en la raíz con `apps/api`, `apps/cli`, `packages/core`, `packages/openapi` (cuando exista).
 - Cada `apps/*` es un módulo Go separado con su `go.mod`.
 - Frontend `apps/web` es un workspace npm independiente (no monorepo TS).
-- CI futuro: dos pipelines paralelos, uno Go (`go test ./...`), uno Node (`npm run build && npm run typecheck`).
+- CI futuro: dos pipelines paralelos, uno Go (`go test ./apps/api/... ./apps/cli/... ./packages/core/...`), uno Node (`npm run build && npm run typecheck`).
 
 ## Related
 

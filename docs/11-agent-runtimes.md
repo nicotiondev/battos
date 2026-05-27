@@ -18,18 +18,21 @@ Un **agent runtime** es el **motor que efectivamente ejecuta** las tareas de ese
 
 El mismo agente puede mover de runtime sin perder identidad/memoria/permisos. Esto desacopla **quién es** el agente de **cómo corre**.
 
-## Runtimes soportados (target v0.1–v0.2)
+## Runtimes soportados (roadmap final)
 
 ### `claude-code`
 **Qué es**: Claude Code CLI ejecutándose como subprocess controlado.
 **Cómo conecta BattOS**: lanza `claude` con workspace dedicado, parsea I/O, captura logs.
 **Cuándo usarlo**: trabajo de desarrollo, refactors, análisis de código, ejecución multi-step con tools.
-**v0.1**: solo detecta presencia y registra. v0.2 ejecuta con aprobación.
+**v0.1**: detecta y puede ejecutar mediante adapter aprobado, dentro de un
+contenedor efímero y con aprobación por run.
 
 ### `codex`
 **Qué es**: Codex CLI (OpenAI) ejecutándose como subprocess.
 **Cómo conecta BattOS**: idem `claude-code` pero con comando `codex`.
 **Cuándo usarlo**: generación de código, repo editing, tests.
+**v0.1**: adapter ejecutable inicial junto a `claude-code`, sujeto a los
+mismos controles de aislamiento y aprobación.
 
 ### `opencode`
 **Qué es**: OpenCode (agente local/self-hosted) como subprocess.
@@ -97,6 +100,11 @@ Al boot, BattOS corre **CLI Detector** (Fase 4) que busca:
 
 El resultado se persiste en `agent_runtimes` con `status='available'` o `'unavailable'`.
 
+Detectar un binario no equivale a autorizarlo. La ejecucion exige un adapter
+BattOS habilitado que declare comando, capabilities, captura de logs, politica
+de red y limites. Herramientas auxiliares detectadas como `docker`, `node`,
+`python` o `gh` no se vuelven agentes ejecutables automaticamente.
+
 ## UI en el panel
 
 Cuando el usuario crea un agente:
@@ -118,8 +126,8 @@ Lo que cambia: `runtime_id` + `runtime_config`.
 
 | Versión | Capacidad |
 |---|---|
-| v0.1 | Detecta runtimes + registra. NO ejecuta. |
-| v0.2 | Ejecuta `claude-code`, `codex`, `manual`. Workspace dedicado por proyecto. HITL para riesgo alto. |
-| v0.3 | Suma `mcp` y `n8n-webhook`. |
-| v0.4 | Suma `openclaw` y `hermes` (always-on, mensajería). |
+| v0.1 | Detecta runtimes y ejecuta adapters aprobados `claude-code`/`codex` en contenedor por run, con HITL, logs y Git revisable. |
+| v0.2 | Extension Platform para instalar/actualizar adapters; SDD opcional y MCP inicial. |
+| v0.3 | Adapters adicionales priorizados por uso real, connectors de delivery y Ollama/model routing. |
+| v0.4 | Suma `openclaw` y `hermes` (always-on, mensajería) bajo políticas y budgets. |
 | v0.5 | Routing dinámico: un mismo agente puede saltar de runtime según la tarea (delegado por Model Advisor). |

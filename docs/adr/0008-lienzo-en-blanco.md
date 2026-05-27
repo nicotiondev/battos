@@ -26,7 +26,7 @@ BattOS arranca **completamente vacío** en términos de contenido:
 - DB sin agentes seed.
 - DB sin skills seed.
 
-La **infraestructura** del OS sí está completa: API, panel, registries, schema, Memory Core, CLI Manager, MCP Registry, Model Advisor (stub), Usage tracker, Providers, Agent Runtimes registry, Docker, etc.
+El **objetivo de infraestructura** de v0.1 incluye API, panel, registries, schema, Memory Core, CLI Manager, MCP Registry, Model Advisor (stub), Usage tracker, Providers, Agent Runtimes registry y Docker. Al cierre de Fase 2 están listos API base, schema y Memory Core; el resto se entrega en fases posteriores.
 
 Los **templates** de los agentes que se habían escrito viven en `examples/agents/` como referencia copiable. **No se cargan al boot.**
 

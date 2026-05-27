@@ -65,7 +65,7 @@ Engram se mantiene como **referencia conceptual** — track de cambios upstream 
 
 ### Sin memoria persistente en v0.1
 - ❌ Toda la propuesta de "memoria viva del OS" se cae.
-- ❌ NovaCore (v0.3) necesita contexto del usuario; sin Memory Core arranca en cero cada vez.
+- ❌ NovaCore opcional de v0.1 y los runs supervisados necesitan contexto; sin Memory Core arrancan en cero cada vez.
 
 ### Postgres-only (sin SQLite)
 - ✅ Una sola DB.
@@ -93,3 +93,4 @@ Engram se mantiene como **referencia conceptual** — track de cambios upstream 
 - `docs/12-novacore.md` — NovaCore consume Memory Core como una de sus tools.
 - `docs/upstream/engram-sync.md` (futuro) — track de cambios upstream.
 - ADR-0001 — decisión de Go como stack principal (habilitó esta).
+- ADR-0010 — el Knowledge Workspace Markdown es complementario, no reemplaza Memory Core.

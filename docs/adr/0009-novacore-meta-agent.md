@@ -1,6 +1,6 @@
 # ADR-0009: NovaCore — agente meta que ayuda a usar BattOS
 
-- **Status**: Accepted
+- **Status**: Accepted, timeline amended by ADR-0011
 - **Fecha**: 2026-05-25
 - **Decidido por**: Nico + Claude
 
@@ -46,7 +46,7 @@ NovaCore SÍ es:
 
 - **Consume tokens** — cada conversación tiene costo. Mitigación: modelo barato por defecto (Haiku/4o-mini), budget configurable, cache de respuestas frecuentes, opción de apagarlo.
 - **Más superficie de seguridad** — un LLM con acceso a tools podría sugerir mal. Mitigación: HITL estricto, NovaCore nunca ejecuta sin confirmación, allowlist de tools acotada.
-- **Más complejidad para v0.3+** — function calling, gestión de conversaciones, contexto. Mitigación: arranca en modo "discovery-only" (lista y explica, no ejecuta) y va sumando capacidades por fase.
+- **Más complejidad para v0.1** — function calling, gestión de conversaciones, contexto. Mitigación: entra opcionalmente, con tools acotadas y toda mutación/run sujeto a confirmación.
 
 ### Neutrales
 
@@ -121,13 +121,13 @@ CREATE TABLE novacore_messages (
 
 ## Tools disponibles para NovaCore
 
-**Read-only (discovery)** — disponibles desde v0.3:
+**Read-only (discovery)** — disponibles desde v0.1:
 - `list_projects`, `list_agents`, `list_skills`, `list_runtimes`, `list_mcps`, `list_providers`
 - `get_status`, `get_health`, `detect_clis`, `test_mcp`
 - `search_memory`, `recent_memory`
 - `explain_concept` (lee docs/), `show_example`
 
-**Mutating (HITL obligatorio)** — disponibles desde v0.4:
+**Mutating (HITL obligatorio)** — disponibles desde v0.1 para recursos del OS:
 - `install_skill_from_url`
 - `install_mcp_from_url`
 - `create_project`, `create_agent`, `update_agent`
@@ -222,15 +222,14 @@ novacore:
 
 | Fase BattOS | Capacidad de NovaCore |
 |---|---|
-| **v0.1-0.2** | No existe (sistema en desarrollo) |
-| **v0.3** | Modo **discovery-only**: lista, explica, sugiere comandos. Sin ejecutar. Function calling básico. |
-| **v0.4** | **HITL ejecutivo**: puede ejecutar acciones con confirmación. Memoria conversacional. |
-| **v0.5** | **Proactivo**: avisa de novedades, alertas de budget, sugerencias. |
-| **v0.6** | **Aprende del usuario**: nota patrones, sugiere atajos personalizados. |
+| **v0.1** | Discovery + administración confirmada de recursos + propuesta de runs. No inicia runs sin aprobación. |
+| **v0.2** | Explica/gestiona extensiones y workflows SDD opcionales. |
+| **v0.3** | Diagnóstico, costo/valor y connectors aprobables. |
+| **v0.4+** | Proactivo y aprendizaje de patrones bajo policies/budgets. |
 
 ## Implementation notes
 
-- En la tabla `agents` se inserta una fila con `slug='novacore'`, `is_lead=true`, `is_meta=true` automáticamente al seed inicial (Fase 2).
+- Cuando NovaCore se implemente en `v0.1`, una migración o bootstrap idempotente insertará `slug='novacore'`, `is_lead=true`, `is_meta=true`; no forma parte del seed de Fase 2.
 - El panel detecta `is_lead=true` y renderiza la burbuja en esquina inferior derecha.
 - El CLI agrega comandos `battos ask <prompt>` y `battos chat nova` solo si NovaCore está enabled.
 - Toda interacción se loguea en `novacore_conversations` + `novacore_messages` + `executions` + `usage_events`.
@@ -241,3 +240,4 @@ novacore:
 - `docs/11-agent-runtimes.md` — runtime `direct-api` que usa NovaCore.
 - `docs/12-novacore.md` — documentación de usuario (cómo activar, configurar, usar).
 - ADR-0008 — lienzo en blanco (motiva la existencia de NovaCore).
+- ADR-0011 — adelanta NovaCore como componente opcional de ejecución supervisada.

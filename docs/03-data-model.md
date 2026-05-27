@@ -1,6 +1,8 @@
 # 03 — Modelo de datos
 
-> Schema completo de BattOS v0.1. Migración: `apps/api/migrations/0001_init.sql`.
+> Schema base implementado al cierre de Fase 2: `apps/api/migrations/0001_init.sql`.
+> El alcance final de `v0.1` agrega migraciones append-only para work model,
+> knowledge, repositories, runs, approvals, chats y extensiones.
 
 ## Dos bases de datos
 
@@ -59,7 +61,7 @@ is_lead           BOOLEAN                        -- NovaCore = true
 is_meta           BOOLEAN                        -- opera el OS, no proyectos
 ```
 
-`is_lead`/`is_meta` permiten que NovaCore (cuando se sume en v0.3) viva en la misma tabla que los demás agentes.
+`is_lead`/`is_meta` permiten que NovaCore (opcional desde `v0.1` segun ADR-0011) viva en la misma tabla que los demás agentes.
 
 ### 6. `skill_sources` + `skills`
 
@@ -94,6 +96,23 @@ Detector encontró nueva CLI, MCP cambió de estado, Memory Core corrupted, etc.
 
 Sesiones de chat con NovaCore (`is_lead=true`). Track de tokens/costo por conversación para budget enforcement.
 
+## Tablas Planeadas Para Completar v0.1
+
+Las siguientes tablas no existen todavía en la migración base y se agregarán
+sin editar `0001_init.sql`:
+
+| Area | Tablas / conceptos | Proposito |
+|---|---|---|
+| Work model | `domains`, `goals`, `tasks` | Planificar y visualizar trabajo/Kanban |
+| Knowledge | `knowledge_workspaces`, `journals`, `artifacts` | Contexto y outputs administrados por BattOS |
+| Repositories | `repositories`, `repository_credentials` por referencia segura | Repo local gestionado o GitHub autorizado |
+| Execution | `runs`, `run_approvals`, `run_logs`, `run_artifacts` | Contenedor, red, approvals, logs, diff y resultado |
+| Extensibility | `runtime_adapters` y metadata de skill registry | Adapters versionados y capabilities desde v0.1 |
+
+`executions`/`usage_events` existentes pueden evolucionar o relacionarse con
+`runs`; la decisión final se tomará al diseñar la migración y OpenAPI de Fase
+3A, sin perder datos existentes.
+
 ## Convenciones
 
 - **IDs como TEXT** en tablas user-facing (slug-friendly, leíbles en URLs y CLI).
@@ -113,7 +132,7 @@ Ciclo de cambio:
 edit migrations/000N.sql   ← agregar columna/tabla
 edit queries/*.sql         ← agregar query nueva
 sqlc generate              ← regenera internal/store/
-go build ./...             ← verifica que compila
+go test ./apps/api/... ./apps/cli/... ./packages/core/...  ← verifica workspace
 ```
 
 Razones: `docs/adr/0005-sqlc-vs-orm.md`.

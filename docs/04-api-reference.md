@@ -5,7 +5,7 @@
 Base URL en dev: `http://localhost:8000`
 Base URL en prod: configurable, normalmente detrás de Traefik/Nginx.
 
-## Endpoints disponibles (v0.1)
+## Endpoints disponibles actualmente (Fases 1-2)
 
 ### `GET /health`
 Latido simple. Pensado para load balancers y healthchecks de Docker.
@@ -29,7 +29,7 @@ Response 200:
   "version": "v0.1.0-alpha",
   "commit": "dev",
   "build_date": "unknown",
-  "go_version": "go1.26.3"
+  "go_version": "go1.25.x"
 }
 ```
 
@@ -47,13 +47,13 @@ Devuelve:
 Response 200:
 ```json
 {
-  "version": { "version": "v0.1.0-alpha", "commit": "dev", "build_date": "unknown", "go_version": "go1.26.3" },
+  "version": { "version": "v0.1.0-alpha", "commit": "dev", "build_date": "unknown", "go_version": "go1.25.x" },
   "overall": "ok",
   "subsystems": [
     { "name": "config", "status": "ok", "detail": "battos.yaml cargado" },
     { "name": "sysmetrics", "status": "ok" },
-    { "name": "database", "status": "unknown", "detail": "Fase 2" },
-    { "name": "memory", "status": "unknown", "detail": "Fase 2" }
+    { "name": "database", "status": "unknown", "detail": "no inicializado" },
+    { "name": "memory", "status": "ok", "detail": "SQLite + FTS5 listo", "latency_ms": 0 }
   ],
   "metrics": {
     "cpu_percent": 54.1,
@@ -72,22 +72,43 @@ Response 200:
 - Si algún subsistema está `degraded` → overall = `degraded`.
 - `unknown` (subsistema no implementado todavía) se ignora.
 
-## Endpoints planeados (Fase 2+)
+Si `DATABASE_URL` no está definido, `database` se informa como `unknown`; Memory Core funciona de forma independiente.
+
+### Memory Core (Fase 2)
+
+| Endpoint | Método | Descripción |
+|---|---|---|
+| `/memory/recent?limit=20` | GET | Últimas observaciones |
+| `/memory/search` | POST | Búsqueda FTS5 y filtros; con `query` vacío lista aplicando filtros |
+| `/memory/save` | POST | Inserta una observación o actualiza por `topic_key` |
+| `/memory/stats` | GET | Contadores agregados |
+| `/memory/{id}` | GET | Recupera una observación o responde 404 |
+
+Ejemplo:
+```json
+POST /memory/search
+{
+  "query": "FTS5",
+  "filter": { "project_id": "battos", "type": "decision" },
+  "limit": 10
+}
+```
+
+## Superficies planeadas para completar v0.1
 
 | Endpoint | Fase | Descripción |
 |---|---|---|
-| `GET /projects`, `POST /projects`, ... | 3 | Project registry |
-| `GET /agents`, `POST /agents`, ... | 3 | Agent registry |
-| `GET /agent-runtimes` | 3 | Runtimes disponibles |
-| `GET /skills`, `POST /skills` | 3 | Skill registry |
-| `GET /providers` | 3 | Status de providers (configured/not_configured) |
-| `GET /models` | 3 | Registry de modelos |
-| `GET /cli/tools`, `POST /cli/detect` | 4 | CLI Manager |
-| `GET /connections` (MCP) | 3 | MCP Registry |
-| `GET /memory/recent`, `POST /memory/search`, `POST /memory/save` | 3 | Memory Core |
-| `GET /usage/overview`, `GET /usage/providers/{id}` | 3 | Usage tracker (stub) |
-| `GET /events/system-metrics` (SSE) | 5 | Stream CPU/MEM/NET para dashboard |
-| `GET /events/logs` (SSE) | 5 | Stream del terminal del Command Center |
+| `GET/POST /projects`, `/domains`, `/goals`, `/tasks` | 3B | Modelo de trabajo y board |
+| `GET/POST /agents`, `/skills`, `/providers`, `/models` | 3B | Registries; skills versionadas |
+| `GET/POST /knowledge/workspaces`, `/journals`, `/artifacts` | 3B | Knowledge Center canonico |
+| `GET /runtime-adapters`, `POST /runtime-adapters/detect` | 4A | Adapters permitidos para Claude Code/Codex |
+| `GET/POST /repositories` | 4C | Git local gestionado o GitHub autorizado |
+| `POST /runs`, `POST /runs/{id}/approve`, `POST /runs/{id}/cancel` | 4B | Ejecucion supervisada |
+| `POST /runs/{id}/network`, `/commit`, `/push` | 4B/4C | Aprobaciones y acciones auditadas |
+| `GET /runs/{id}/logs`, `/artifacts`, `/diff` | 4B/4C | Resultado del run |
+| `POST /novacore/chat` | 5A | Chat opcional; propone acciones/runs |
+| `GET /usage/overview`, `GET /usage/runs/{id}` | 5B | Tokens/costo exacto, estimado o no reportado |
+| `GET /events/system-metrics`, `/events/runs/{id}` (SSE) | 5B | Streams del dashboard |
 
 ## Convenciones
 
@@ -104,7 +125,7 @@ Todos los errores devuelven JSON con esta forma:
 ```
 
 ### Headers comunes
-- `X-Request-Id`: agregado por middleware en todas las responses; útil para correlar con logs estructurados del API.
+- `X-Request-Id`: aceptado o generado durante el request y registrado en los logs estructurados del API.
 - `Content-Type: application/json; charset=utf-8` en respuestas exitosas.
 
 ### CORS
@@ -128,11 +149,14 @@ Orden de ejecución (de afuera hacia adentro):
 curl http://localhost:8000/health
 curl http://localhost:8000/version
 curl http://localhost:8000/status | jq
+curl http://localhost:8000/memory/stats | jq
 ```
 
 ### Con el CLI
 ```bash
 battos status
+battos memory stats
+battos memory search "FTS5"
 ```
 
 ### Desde el frontend (Fase 5)

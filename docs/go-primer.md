@@ -131,7 +131,7 @@ Los tags `json:"..."` controlan cómo se serializa. `encoding/json` de la stdlib
 
 ```bash
 go build ./...           # compila todo
-go test ./...            # tests recursivos
+go test ./apps/api/... ./apps/cli/... ./packages/core/...  # módulos del workspace
 go run ./cmd/api         # corre el binario sin instalar
 go install ./apps/cli/cmd/battos  # instala el binario en $GOBIN
 go vet ./...             # linter básico stdlib

@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -55,16 +56,16 @@ const (
 // Equivalente conceptual al "observation" de Engram + campos extra que
 // BattOS necesita (project_id, agent_id, scope).
 type Observation struct {
-	ID         int64           `json:"id"`
-	Type       ObservationType `json:"type"`
-	Title      string          `json:"title"`
-	Content    string          `json:"content"`
-	TopicKey   string          `json:"topic_key,omitempty"` // upsert key
-	ProjectID  string          `json:"project_id,omitempty"`
-	AgentID    string          `json:"agent_id,omitempty"`
-	Scope      Scope           `json:"scope"`
-	CreatedAt  time.Time       `json:"created_at"`
-	UpdatedAt  time.Time       `json:"updated_at"`
+	ID        int64           `json:"id"`
+	Type      ObservationType `json:"type"`
+	Title     string          `json:"title"`
+	Content   string          `json:"content"`
+	TopicKey  string          `json:"topic_key,omitempty"` // upsert key
+	ProjectID string          `json:"project_id,omitempty"`
+	AgentID   string          `json:"agent_id,omitempty"`
+	Scope     Scope           `json:"scope"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
 }
 
 // SearchResult es una Observation con un score de relevancia.
@@ -98,10 +99,11 @@ func Open(dbPath string) (*Core, error) {
 		return nil, errors.New("memory: db_path vacío")
 	}
 
-	// Asegurar que el directorio existe.
+	// Asegurar que una instalación limpia pueda crear el archivo SQLite.
 	if dir := filepath.Dir(dbPath); dir != "." && dir != "" {
-		// No usamos os.MkdirAll acá para no traer otra dependencia;
-		// el caller (config/sysmetrics) ya creó data/memory/ al boot.
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return nil, fmt.Errorf("memory: creando directorio: %w", err)
+		}
 	}
 
 	// modernc.org/sqlite usa el nombre "sqlite" (no "sqlite3").
@@ -291,8 +293,8 @@ func (c *Core) Search(ctx context.Context, query string, filter SearchFilter) ([
 
 	query = strings.TrimSpace(query)
 	if query == "" {
-		// Sin query → fallback a Recent con filtros.
-		obs, err := c.Recent(ctx, filter.Limit)
+		// Sin texto, mantener la semántica de filtro para listados acotados.
+		obs, err := c.recentFiltered(ctx, filter)
 		if err != nil {
 			return nil, err
 		}
@@ -362,6 +364,47 @@ func (c *Core) Search(ctx context.Context, query string, filter SearchFilter) ([
 		results = append(results, r)
 	}
 	return results, rows.Err()
+}
+
+// recentFiltered devuelve observaciones recientes aplicando los mismos filtros de Search.
+func (c *Core) recentFiltered(ctx context.Context, filter SearchFilter) ([]Observation, error) {
+	var conditions []string
+	var args []any
+
+	if filter.Type != "" {
+		conditions = append(conditions, "type = ?")
+		args = append(args, filter.Type)
+	}
+	if filter.ProjectID != "" {
+		conditions = append(conditions, "project_id = ?")
+		args = append(args, filter.ProjectID)
+	}
+	if filter.AgentID != "" {
+		conditions = append(conditions, "agent_id = ?")
+		args = append(args, filter.AgentID)
+	}
+	if filter.Scope != "" {
+		conditions = append(conditions, "scope = ?")
+		args = append(args, filter.Scope)
+	}
+
+	sqlStr := `
+		SELECT id, type, title, content,
+		       COALESCE(topic_key, ''), COALESCE(project_id, ''), COALESCE(agent_id, ''),
+		       scope, created_at, updated_at
+		FROM memory_items`
+	if len(conditions) > 0 {
+		sqlStr += "\n\t\tWHERE " + strings.Join(conditions, " AND ")
+	}
+	sqlStr += "\n\t\tORDER BY created_at DESC, id DESC\n\t\tLIMIT ?"
+	args = append(args, filter.Limit)
+
+	rows, err := c.db.QueryContext(ctx, sqlStr, args...)
+	if err != nil {
+		return nil, fmt.Errorf("memory: filtered recent: %w", err)
+	}
+	defer rows.Close()
+	return scanObservations(rows)
 }
 
 // Stats devuelve un snapshot de uso del Memory Core.

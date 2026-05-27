@@ -1,6 +1,7 @@
 # 12 — NovaCore (Asistente del OS)
 
-> **Estado**: Diseñado en Fase 0. Implementado a partir de v0.3.
+> **Estado**: Diseñado. En el roadmap final entra como componente opcional de
+> `v0.1`, sujeto a provider configurado, budgets y confirmación humana.
 
 ## Qué es NovaCore
 
@@ -10,6 +11,10 @@ lo que necesitás, diagnostica problemas y guía el onboarding.
 
 NovaCore **no** opera tus proyectos. Para eso están los agentes que vos creás
 (Zeus, Builder, Iris, etc.). NovaCore **opera el OS**.
+
+En `v0.1`, NovaCore puede convertir una intención en proyecto/goal/task y
+proponer un run para un agente ejecutor. El trabajo de código lo realiza el
+runtime del agente (por ejemplo Claude Code o Codex), no NovaCore.
 
 ## Cómo aparece en el mockup
 
@@ -113,7 +118,10 @@ conversacional.
 
 ## Costo
 
-NovaCore es la única parte de BattOS que **consume tokens de un LLM externo**.
+NovaCore consume tokens del proveedor configurado. Los agents ejecutores
+también pueden consumir tokens o créditos mediante su runtime; BattOS muestra
+ese consumo como exacto, estimado o no reportado según la información que
+entregue el adapter.
 
 Con Claude Haiku 4.5 y uso moderado (~50 mensajes/día), el costo estimado es:
 
@@ -143,7 +151,10 @@ El budget config corta automáticamente cuando se excede el límite diario/mensu
 
 ## Roadmap
 
-- **v0.3** — Modo discovery-only (lista, explica, sugiere; no ejecuta).
-- **v0.4** — HITL ejecutivo (ejecuta con confirmación).
-- **v0.5** — Proactivo (avisos, alertas).
-- **v0.6** — Aprende patrones del usuario y sugiere atajos personalizados.
+- **v0.1** — Chat opcional: lista, explica, crea/edita recursos con
+  confirmación y propone runs; nunca los inicia sin aprobación.
+- **v0.2** — Integra Extension Platform y workflows SDD opcionales.
+- **v0.3** — Recomendaciones de costo/valor, connectors y diagnóstico más
+  profundo.
+- **v0.4+** — Proactivo y aprendizaje de patrones, siempre gobernado por
+  policies y budgets.

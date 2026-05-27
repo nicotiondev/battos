@@ -27,8 +27,8 @@ var (
 			Foreground(lipgloss.Color("#6B7280")) // gris
 
 	styleOK = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#10B981")).
-			Bold(true)
+		Foreground(lipgloss.Color("#10B981")).
+		Bold(true)
 
 	styleDegraded = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#F59E0B")).
@@ -78,9 +78,7 @@ Es el comando para validar que el API está corriendo y respondiendo.`,
 }
 
 func printStatus(s *client.StatusResponse) {
-	fmt.Println()
-	fmt.Println(styleHeader.Render("BattOS Command Center"))
-	fmt.Println()
+	PrintBanner("COMMAND CENTER")
 
 	// --- Versión ---
 	fmt.Println(styleSubtle.Render("VERSION"))

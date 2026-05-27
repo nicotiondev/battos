@@ -40,6 +40,10 @@ func newRootCmd() *cobra.Command {
 		Version:       fmt.Sprintf("%s (commit %s)", version, commit),
 		SilenceUsage:  true,
 		SilenceErrors: false,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			commands.PrintBanner("CLI")
+			return cmd.Help()
+		},
 	}
 
 	// Flag global: URL del API. Por defecto localhost, override con --api o BATTOS_API_URL.

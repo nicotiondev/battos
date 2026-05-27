@@ -57,10 +57,11 @@ func newMemoryRecentCmd(getClient func() *client.Client) *cobra.Command {
 				return err
 			}
 			if resp.Count == 0 {
+				PrintBanner("MEMORY CORE")
 				fmt.Println(styleSubtle.Render("(memoria vacía)"))
 				return nil
 			}
-			fmt.Println()
+			PrintBanner("MEMORY CORE")
 			fmt.Println(styleHeader.Render(fmt.Sprintf("Últimas %d observaciones", resp.Count)))
 			fmt.Println()
 			for _, it := range resp.Items {
@@ -111,7 +112,7 @@ func newMemorySearchCmd(getClient func() *client.Client) *cobra.Command {
 			if err := postJSON(ctx, c, "/memory/search", body, &resp); err != nil {
 				return err
 			}
-			fmt.Println()
+			PrintBanner("MEMORY CORE")
 			fmt.Println(styleHeader.Render(fmt.Sprintf("%d resultados para %q", resp.Count, query)))
 			fmt.Println()
 			if resp.Count == 0 {
@@ -171,7 +172,7 @@ func newMemorySaveCmd(getClient func() *client.Client) *cobra.Command {
 			if err := postJSON(ctx, c, "/memory/save", body, &saved); err != nil {
 				return err
 			}
-			fmt.Println()
+			PrintBanner("MEMORY CORE")
 			fmt.Println(styleOK.Render(fmt.Sprintf("✓ Observación guardada (id %d)", saved.ID)))
 			printMemoryItem(saved, 0)
 			return nil
@@ -208,7 +209,7 @@ func newMemoryStatsCmd(getClient func() *client.Client) *cobra.Command {
 			if err := getJSON(ctx, c, "/memory/stats", &s); err != nil {
 				return err
 			}
-			fmt.Println()
+			PrintBanner("MEMORY CORE")
 			fmt.Println(styleHeader.Render("Memory Core Stats"))
 			fmt.Println()
 			printKV("Total items", fmt.Sprintf("%d", s.TotalItems))

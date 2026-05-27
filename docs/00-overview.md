@@ -1,87 +1,79 @@
-# 00 — Overview
+# 00 - Overview
 
-## Qué es BattOS
+## Que es BattOS
 
-BattOS es una **capa agentic self-hosted** instalable sobre Linux/VPS (o Windows local en dev) que administra desde un único panel:
+BattOS es un **Mission Control agentic self-hosted** para organizar trabajo y
+ejecutar agentes de forma supervisada desde un panel y una CLI.
 
-- Proyectos
-- Agentes de IA
-- Skills (procesos reutilizables)
-- Modelos y proveedores LLM
-- Memoria persistente
-- Conexiones MCP
-- Herramientas CLI externas (Claude Code, Codex, OpenCode, Gemini CLI, GitHub CLI, etc.)
-- Workflows (n8n y otros)
-- Logs de ejecución y auditoría
+Administra:
 
-## Qué NO es
+- Dominios, proyectos, objetivos y tareas.
+- Agentes, skills versionadas, modelos, proveedores y conexiones MCP.
+- Repositorios Git autorizados y artefactos producidos.
+- Memory Core persistente, journals y Knowledge Center.
+- Runs de agentes aprobados, logs, uso, costos y auditoria.
 
-- **No es un chatbot.** Es una capa de orquestación.
-- **No reemplaza** Notion, Obsidian, n8n, Claude Code, Codex, EasyPanel ni GitHub. Los **conecta**.
-- **No es un agente único.** Es un sistema operativo que orquesta agentes especializados.
+BattOS no reemplaza Linux, Docker, GitHub, Claude Code, Codex, Obsidian ni
+n8n. Los integra bajo una capa de control con permisos y trazabilidad.
+
+## Que podras hacer en v0.1
+
+Ejemplo: desde el dashboard eliges un proyecto de un cliente, creas la tarea
+"landing page", adjuntas referencias, eliges un agente que use Claude Code o
+Codex y apruebas la ejecucion. BattOS abre un contenedor efimero para ese run,
+muestra logs y consumo, conserva outputs y diff, y te pide aprobacion separada
+antes de hacer commit o push.
+
+Tambien podras:
+
+- Usar NovaCore para convertir una idea en proyecto, objetivo, tareas o una
+  propuesta de run; nunca ejecuta sin confirmacion.
+- Navegar un Work Board con objetivos y tareas.
+- Consultar memoria, journals, documentos y outputs desde Knowledge Center.
+- Trabajar por web o por `battos` CLI.
 
 ## Tesis central
 
-> Usar el agente correcto, con la skill correcta, el modelo correcto, la memoria correcta y la herramienta correcta, para cada proyecto.
+> Usar el agente correcto, con el contexto, skill, modelo, memoria y permiso
+> correctos, para cada tarea.
 
 ```text
-Linux administra la máquina.
-Docker administra contenedores.
-EasyPanel/Coolify administran apps.
-BattOS administra inteligencia, agentes, proyectos, memoria, modelos y ejecución.
+Linux administra la maquina.
+Docker aisla la ejecucion.
+Git conserva el trabajo.
+BattOS administra objetivos, agentes, memoria, ejecucion y aprobaciones.
 ```
 
-## Flujo operativo
+## Flujo operativo de v0.1
 
 ```text
-Solicitud del usuario
-   ↓
-Clasificación de tarea (proyecto + tipo)
-   ↓
-Selección de agente
-   ↓
-Selección de skill
-   ↓
-Model Advisor (qué modelo usar y por qué)
-   ↓
-Selección de herramienta (CLI / MCP / workflow n8n)
-   ↓
-Ejecución con permisos controlados
-   ↓
-Logs + memoria + métricas
-   ↓
-Aprendizaje del router
+Idea o tarea del usuario
+  -> proyecto / objetivo / tarea
+  -> agente + skill + runtime aprobado (Claude Code o Codex)
+  -> confirmacion humana
+  -> run en contenedor efimero, red apagada por defecto
+  -> logs SSE + memoria + artefactos + uso
+  -> revision de diff
+  -> aprobacion opcional de commit y push
 ```
 
-## Lienzo en blanco
+## Persistencia y conocimiento
 
-BattOS arranca **vacío** en cuanto a contenido. El usuario crea:
+- PostgreSQL es la fuente de verdad operacional para recursos, runs y
+  aprobaciones.
+- SQLite + FTS5 es el Memory Core propio, inspirado en Engram pero integrado a
+  BattOS.
+- El filesystem administrado guarda repositorios, artefactos y journals.
+- Desde v0.2, un export Markdown opcional permite abrir Knowledge Workspace en
+  Obsidian sin convertirlo en dependencia ni base principal.
 
-- Sus **proyectos** (contenedores de contexto).
-- Sus **agentes**, eligiendo el **runtime** que los ejecuta (Claude Code CLI, Codex, OpenCode, OpenClaw, Hermes Agent, MCP, n8n-webhook, manual…).
-- Sus **skills**, cuando una tarea se repite.
-- Sus **conexiones MCP**.
+## Runtimes y extensibilidad
 
-Las **plantillas de agentes** del ecosistema personal del autor (Zeus CEO, Iris Research, Midas, etc.) viven en `examples/agents/` como referencia copiable, no como seeds.
+En v0.1 solamente se ejecutan adapters aprobados para `claude-code` y
+`codex`. Detectar una herramienta instalada no la autoriza a ejecutar.
+Versiones posteriores agregan Extension Platform con manifests, instalacion,
+actualizacion, desactivacion y rollback; despues podran entrar mas adapters,
+MCP avanzado, n8n, Ollama o despliegues aprobados.
 
-Ver `docs/adr/0008-lienzo-en-blanco.md` y `docs/11-agent-runtimes.md`.
-
-## Agent Runtimes (la pieza clave)
-
-BattOS no implementa agentes — los **enruta** a runtimes externos. Un agente en BattOS es identidad + permisos + skills + scope, y un campo `runtime_id` decide quién lo ejecuta:
-
-| Runtime | Cómo se ejecuta |
-|---|---|
-| `claude-code` | Subprocess de Claude Code CLI |
-| `codex` | Subprocess de Codex CLI |
-| `opencode` | Subprocess de OpenCode |
-| `gemini-cli` | Subprocess de Gemini CLI |
-| `openclaw` | HTTP a gateway OpenClaw |
-| `hermes` | HTTP a runtime Hermes |
-| `mcp` | Cliente MCP a server externo |
-| `n8n-webhook` | POST a workflow n8n |
-| `manual` | Sin automation; ejecución a mano |
-
-## Fuente conceptual completa
-
-El documento maestro original (4310 líneas) vive en `G:\Mi unidad\BattOS\battOS.md`. Este repo es la implementación parcial de esa visión, comenzando por v0.1.
+La especificacion vigente esta en `docs/14-producto-final-y-roadmap.md` y el
+trabajo de implementacion en `docs/10-roadmap.md`.

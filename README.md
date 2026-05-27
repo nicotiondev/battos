@@ -1,179 +1,141 @@
 # BattOS
 
-> **AI Operating System** self-hosted para administrar proyectos, agentes, skills, modelos, memoria, MCP, herramientas CLI, workflows y logs desde un único panel.
+> **Mission Control agentic self-hosted** para administrar proyectos, agentes,
+> skills, memoria, conocimiento, modelos y ejecuciones desde dashboard y CLI.
 
-BattOS no reemplaza Linux, Docker, n8n, Notion, Obsidian, Claude Code, Codex ni OpenCode. **Los orquesta**.
+BattOS no reemplaza Linux, Docker, GitHub, Claude Code, Codex, Obsidian ni
+n8n. Los orquesta con contexto, permisos, persistencia y auditoria.
 
 ```text
-Linux administra la máquina.
-Docker administra contenedores.
-EasyPanel/Coolify administran apps.
-BattOS administra inteligencia, agentes, proyectos, memoria, modelos y ejecución.
+Linux administra la maquina.
+Docker aisla los runs.
+Git conserva los cambios.
+BattOS administra trabajo, agentes, memoria, ejecucion y aprobaciones.
 ```
-
----
 
 ## Estado actual
 
-**v0.1.0 — en construcción** (Fase 0: bootstrap completado).
+**v0.1.0 - en construccion.** Las Fases 0, 1 y 2 estan completadas. La
+siguiente etapa desarrolla los contratos y el modelo de producto del roadmap
+definitivo.
 
-Lo que **sí** entra en v0.1:
-- Panel web con dashboard tipo Command Center (lectura).
-- API Go con registries de projects/agents/skills/providers/models/MCPs **(arrancan vacíos)**.
-- CLI `battos` con `status`, `project list/create`, `agent list/create`, `skill list/create`, `cli detect`, etc.
-- Memory Core propio (SQLite + FTS5) embebido en el API.
-- Detección de CLIs externas y MCP servers configurados → registry de **Agent Runtimes**.
-- Schema completo en Postgres + migraciones. **DB arranca vacía.**
-- Docker Compose para levantar todo.
+Implementado actualmente:
 
-BattOS arranca como **lienzo en blanco**: vos creás los agentes, proyectos, skills y conexiones desde el panel/CLI. Los agentes se enrutan a runtimes externos (Claude Code, Codex, OpenClaw, Hermes, MCP, etc.) — BattOS no los reimplementa, los orquesta.
+- API Go con `GET /health`, `GET /version` y `GET /status`.
+- CLI `battos status`.
+- Schema PostgreSQL inicial y queries tipadas con sqlc.
+- Memory Core propio (SQLite + FTS5) con HTTP y CLI: `recent`, `search`,
+  `save`, `stats`.
 
-A partir de **v0.3** se incorpora **NovaCore**, un asistente conversacional integrado que te ayuda a usar el OS (sugiere comandos, recomienda skills/runtimes/MCPs, diagnostica problemas, guía el onboarding). Ver [docs/12-novacore.md](docs/12-novacore.md).
+Objetivo final de **v0.1**:
 
-Lo que **no** entra en v0.1 (va para v0.2):
-- Ejecución de tareas / llamadas a LLM / workers.
-- Model Advisor con políticas reales (solo placeholder).
-- Usage tracking real (solo schema).
-- MCP server propio expuesto.
-- Aprobación humana (HITL).
+- Modelo de trabajo: domains, projects, goals, tasks y board.
+- Knowledge Center: journals, artefactos y previews administrados.
+- Agentes y skills versionadas con adapters iniciales para Claude Code y
+  Codex.
+- Runs aprobados en contenedores efimeros, con logs, consumo, diff y
+  artefactos.
+- Repositorios Git locales gestionados o GitHub autorizado; commit y push con
+  aprobaciones separadas.
+- NovaCore opcional para conversar con el OS, organizar trabajo y proponer
+  runs.
+- Dashboard completo: Command Center, Work Board, Control Room y Knowledge
+  Center.
 
-Ver [docs/10-roadmap.md](docs/10-roadmap.md) para detalle.
+Un ejemplo: creas un proyecto para un cliente, adjuntas un diseno, pides una
+landing page, eliges un agente Claude Code o Codex y apruebas el run. BattOS
+lo ejecuta en un contenedor, muestra logs y consumo, guarda la entrega y te
+presenta el diff antes de autorizar commit o push.
 
----
+Ver [producto final](docs/14-producto-final-y-roadmap.md) y
+[roadmap operativo](docs/10-roadmap.md).
+
+## Alcance posterior
+
+| Version | Alcance principal |
+|---|---|
+| v0.2 | Extension Platform con manifests/rollback, export Markdown para Obsidian, Memory export/import, SDD y pull requests aprobados |
+| v0.3 | Deployment connectors aprobados, mas adapters, Ollama/routing y metricas de valor |
+| v0.4+ | Hermes/OpenClaw, Goal Mode limitado y automatizacion avanzada con guardrails |
+
+No entra en v0.1: deploy automatico, ejecucion arbitraria sobre el host,
+sincronizacion bidireccional con Obsidian, autonomia indefinida ni instalacion
+general de plugins.
+
+## Persistencia y seguridad
+
+| Necesidad | Solucion |
+|---|---|
+| Recursos, runs, approvals, usage y auditoria | PostgreSQL 16 |
+| Memoria persistente buscable | SQLite + FTS5, Memory Core propio |
+| Repositorios, journals, artefactos y snapshots | Filesystem gestionado |
+| Historial entregable del codigo | Git/GitHub con aprobacion |
+| Lectura humana en Obsidian | Export Markdown opcional desde v0.2 |
+
+Los runs solo se abren mediante adapters aprobados (`claude-code` y `codex`
+en v0.1), dentro de un contenedor efimero. La red esta apagada por defecto y
+su activacion queda visible y auditada. Secretos no se imprimen ni se guardan
+como texto plano; commit y push requieren confirmaciones independientes.
 
 ## Stack
 
-| Capa | Tecnología |
+| Capa | Tecnologia |
 |---|---|
-| API + workers + CLI | Go 1.23 |
-| Router | chi |
-| ORM | sqlc (genera Go tipado desde SQL) |
-| DB principal | PostgreSQL 16 |
-| Memory Core | SQLite + FTS5 (modernc.org/sqlite, puro Go, sin CGo) |
-| Migraciones | goose |
-| Realtime | SSE (Server-Sent Events) |
-| Config | viper + YAML |
-| CLI | cobra + lipgloss |
-| Frontend | Next.js 15 + TypeScript + Tailwind + shadcn/ui + Tremor |
-| Tipos compartidos | oapi-codegen (desde OpenAPI) |
-| Deploy | Docker Compose + binario único `battos` |
+| API, worker y CLI | Go |
+| Router / config / CLI | chi, viper, cobra |
+| DB principal / migraciones | PostgreSQL 16, sqlc, goose |
+| Memory Core | SQLite + FTS5 (`modernc.org/sqlite`) |
+| Streaming | SSE |
+| Contratos | OpenAPI + oapi-codegen |
+| Frontend | Next.js 15 + TypeScript + shadcn/ui + Tremor |
+| Aislamiento de runs | Docker container por ejecucion |
 
-Detalle y razones en [docs/02-stack-decisions.md](docs/02-stack-decisions.md) y los ADRs en [docs/adr/](docs/adr/).
-
----
-
-## Quickstart (cuando v0.1 esté lista)
+## Quickstart actual
 
 ```powershell
-git clone https://github.com/nicotion/battos.git
-cd battos
+# Terminal 1: API; Memory Core funciona aunque Postgres no este configurado.
+go run ./apps/api/cmd/api
 
-# Configurar
-cp infra/.env.example infra/.env
-# editar .env con POSTGRES_PASSWORD y BATTOS_SECRET_KEY
+# Terminal 2: estado y memoria
+go run ./apps/cli/cmd/battos status
+go run ./apps/cli/cmd/battos memory stats
 
-# Levantar todo
-docker compose -f infra/docker-compose.yml up -d
-
-# Seed inicial
-./scripts/seed.ps1
-
-# Verificar
-.\scripts\build-cli.ps1   # compila battos.exe
-.\bin\battos status
+# Verificacion disponible
+go test ./apps/api/... ./apps/cli/... ./packages/core/...
 ```
 
-Esperado:
-```text
-BattOS Core: running
-API: running
-Database: connected
-Memory: connected
-CLIs detected: claude, codex, gh, docker, node
-Providers configured: OpenAI, Anthropic
-```
+## CLI disponible
 
-Abrir el panel: http://localhost:3000
-
----
-
-## Estructura del repo
-
-```
-battos/
-├─ apps/
-│  ├─ api/         # Backend Go (chi + sqlc + SSE)
-│  ├─ cli/         # Binario `battos` (cobra)
-│  └─ web/         # Next.js dashboard
-├─ packages/
-│  ├─ core/        # Tipos compartidos Go
-│  └─ openapi/     # openapi.yaml + tipos generados
-├─ agents/         # Markdown de los 9 agentes iniciales
-├─ skills/         # Markdown de las 7 skills iniciales
-├─ config/         # battos.yaml, providers.yaml, models.yaml, ...
-├─ docs/           # Documentación viva + ADRs
-├─ infra/          # docker-compose, Dockerfiles, .env.example
-├─ scripts/        # PowerShell helpers (dev-up, seed, generate)
-└─ data/           # DBs locales, logs, workspaces
-```
-
----
-
-## CLI principal (cuando esté lista)
+La terminal usa un `ASCII wordmark` propio de BattOS y la firma
+`Desarrollado por [ N ] Nicotion.dev` como cabecera visual en los comandos
+principales.
 
 ```bash
-battos status                    # estado general del OS
-battos runtime list              # runtimes de agentes disponibles
-battos project create <slug>     # crear un proyecto
-battos project list              # listar proyectos
-battos agent create <slug> \     # crear un agente apuntando a un runtime
-  --runtime claude-code
-battos agent list                # listar agentes
-battos skill create <slug>       # crear skill
-battos skill list                # listar skills
-battos cli detect                # detectar CLIs instaladas
-battos cli list                  # listar CLIs registradas
-battos mcp list                  # listar conexiones MCP
-battos memory recent             # últimas memorias guardadas
-battos memory search "ficha"     # búsqueda FTS
-battos usage status              # uso de tokens/budget (placeholder en v0.1)
+battos status
+battos memory recent
+battos memory search "ficha"
+battos memory save --title "..."
+battos memory stats
 ```
 
----
+La CLI de v0.1 agregara recursos de trabajo/conocimiento, repositorios,
+adapters, creacion y aprobacion de runs, logs y uso.
 
-## Principios de seguridad
-
-- Ningún secreto en texto plano (todos vienen de env vars).
-- Sin ejecución de CLIs externas todavía (`ALLOW_CLI_EXECUTION=false` por defecto).
-- Sin llamadas a APIs LLM en v0.1 (solo registro de providers).
-- Todo evento queda en logs JSONL.
-- Las API keys solo se validan por presencia, nunca se loguean.
-
-Detalle en [docs/09-security.md](docs/09-security.md).
-
----
-
-## Documentación
+## Documentacion
 
 | Doc | Contenido |
 |---|---|
-| [00-overview.md](docs/00-overview.md) | Visión general |
-| [01-architecture.md](docs/01-architecture.md) | Arquitectura por capas |
-| [02-stack-decisions.md](docs/02-stack-decisions.md) | Por qué cada elección |
-| [03-data-model.md](docs/03-data-model.md) | Schema SQL y ER |
-| [04-api-reference.md](docs/04-api-reference.md) | Endpoints REST + SSE |
-| [05-memory-core.md](docs/05-memory-core.md) | Memory Core (SQLite+FTS5) |
-| [06-cli-detection.md](docs/06-cli-detection.md) | Detección de CLIs |
-| [07-frontend-architecture.md](docs/07-frontend-architecture.md) | Frontend Next.js |
-| [08-install-vps.md](docs/08-install-vps.md) | Instalación en VPS |
-| [09-security.md](docs/09-security.md) | Modelo de seguridad |
-| [10-roadmap.md](docs/10-roadmap.md) | Qué viene después |
-| [11-agent-runtimes.md](docs/11-agent-runtimes.md) | Cómo se enrutan agentes a CLIs/MCPs/Hermes/OpenClaw |
-| [12-novacore.md](docs/12-novacore.md) | NovaCore: asistente conversacional para usar BattOS |
-| [go-primer.md](docs/go-primer.md) | Primer de Go para retomar el repo |
-| [adr/](docs/adr/) | Decisiones arquitecturales registradas |
-
----
+| [docs/14-producto-final-y-roadmap.md](docs/14-producto-final-y-roadmap.md) | Vision final, capacidades, persistencia, seguridad y versiones |
+| [docs/10-roadmap.md](docs/10-roadmap.md) | Fases operativas para implementar v0.1 y posteriores |
+| [docs/01-architecture.md](docs/01-architecture.md) | Arquitectura por capas y flujo de ejecucion |
+| [docs/03-data-model.md](docs/03-data-model.md) | Persistencia y tablas |
+| [docs/05-memory-core.md](docs/05-memory-core.md) | Memory Core |
+| [docs/11-agent-runtimes.md](docs/11-agent-runtimes.md) | Runtime adapters |
+| [docs/12-novacore.md](docs/12-novacore.md) | Chat de administracion |
+| [docs/13-comparativa-agent-os-sources.md](docs/13-comparativa-agent-os-sources.md) | Comparativa con fuentes investigadas |
+| [docs/adr/0010-knowledge-workspace-opcional.md](docs/adr/0010-knowledge-workspace-opcional.md) | Obsidian/Markdown opcional |
+| [docs/adr/0011-v01-ejecucion-supervisada.md](docs/adr/0011-v01-ejecucion-supervisada.md) | Ejecucion en v0.1 |
+| [docs/adr/0012-extension-platform-modular.md](docs/adr/0012-extension-platform-modular.md) | Upgrades y extensiones |
 
 ## Licencia
 

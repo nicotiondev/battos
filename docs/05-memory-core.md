@@ -40,6 +40,8 @@ CREATE VIRTUAL TABLE memory_items_fts USING fts5(
 
 Tres triggers (`AFTER INSERT`, `AFTER DELETE`, `AFTER UPDATE`) mantienen el índice FTS5 sincronizado con la tabla principal. El usuario solo toca `memory_items` — FTS5 es transparente.
 
+`memory.Open` crea automáticamente el directorio padre de `db_path`, de modo que el primer boot no requiere preparar `data/memory/` manualmente.
+
 ## API Go (paquete `internal/memory`)
 
 ```go
@@ -99,6 +101,8 @@ Devuelve cada resultado con `rank` BM25 (menor = mejor match):
   "count": 1, "query": "FTS5"
 }
 ```
+
+Una búsqueda con `query` vacío devuelve observaciones recientes, pero conserva filtros de `type`, `project_id`, `agent_id` y `scope`.
 
 ## CLI
 
@@ -181,3 +185,11 @@ Comando `battos memory backup` planeado para Fase 6.
 | **v0.3** | Judgment de duplicados (port de Engram) + MCP server interno |
 | **v0.4** | Backup/restore comandos + export JSONL |
 | **v0.5** | Cluster mode (Memory Core por tenant) |
+
+## Criterio de cierre de Fase 2
+
+- Schema PostgreSQL inicial y store sqlc generado presentes.
+- Memory Core crea su base local en un entorno limpio y reporta health en `/status`.
+- API HTTP y CLI exponen `save`, `search`, `recent` y `stats`.
+- Pruebas de `internal/memory` cubren creación inicial, upsert/FTS5, filtros sin query y stats.
+- Verificación: `go test ./apps/api/... ./apps/cli/... ./packages/core/...`.
