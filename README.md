@@ -29,6 +29,8 @@ Implementado actualmente:
   approvals.
 - Middleware Bearer configurable y soporte CLI para `BATTOS_API_TOKEN`; en
   desarrollo sin token el API solo escucha en `127.0.0.1`.
+- Fase 3B en curso: migracion y store `sqlc` para domains, goals, tasks,
+  knowledge workspaces, journals y artifacts.
 
 En Docker/VPS se debe definir `BATTOS_API_TOKEN`; el compose habilita
 `auth.mode: token` al publicar el API.

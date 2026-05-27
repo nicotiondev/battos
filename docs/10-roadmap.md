@@ -11,6 +11,7 @@
 | 1 | API `/health`, `/version`, `/status` y CLI `status` | Completada |
 | 2 | PostgreSQL base + Memory Core SQLite/FTS5 + CLI/HTTP memory | Completada |
 | 3A | OpenAPI, autenticacion/secretos y lifecycle de runs/approvals | Completada |
+| 3B | Work model y Knowledge Center | En curso: migracion/queries sqlc iniciadas |
 
 Validacion disponible:
 

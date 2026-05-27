@@ -96,18 +96,19 @@ Detector encontró nueva CLI, MCP cambió de estado, Memory Core corrupted, etc.
 
 Sesiones de chat con NovaCore (`is_lead=true`). Track de tokens/costo por conversación para budget enforcement.
 
-## Tablas Planeadas Para Completar v0.1
+## Tablas De Producto Para Completar v0.1
 
-Las siguientes tablas no existen todavía en la migración base y se agregarán
-sin editar `0001_init.sql`:
+La migracion append-only `0002_work_knowledge.sql` agrega el Work Board y el
+Knowledge Center sin editar `0001_init.sql`; las tablas de repositorios y
+ejecucion continúan en fases posteriores:
 
 | Area | Tablas / conceptos | Proposito |
 |---|---|---|
-| Work model | `domains`, `goals`, `tasks` | Planificar y visualizar trabajo/Kanban |
-| Knowledge | `knowledge_workspaces`, `journals`, `artifacts` | Contexto y outputs administrados por BattOS |
+| Work model | `domains`, `goals`, `tasks` | Agregado en `0002_work_knowledge.sql` |
+| Knowledge | `knowledge_workspaces`, `journals`, `artifacts` | Agregado en `0002_work_knowledge.sql` |
 | Repositories | `repositories`, `repository_credentials` por referencia segura | Repo local gestionado o GitHub autorizado |
 | Execution | `runs`, `run_approvals`, `run_logs`, `run_artifacts` | Contenedor, red, approvals, logs, diff y resultado |
-| Extensibility | `runtime_adapters` y metadata de skill registry | Adapters versionados y capabilities desde v0.1 |
+| Extensibility | `skills.prompt_template`, `skills.lifecycle` | Agregado en `0002`; adapters llegan en Fase 4A |
 
 ADR-0014 resolvio la relacion: `runs` sera la entidad de orquestacion visible
 al usuario y `executions` conservara invocaciones tecnicas. Una migracion

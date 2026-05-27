@@ -42,10 +42,9 @@ data/memory/*.db-wal
 data/logs/*.jsonl
 data/workspaces/
 
-# --- Generados ---
-apps/api/internal/store/queries.sql.go
-apps/api/internal/store/models.go
-apps/api/internal/store/db.go
+# --- Generados no versionados ---
+# El store Go generado por sqlc se versiona para que un checkout compile sin
+# instalar generadores; nunca editar sus archivos a mano.
 apps/web/lib/api-client.ts
 packages/openapi/gen/
 

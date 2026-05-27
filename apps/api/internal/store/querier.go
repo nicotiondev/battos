@@ -6,6 +6,8 @@ package store
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
@@ -17,15 +19,43 @@ type Querier interface {
 	// Solo lectura + counts en Fase 2. CRUD completo viene en Fase 3.
 	CountProjects(ctx context.Context) (int32, error)
 	CountSkills(ctx context.Context) (int32, error)
+	CreateArtifact(ctx context.Context, arg CreateArtifactParams) (Artifact, error)
+	// Work Board CRUD: domains, projects, goals and tasks.
+	CreateDomain(ctx context.Context, arg CreateDomainParams) (Domain, error)
+	CreateGoal(ctx context.Context, arg CreateGoalParams) (Goal, error)
+	CreateJournal(ctx context.Context, arg CreateJournalParams) (Journal, error)
+	// Knowledge Center CRUD: workspaces, journals and managed artifacts.
+	CreateKnowledgeWorkspace(ctx context.Context, arg CreateKnowledgeWorkspaceParams) (KnowledgeWorkspace, error)
+	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
+	CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error)
 	GetAgentRuntime(ctx context.Context, id string) (AgentRuntime, error)
+	GetArtifact(ctx context.Context, id pgtype.UUID) (Artifact, error)
+	GetDomain(ctx context.Context, id string) (Domain, error)
+	GetGoal(ctx context.Context, id string) (Goal, error)
+	GetJournal(ctx context.Context, id pgtype.UUID) (Journal, error)
+	GetKnowledgeWorkspace(ctx context.Context, id pgtype.UUID) (KnowledgeWorkspace, error)
+	GetProject(ctx context.Context, id string) (Project, error)
 	GetProvider(ctx context.Context, id string) (Provider, error)
+	GetTask(ctx context.Context, id string) (Task, error)
 	InsertSystemLog(ctx context.Context, arg InsertSystemLogParams) error
 	ListAgentRuntimes(ctx context.Context) ([]AgentRuntime, error)
+	ListArtifactsByProject(ctx context.Context, projectID string) ([]Artifact, error)
+	ListDomains(ctx context.Context) ([]Domain, error)
+	ListGoalsByProject(ctx context.Context, projectID string) ([]Goal, error)
+	ListJournalsByProject(ctx context.Context, projectID string) ([]Journal, error)
+	ListKnowledgeWorkspaces(ctx context.Context) ([]KnowledgeWorkspace, error)
+	ListProjects(ctx context.Context) ([]Project, error)
 	ListProviders(ctx context.Context) ([]Provider, error)
+	ListTasksByProject(ctx context.Context, projectID string) ([]Task, error)
 	// Queries de sistema: healthchecks, logs.
 	PingDB(ctx context.Context) (int32, error)
 	RecentSystemLogs(ctx context.Context, limit int32) ([]SystemLog, error)
+	UpdateDomain(ctx context.Context, arg UpdateDomainParams) (Domain, error)
+	UpdateGoal(ctx context.Context, arg UpdateGoalParams) (Goal, error)
+	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpdateProviderStatus(ctx context.Context, arg UpdateProviderStatusParams) error
+	UpdateSkillDefinition(ctx context.Context, arg UpdateSkillDefinitionParams) (Skill, error)
+	UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error)
 }
 
 var _ Querier = (*Queries)(nil)

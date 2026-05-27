@@ -116,7 +116,7 @@ docker compose -f infra/docker-compose.yml down
 | 1 | `battos status` funcional | Completado |
 | 2 | DB + Memory Core | Completado |
 | 3A | Contratos, ADRs finales y OpenAPI | Completado |
-| 3B | Work model y Knowledge Center | Pending |
+| 3B | Work model y Knowledge Center | En curso: persistence/sqlc |
 | 4A | Runtime adapters Claude Code/Codex | Pending |
 | 4B | Runs aislados, approvals y logs | Pending |
 | 4C | Repositories, diff, commit y push | Pending |
