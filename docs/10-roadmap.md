@@ -10,6 +10,7 @@
 | 0 | Bootstrap, stack y docs iniciales | Completada |
 | 1 | API `/health`, `/version`, `/status` y CLI `status` | Completada |
 | 2 | PostgreSQL base + Memory Core SQLite/FTS5 + CLI/HTTP memory | Completada |
+| 3A | OpenAPI, autenticacion/secretos y lifecycle de runs/approvals | Completada |
 
 Validacion disponible:
 
@@ -35,7 +36,7 @@ BattOS mantiene sus principios:
 
 | Fase | Objetivo | Resultado esperado |
 |---|---|---|
-| 3A | Contratos y decisiones | OpenAPI; ADRs sincronizados; contrato de CRUD, runs, chats y approvals |
+| 3A | Contratos y decisiones | Completada: OpenAPI; ADR-0013/0014; contrato de CRUD, runs, chats y approvals |
 | 3B | Modelo de producto | Domains, goals, tasks, artifacts, journals, workspaces y skills/prompt templates |
 | 4A | Runtimes ejecutables | Detector/providers y adapters aprobados `claude-code` y `codex` |
 | 4B | Execution engine | Runs en contenedor efimero, red configurable, logs SSE, cancelacion y auditoria |
@@ -43,6 +44,10 @@ BattOS mantiene sus principios:
 | 5A | NovaCore | Chat opcional para operar BattOS y proponer runs con HITL |
 | 5B | Dashboard | Command Center, Work Board, Control Room y Knowledge Center |
 | 6 | Hardening/release | Seguridad, backups, tests, instalacion VPS y tag `v0.1.0` |
+
+La siguiente implementacion es **Fase 3B**: migraciones append-only, queries
+sqlc y handlers/CLI para work model y Knowledge Center, siguiendo el contrato
+de `packages/openapi/openapi.yaml`.
 
 ### Que Podras Hacer En v0.1
 
@@ -69,3 +74,11 @@ BattOS mantiene sus principios:
 - Secrets controlados y nunca expuestos en logs.
 - Approvals separados para run, commit, push y futuros deployments.
 - OMI/captura ambiental excluida del roadmap base.
+
+## Decisiones De Fase 3A
+
+- `docs/adr/0013-auth-y-secretos-v01.md`: token administrador para API,
+  secretos por referencia y nunca en logs/artifacts.
+- `docs/adr/0014-run-lifecycle-y-approvals.md`: `runs` es la entidad
+  supervisada; ejecutar, habilitar red, commit y push se aprueban por
+  separado.

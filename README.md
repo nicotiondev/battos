@@ -15,9 +15,8 @@ BattOS administra trabajo, agentes, memoria, ejecucion y aprobaciones.
 
 ## Estado actual
 
-**v0.1.0 - en construccion.** Las Fases 0, 1 y 2 estan completadas. La
-siguiente etapa desarrolla los contratos y el modelo de producto del roadmap
-definitivo.
+**v0.1.0 - en construccion.** Las Fases 0, 1, 2 y 3A estan completadas. La
+siguiente etapa implementa el modelo de trabajo y Knowledge Center (Fase 3B).
 
 Implementado actualmente:
 
@@ -26,6 +25,8 @@ Implementado actualmente:
 - Schema PostgreSQL inicial y queries tipadas con sqlc.
 - Memory Core propio (SQLite + FTS5) con HTTP y CLI: `recent`, `search`,
   `save`, `stats`.
+- Contrato OpenAPI v0.1 y decisiones de autenticacion, secretos, runs y
+  approvals.
 
 Objetivo final de **v0.1**:
 
@@ -127,6 +128,7 @@ adapters, creacion y aprobacion de runs, logs y uso.
 |---|---|
 | [docs/14-producto-final-y-roadmap.md](docs/14-producto-final-y-roadmap.md) | Vision final, capacidades, persistencia, seguridad y versiones |
 | [docs/10-roadmap.md](docs/10-roadmap.md) | Fases operativas para implementar v0.1 y posteriores |
+| [packages/openapi/openapi.yaml](packages/openapi/openapi.yaml) | Contrato API fuente de verdad desde Fase 3A |
 | [docs/01-architecture.md](docs/01-architecture.md) | Arquitectura por capas y flujo de ejecucion |
 | [docs/03-data-model.md](docs/03-data-model.md) | Persistencia y tablas |
 | [docs/05-memory-core.md](docs/05-memory-core.md) | Memory Core |
@@ -136,6 +138,8 @@ adapters, creacion y aprobacion de runs, logs y uso.
 | [docs/adr/0010-knowledge-workspace-opcional.md](docs/adr/0010-knowledge-workspace-opcional.md) | Obsidian/Markdown opcional |
 | [docs/adr/0011-v01-ejecucion-supervisada.md](docs/adr/0011-v01-ejecucion-supervisada.md) | Ejecucion en v0.1 |
 | [docs/adr/0012-extension-platform-modular.md](docs/adr/0012-extension-platform-modular.md) | Upgrades y extensiones |
+| [docs/adr/0013-auth-y-secretos-v01.md](docs/adr/0013-auth-y-secretos-v01.md) | Token administrador y secretos por referencia |
+| [docs/adr/0014-run-lifecycle-y-approvals.md](docs/adr/0014-run-lifecycle-y-approvals.md) | Estados de runs y aprobaciones |
 
 ## Licencia
 

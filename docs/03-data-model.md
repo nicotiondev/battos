@@ -109,9 +109,10 @@ sin editar `0001_init.sql`:
 | Execution | `runs`, `run_approvals`, `run_logs`, `run_artifacts` | Contenedor, red, approvals, logs, diff y resultado |
 | Extensibility | `runtime_adapters` y metadata de skill registry | Adapters versionados y capabilities desde v0.1 |
 
-`executions`/`usage_events` existentes pueden evolucionar o relacionarse con
-`runs`; la decisión final se tomará al diseñar la migración y OpenAPI de Fase
-3A, sin perder datos existentes.
+ADR-0014 resolvio la relacion: `runs` sera la entidad de orquestacion visible
+al usuario y `executions` conservara invocaciones tecnicas. Una migracion
+append-only posterior agregara las tablas de runs/approvals/logs/artifacts y
+la referencia nullable desde ejecuciones/usage donde aplique.
 
 ## Convenciones
 

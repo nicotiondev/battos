@@ -1,11 +1,17 @@
-# 04 — API Reference
+# 04 - API Reference
 
-> Fuente de verdad provisoria: este doc. En Fase 3 se reemplaza por OpenAPI generado.
+> Fuente de verdad contractual desde Fase 3A:
+> `packages/openapi/openapi.yaml`. Este documento explica cobertura y uso.
+> Que un endpoint este contratado no significa que ya este implementado.
 
 Base URL en dev: `http://localhost:8000`
 Base URL en prod: configurable, normalmente detrás de Traefik/Nginx.
 
 ## Endpoints disponibles actualmente (Fases 1-2)
+
+Los endpoints actuales todavia corren sin middleware Bearer. El contrato de
+seguridad de ADR-0013 se implementara antes de exponer operaciones mutantes o
+runs; `/health` y `/version` permaneceran publicos.
 
 ### `GET /health`
 Latido simple. Pensado para load balancers y healthchecks de Docker.
@@ -94,7 +100,7 @@ POST /memory/search
 }
 ```
 
-## Superficies planeadas para completar v0.1
+## Superficies contratadas para completar v0.1
 
 | Endpoint | Fase | Descripción |
 |---|---|---|
@@ -109,6 +115,10 @@ POST /memory/search
 | `POST /novacore/chat` | 5A | Chat opcional; propone acciones/runs |
 | `GET /usage/overview`, `GET /usage/runs/{id}` | 5B | Tokens/costo exacto, estimado o no reportado |
 | `GET /events/system-metrics`, `/events/runs/{id}` (SSE) | 5B | Streams del dashboard |
+
+`packages/openapi/openapi.yaml` marca cada operacion futura con
+`x-battos-phase`. Los clientes generados se incorporaran al implementar la
+primera superficie CRUD de Fase 3B.
 
 ## Convenciones
 

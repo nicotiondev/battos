@@ -1,0 +1,1325 @@
+openapi: 3.1.0
+info:
+  title: BattOS API
+  version: 0.1.0-alpha
+  description: |
+    Contract for BattOS Mission Control. System and Memory Core operations are
+    implemented today. Product, run and dashboard operations define the v0.1
+    contract and are implemented incrementally by roadmap phase.
+servers:
+  - url: http://localhost:8000
+    description: Local development
+tags:
+  - name: System
+  - name: Memory
+  - name: Work
+  - name: Knowledge
+  - name: Agents
+  - name: Runtimes
+  - name: Repositories
+  - name: Runs
+  - name: NovaCore
+  - name: Usage
+  - name: Events
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      tags: [System]
+      operationId: getHealth
+      security: []
+      x-battos-phase: implemented
+      summary: Lightweight process healthcheck
+      responses:
+        "200":
+          description: API is alive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /version:
+    get:
+      tags: [System]
+      operationId: getVersion
+      security: []
+      x-battos-phase: implemented
+      summary: Binary and runtime version
+      responses:
+        "200":
+          description: Version information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VersionResponse"
+  /status:
+    get:
+      tags: [System]
+      operationId: getStatus
+      x-battos-phase: implemented
+      x-battos-security: bearer-middleware-pending
+      summary: Command Center status snapshot
+      responses:
+        "200":
+          description: System status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /memory/recent:
+    get:
+      tags: [Memory]
+      operationId: listRecentMemory
+      x-battos-phase: implemented
+      x-battos-security: bearer-middleware-pending
+      summary: List most recent memory observations
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Recent observations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /memory/search:
+    post:
+      tags: [Memory]
+      operationId: searchMemory
+      x-battos-phase: implemented
+      x-battos-security: bearer-middleware-pending
+      summary: Full-text memory search with filters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemorySearchRequest"
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemorySearchResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /memory/save:
+    post:
+      tags: [Memory]
+      operationId: saveMemory
+      x-battos-phase: implemented
+      x-battos-security: bearer-middleware-pending
+      summary: Save or upsert an observation using topic_key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemoryObservationInput"
+      responses:
+        "201":
+          description: Observation saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryObservation"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /memory/stats:
+    get:
+      tags: [Memory]
+      operationId: getMemoryStats
+      x-battos-phase: implemented
+      x-battos-security: bearer-middleware-pending
+      summary: Memory aggregate statistics
+      responses:
+        "200":
+          description: Statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryStats"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /memory/{id}:
+    get:
+      tags: [Memory]
+      operationId: getMemoryObservation
+      x-battos-phase: implemented
+      x-battos-security: bearer-middleware-pending
+      summary: Get one observation
+      parameters:
+        - $ref: "#/components/parameters/NumericID"
+      responses:
+        "200":
+          description: Observation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryObservation"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /domains:
+    get:
+      tags: [Work]
+      operationId: listDomains
+      x-battos-phase: 3B
+      summary: List work domains
+      responses:
+        "200":
+          $ref: "#/components/responses/DomainList"
+    post:
+      tags: [Work]
+      operationId: createDomain
+      x-battos-phase: 3B
+      summary: Create a domain
+      requestBody:
+        $ref: "#/components/requestBodies/DomainInput"
+      responses:
+        "201":
+          $ref: "#/components/responses/DomainItem"
+  /domains/{id}:
+    parameters:
+      - $ref: "#/components/parameters/SlugID"
+    get:
+      tags: [Work]
+      operationId: getDomain
+      x-battos-phase: 3B
+      responses:
+        "200":
+          $ref: "#/components/responses/DomainItem"
+    patch:
+      tags: [Work]
+      operationId: updateDomain
+      x-battos-phase: 3B
+      requestBody:
+        $ref: "#/components/requestBodies/DomainInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/DomainItem"
+  /projects:
+    get:
+      tags: [Work]
+      operationId: listProjects
+      x-battos-phase: 3B
+      responses:
+        "200":
+          $ref: "#/components/responses/ProjectList"
+    post:
+      tags: [Work]
+      operationId: createProject
+      x-battos-phase: 3B
+      requestBody:
+        $ref: "#/components/requestBodies/ProjectInput"
+      responses:
+        "201":
+          $ref: "#/components/responses/ProjectItem"
+  /projects/{id}:
+    parameters:
+      - $ref: "#/components/parameters/SlugID"
+    get:
+      tags: [Work]
+      operationId: getProject
+      x-battos-phase: 3B
+      responses:
+        "200":
+          $ref: "#/components/responses/ProjectItem"
+    patch:
+      tags: [Work]
+      operationId: updateProject
+      x-battos-phase: 3B
+      requestBody:
+        $ref: "#/components/requestBodies/ProjectInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/ProjectItem"
+  /goals:
+    get:
+      tags: [Work]
+      operationId: listGoals
+      x-battos-phase: 3B
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+      responses:
+        "200":
+          $ref: "#/components/responses/GoalList"
+    post:
+      tags: [Work]
+      operationId: createGoal
+      x-battos-phase: 3B
+      requestBody:
+        $ref: "#/components/requestBodies/GoalInput"
+      responses:
+        "201":
+          $ref: "#/components/responses/GoalItem"
+  /goals/{id}:
+    parameters:
+      - $ref: "#/components/parameters/SlugID"
+    get:
+      tags: [Work]
+      operationId: getGoal
+      x-battos-phase: 3B
+      responses:
+        "200":
+          $ref: "#/components/responses/GoalItem"
+    patch:
+      tags: [Work]
+      operationId: updateGoal
+      x-battos-phase: 3B
+      requestBody:
+        $ref: "#/components/requestBodies/GoalInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/GoalItem"
+  /tasks:
+    get:
+      tags: [Work]
+      operationId: listTasks
+      x-battos-phase: 3B
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+      responses:
+        "200":
+          $ref: "#/components/responses/TaskList"
+    post:
+      tags: [Work]
+      operationId: createTask
+      x-battos-phase: 3B
+      requestBody:
+        $ref: "#/components/requestBodies/TaskInput"
+      responses:
+        "201":
+          $ref: "#/components/responses/TaskItem"
+  /tasks/{id}:
+    parameters:
+      - $ref: "#/components/parameters/SlugID"
+    get:
+      tags: [Work]
+      operationId: getTask
+      x-battos-phase: 3B
+      responses:
+        "200":
+          $ref: "#/components/responses/TaskItem"
+    patch:
+      tags: [Work]
+      operationId: updateTask
+      x-battos-phase: 3B
+      requestBody:
+        $ref: "#/components/requestBodies/TaskInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/TaskItem"
+  /knowledge/workspaces:
+    get:
+      tags: [Knowledge]
+      operationId: listKnowledgeWorkspaces
+      x-battos-phase: 3B
+      responses:
+        "200":
+          description: Knowledge workspaces
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeWorkspaceList"
+    post:
+      tags: [Knowledge]
+      operationId: createKnowledgeWorkspace
+      x-battos-phase: 3B
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KnowledgeWorkspaceInput"
+      responses:
+        "201":
+          description: Created workspace
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeWorkspace"
+  /journals:
+    get:
+      tags: [Knowledge]
+      operationId: listJournals
+      x-battos-phase: 3B
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+      responses:
+        "200":
+          description: Journals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalList"
+    post:
+      tags: [Knowledge]
+      operationId: createJournal
+      x-battos-phase: 3B
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JournalInput"
+      responses:
+        "201":
+          description: Created journal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Journal"
+  /artifacts:
+    get:
+      tags: [Knowledge]
+      operationId: listArtifacts
+      x-battos-phase: 3B
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+      responses:
+        "200":
+          description: Artifacts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactList"
+    post:
+      tags: [Knowledge]
+      operationId: createArtifact
+      x-battos-phase: 3B
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ArtifactInput"
+      responses:
+        "201":
+          description: Created artifact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Artifact"
+  /agents:
+    get:
+      tags: [Agents]
+      operationId: listAgents
+      x-battos-phase: 3B
+      responses:
+        "200":
+          description: Agents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentList"
+    post:
+      tags: [Agents]
+      operationId: createAgent
+      x-battos-phase: 3B
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentInput"
+      responses:
+        "201":
+          description: Created agent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Agent"
+  /skills:
+    get:
+      tags: [Agents]
+      operationId: listSkills
+      x-battos-phase: 3B
+      responses:
+        "200":
+          description: Skills
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SkillList"
+    post:
+      tags: [Agents]
+      operationId: createSkill
+      x-battos-phase: 3B
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SkillInput"
+      responses:
+        "201":
+          description: Created skill
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Skill"
+  /runtime-adapters:
+    get:
+      tags: [Runtimes]
+      operationId: listRuntimeAdapters
+      x-battos-phase: 4A
+      summary: List approved or detected runtime adapters
+      responses:
+        "200":
+          description: Runtime adapters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuntimeAdapterList"
+  /runtime-adapters/detect:
+    post:
+      tags: [Runtimes]
+      operationId: detectRuntimeAdapters
+      x-battos-phase: 4A
+      summary: Detect installed runtimes without granting execution rights
+      responses:
+        "202":
+          description: Detection scheduled
+  /repositories:
+    get:
+      tags: [Repositories]
+      operationId: listRepositories
+      x-battos-phase: 4C
+      responses:
+        "200":
+          description: Repositories
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepositoryList"
+    post:
+      tags: [Repositories]
+      operationId: connectRepository
+      x-battos-phase: 4C
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RepositoryInput"
+      responses:
+        "201":
+          description: Repository connected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Repository"
+  /runs:
+    get:
+      tags: [Runs]
+      operationId: listRuns
+      x-battos-phase: 4B
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+      responses:
+        "200":
+          description: Runs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunList"
+    post:
+      tags: [Runs]
+      operationId: proposeRun
+      x-battos-phase: 4B
+      summary: Create a run proposal requiring approval
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RunProposal"
+      responses:
+        "201":
+          description: Proposed run in awaiting_approval state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Run"
+  /runs/{id}:
+    parameters:
+      - $ref: "#/components/parameters/UUID"
+    get:
+      tags: [Runs]
+      operationId: getRun
+      x-battos-phase: 4B
+      responses:
+        "200":
+          description: Run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Run"
+  /runs/{id}/approvals:
+    parameters:
+      - $ref: "#/components/parameters/UUID"
+    post:
+      tags: [Runs]
+      operationId: approveRunAction
+      x-battos-phase: 4B
+      summary: Approve a run, network, commit or push action
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalInput"
+      responses:
+        "201":
+          description: Approval recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Approval"
+  /runs/{id}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/UUID"
+    post:
+      tags: [Runs]
+      operationId: cancelRun
+      x-battos-phase: 4B
+      responses:
+        "202":
+          description: Cancellation requested
+  /runs/{id}/logs:
+    parameters:
+      - $ref: "#/components/parameters/UUID"
+    get:
+      tags: [Runs]
+      operationId: listRunLogs
+      x-battos-phase: 4B
+      responses:
+        "200":
+          description: Persisted log entries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunLogList"
+  /runs/{id}/artifacts:
+    parameters:
+      - $ref: "#/components/parameters/UUID"
+    get:
+      tags: [Runs]
+      operationId: listRunArtifacts
+      x-battos-phase: 4B
+      responses:
+        "200":
+          description: Produced artifacts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactList"
+  /runs/{id}/diff:
+    parameters:
+      - $ref: "#/components/parameters/UUID"
+    get:
+      tags: [Runs]
+      operationId: getRunDiff
+      x-battos-phase: 4C
+      responses:
+        "200":
+          description: Git diff produced by the run
+          content:
+            text/plain:
+              schema:
+                type: string
+  /novacore/chat:
+    post:
+      tags: [NovaCore]
+      operationId: chatNovaCore
+      x-battos-phase: 5A
+      summary: Chat with the optional OS assistant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+      responses:
+        "200":
+          description: Response and proposed actions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResponse"
+  /usage/overview:
+    get:
+      tags: [Usage]
+      operationId: getUsageOverview
+      x-battos-phase: 5B
+      responses:
+        "200":
+          description: Usage overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsageOverview"
+  /events/system-metrics:
+    get:
+      tags: [Events]
+      operationId: streamSystemMetrics
+      x-battos-phase: 5B
+      responses:
+        "200":
+          description: SSE metric events
+          content:
+            text/event-stream:
+              schema:
+                type: string
+  /events/runs/{id}:
+    parameters:
+      - $ref: "#/components/parameters/UUID"
+    get:
+      tags: [Events]
+      operationId: streamRunEvents
+      x-battos-phase: 5B
+      responses:
+        "200":
+          description: SSE run state and log events
+          content:
+            text/event-stream:
+              schema:
+                type: string
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: BattOS admin token
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 20
+    NumericID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    SlugID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[a-z0-9][a-z0-9-]*$"
+    UUID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ProjectID:
+      name: project_id
+      in: query
+      schema:
+        type: string
+  requestBodies:
+    DomainInput:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/DomainInput"
+    ProjectInput:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ProjectInput"
+    GoalInput:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/GoalInput"
+    TaskInput:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/TaskInput"
+  responses:
+    Unauthorized:
+      description: Missing or invalid BattOS admin token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    DomainList:
+      description: Domains
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/DomainList"
+    DomainItem:
+      description: Domain
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Domain"
+    ProjectList:
+      description: Projects
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ProjectList"
+    ProjectItem:
+      description: Project
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Project"
+    GoalList:
+      description: Goals
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/GoalList"
+    GoalItem:
+      description: Goal
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Goal"
+    TaskList:
+      description: Tasks
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/TaskList"
+    TaskItem:
+      description: Task
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Task"
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [message, code]
+          properties:
+            message:
+              type: string
+            code:
+              type: integer
+    HealthStatus:
+      type: string
+      enum: [ok, degraded, down, unknown]
+    HealthResponse:
+      type: object
+      required: [status, timestamp]
+      properties:
+        status:
+          $ref: "#/components/schemas/HealthStatus"
+        timestamp:
+          type: string
+          format: date-time
+    VersionResponse:
+      type: object
+      required: [version, commit, build_date, go_version]
+      properties:
+        version: { type: string }
+        commit: { type: string }
+        build_date: { type: string }
+        go_version: { type: string }
+    StatusResponse:
+      type: object
+      required: [version, overall, subsystems, metrics, timestamp]
+      properties:
+        version:
+          $ref: "#/components/schemas/VersionResponse"
+        overall:
+          $ref: "#/components/schemas/HealthStatus"
+        subsystems:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubsystemHealth"
+        metrics:
+          $ref: "#/components/schemas/SystemMetrics"
+        timestamp:
+          type: string
+          format: date-time
+    SubsystemHealth:
+      type: object
+      required: [name, status]
+      properties:
+        name: { type: string }
+        status:
+          $ref: "#/components/schemas/HealthStatus"
+        detail: { type: string }
+        latency_ms: { type: integer }
+    SystemMetrics:
+      type: object
+      required: [cpu_percent, mem_percent, mem_used_mb, mem_total_mb, net_upload_kbps, net_download_kbps]
+      properties:
+        cpu_percent: { type: number }
+        mem_percent: { type: number }
+        mem_used_mb: { type: integer, format: int64 }
+        mem_total_mb: { type: integer, format: int64 }
+        net_upload_kbps: { type: number }
+        net_download_kbps: { type: number }
+    MemoryObservationInput:
+      type: object
+      required: [title]
+      properties:
+        type:
+          type: string
+          enum: [decision, architecture, bugfix, pattern, discovery, learning, manual]
+          default: manual
+        title: { type: string }
+        content: { type: string }
+        topic_key: { type: string }
+        project_id: { type: string }
+        agent_id: { type: string }
+        scope:
+          type: string
+          enum: [project, personal]
+          default: project
+    MemoryObservation:
+      allOf:
+        - $ref: "#/components/schemas/MemoryObservationInput"
+        - type: object
+          required: [id, created_at, updated_at]
+          properties:
+            id: { type: integer, format: int64 }
+            created_at: { type: string, format: date-time }
+            updated_at: { type: string, format: date-time }
+    MemorySearchFilter:
+      type: object
+      properties:
+        type: { type: string }
+        project_id: { type: string }
+        agent_id: { type: string }
+        scope:
+          type: string
+          enum: [project, personal]
+    MemorySearchRequest:
+      type: object
+      required: [query]
+      properties:
+        query: { type: string }
+        filter:
+          $ref: "#/components/schemas/MemorySearchFilter"
+        limit: { type: integer, minimum: 1, maximum: 200 }
+    MemorySearchResult:
+      allOf:
+        - $ref: "#/components/schemas/MemoryObservation"
+        - type: object
+          required: [rank]
+          properties:
+            rank: { type: number }
+    MemoryListResponse:
+      type: object
+      required: [items, count]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MemoryObservation"
+        count: { type: integer }
+    MemorySearchResponse:
+      type: object
+      required: [results, count, query]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/MemorySearchResult"
+        count: { type: integer }
+        query: { type: string }
+    MemoryStats:
+      type: object
+      required: [total_items, items_last_24h, unique_projects, unique_agents]
+      properties:
+        total_items: { type: integer, format: int64 }
+        items_last_24h: { type: integer, format: int64 }
+        unique_projects: { type: integer, format: int64 }
+        unique_agents: { type: integer, format: int64 }
+        oldest_item: { type: string, format: date-time }
+        newest_item: { type: string, format: date-time }
+    LifecycleStatus:
+      type: string
+      enum: [active, paused, archived]
+    DomainInput:
+      type: object
+      required: [slug, name]
+      properties:
+        slug: { type: string }
+        name: { type: string }
+        description: { type: string }
+        status:
+          $ref: "#/components/schemas/LifecycleStatus"
+    Domain:
+      allOf:
+        - $ref: "#/components/schemas/DomainInput"
+        - $ref: "#/components/schemas/Timestamps"
+        - type: object
+          required: [id]
+          properties:
+            id: { type: string }
+    DomainList:
+      type: array
+      items:
+        $ref: "#/components/schemas/Domain"
+    ProjectInput:
+      type: object
+      required: [slug, name]
+      properties:
+        slug: { type: string }
+        name: { type: string }
+        description: { type: string }
+        domain_id: { type: string }
+        status:
+          $ref: "#/components/schemas/LifecycleStatus"
+    Project:
+      allOf:
+        - $ref: "#/components/schemas/ProjectInput"
+        - $ref: "#/components/schemas/Timestamps"
+        - type: object
+          required: [id]
+          properties:
+            id: { type: string }
+    ProjectList:
+      type: array
+      items:
+        $ref: "#/components/schemas/Project"
+    GoalInput:
+      type: object
+      required: [project_id, title]
+      properties:
+        project_id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        status:
+          type: string
+          enum: [planned, active, completed, cancelled]
+    Goal:
+      allOf:
+        - $ref: "#/components/schemas/GoalInput"
+        - $ref: "#/components/schemas/Timestamps"
+        - type: object
+          required: [id]
+          properties:
+            id: { type: string }
+    GoalList:
+      type: array
+      items:
+        $ref: "#/components/schemas/Goal"
+    TaskInput:
+      type: object
+      required: [project_id, title]
+      properties:
+        project_id: { type: string }
+        goal_id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        assigned_agent_id: { type: string }
+        status:
+          type: string
+          enum: [backlog, ready, in_progress, review, done, cancelled]
+    Task:
+      allOf:
+        - $ref: "#/components/schemas/TaskInput"
+        - $ref: "#/components/schemas/Timestamps"
+        - type: object
+          required: [id]
+          properties:
+            id: { type: string }
+    TaskList:
+      type: array
+      items:
+        $ref: "#/components/schemas/Task"
+    KnowledgeWorkspaceInput:
+      type: object
+      required: [project_id, name]
+      properties:
+        project_id: { type: string }
+        name: { type: string }
+        layout:
+          type: string
+          enum: [raw_wiki_outputs]
+    KnowledgeWorkspace:
+      allOf:
+        - $ref: "#/components/schemas/KnowledgeWorkspaceInput"
+        - $ref: "#/components/schemas/Timestamps"
+        - type: object
+          properties:
+            id: { type: string }
+    KnowledgeWorkspaceList:
+      type: array
+      items:
+        $ref: "#/components/schemas/KnowledgeWorkspace"
+    JournalInput:
+      type: object
+      required: [workspace_id, title, content]
+      properties:
+        workspace_id: { type: string }
+        project_id: { type: string }
+        title: { type: string }
+        content: { type: string }
+    Journal:
+      allOf:
+        - $ref: "#/components/schemas/JournalInput"
+        - $ref: "#/components/schemas/Timestamps"
+        - type: object
+          properties:
+            id: { type: string }
+    JournalList:
+      type: array
+      items:
+        $ref: "#/components/schemas/Journal"
+    ArtifactInput:
+      type: object
+      required: [project_id, name, kind]
+      properties:
+        project_id: { type: string }
+        run_id: { type: string, format: uuid }
+        name: { type: string }
+        kind:
+          type: string
+          enum: [markdown, image, link, diff, build_report]
+        content: { type: string }
+        managed_path: { type: string }
+        external_url: { type: string, format: uri }
+    Artifact:
+      allOf:
+        - $ref: "#/components/schemas/ArtifactInput"
+        - $ref: "#/components/schemas/Timestamps"
+        - type: object
+          properties:
+            id: { type: string }
+    ArtifactList:
+      type: array
+      items:
+        $ref: "#/components/schemas/Artifact"
+    AgentInput:
+      type: object
+      required: [slug, name, runtime_id]
+      properties:
+        slug: { type: string }
+        name: { type: string }
+        role: { type: string }
+        runtime_id: { type: string }
+        system_prompt: { type: string }
+        status:
+          $ref: "#/components/schemas/LifecycleStatus"
+    Agent:
+      allOf:
+        - $ref: "#/components/schemas/AgentInput"
+        - $ref: "#/components/schemas/Timestamps"
+        - type: object
+          properties:
+            id: { type: string }
+    AgentList:
+      type: array
+      items:
+        $ref: "#/components/schemas/Agent"
+    SkillInput:
+      type: object
+      required: [slug, name, version, prompt_template]
+      properties:
+        slug: { type: string }
+        name: { type: string }
+        description: { type: string }
+        version: { type: string }
+        prompt_template: { type: string }
+        lifecycle:
+          type: string
+          enum: [draft, active, deprecated, disabled]
+    Skill:
+      allOf:
+        - $ref: "#/components/schemas/SkillInput"
+        - $ref: "#/components/schemas/Timestamps"
+        - type: object
+          properties:
+            id: { type: string }
+    SkillList:
+      type: array
+      items:
+        $ref: "#/components/schemas/Skill"
+    RuntimeAdapter:
+      type: object
+      required: [id, name, status, approval_required]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        status:
+          type: string
+          enum: [available, unavailable, disabled]
+        version: { type: string }
+        executable: { type: string }
+        approval_required: { type: boolean, const: true }
+        approved_for_execution: { type: boolean }
+    RuntimeAdapterList:
+      type: array
+      items:
+        $ref: "#/components/schemas/RuntimeAdapter"
+    RepositoryInput:
+      type: object
+      required: [project_id, kind, name]
+      properties:
+        project_id: { type: string }
+        kind:
+          type: string
+          enum: [managed_local, github]
+        name: { type: string }
+        remote_url: { type: string }
+        credential_ref: { type: string }
+    Repository:
+      allOf:
+        - $ref: "#/components/schemas/RepositoryInput"
+        - $ref: "#/components/schemas/Timestamps"
+        - type: object
+          properties:
+            id: { type: string }
+            default_branch: { type: string }
+    RepositoryList:
+      type: array
+      items:
+        $ref: "#/components/schemas/Repository"
+    RunStatus:
+      type: string
+      enum: [draft, awaiting_approval, queued, running, succeeded, failed, cancelled]
+    RunProposal:
+      type: object
+      required: [project_id, task_id, agent_id, runtime_adapter_id, prompt]
+      properties:
+        project_id: { type: string }
+        task_id: { type: string }
+        agent_id: { type: string }
+        skill_id: { type: string }
+        runtime_adapter_id:
+          type: string
+          enum: [claude-code, codex]
+        repository_id: { type: string }
+        prompt: { type: string }
+        requested_network:
+          type: boolean
+          default: false
+    Run:
+      allOf:
+        - $ref: "#/components/schemas/RunProposal"
+        - $ref: "#/components/schemas/Timestamps"
+        - type: object
+          required: [id, status, network_enabled]
+          properties:
+            id: { type: string, format: uuid }
+            status:
+              $ref: "#/components/schemas/RunStatus"
+            network_enabled: { type: boolean }
+            branch_name: { type: string }
+            result_summary: { type: string }
+            estimated_cost_usd: { type: number }
+    RunList:
+      type: array
+      items:
+        $ref: "#/components/schemas/Run"
+    ApprovalInput:
+      type: object
+      required: [kind, decision]
+      properties:
+        kind:
+          type: string
+          enum: [execute, network, commit, push]
+        decision:
+          type: string
+          enum: [approved, rejected]
+        reason: { type: string }
+    Approval:
+      allOf:
+        - $ref: "#/components/schemas/ApprovalInput"
+        - type: object
+          required: [id, run_id, decided_at]
+          properties:
+            id: { type: string, format: uuid }
+            run_id: { type: string, format: uuid }
+            decided_at: { type: string, format: date-time }
+    RunLog:
+      type: object
+      required: [id, run_id, stream, message, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        run_id: { type: string, format: uuid }
+        stream:
+          type: string
+          enum: [system, stdout, stderr]
+        message: { type: string }
+        created_at: { type: string, format: date-time }
+    RunLogList:
+      type: array
+      items:
+        $ref: "#/components/schemas/RunLog"
+    ChatRequest:
+      type: object
+      required: [message]
+      properties:
+        conversation_id: { type: string, format: uuid }
+        message: { type: string }
+        project_id: { type: string }
+    ProposedAction:
+      type: object
+      required: [kind, requires_approval]
+      properties:
+        kind:
+          type: string
+          enum: [create_project, create_task, propose_run]
+        payload:
+          type: object
+          additionalProperties: true
+        requires_approval: { type: boolean, const: true }
+    ChatResponse:
+      type: object
+      required: [conversation_id, message, proposed_actions]
+      properties:
+        conversation_id: { type: string, format: uuid }
+        message: { type: string }
+        proposed_actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProposedAction"
+    UsageOverview:
+      type: object
+      required: [input_tokens, output_tokens, reporting]
+      properties:
+        input_tokens: { type: integer }
+        output_tokens: { type: integer }
+        cost_usd: { type: number }
+        reporting:
+          type: string
+          enum: [exact, estimated, not_reported]
+    Timestamps:
+      type: object
+      required: [created_at, updated_at]
+      properties:
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }

@@ -7,8 +7,8 @@ Instrucciones para futuras sesiones de Codex que trabajen en este repo.
 BattOS es un Mission Control agentic self-hosted que organiza trabajo,
 conocimiento y agentes, y ejecuta tareas de forma supervisada.
 
-**Estado**: v0.1.0 en construccion. Fases 0-2 cerradas; el siguiente trabajo
-es Fase 3A/3B. La especificacion final vive en
+**Estado**: v0.1.0 en construccion. Fases 0-3A cerradas; el siguiente trabajo
+es Fase 3B. La especificacion final vive en
 `docs/14-producto-final-y-roadmap.md`; el avance implementable en
 `docs/10-roadmap.md`.
 
@@ -34,7 +34,7 @@ apps/api/         -> server HTTP y futuro worker Go
 apps/cli/         -> binario battos
 apps/web/         -> Next.js dashboard (pendiente)
 packages/core/    -> tipos compartidos Go
-packages/openapi/ -> openapi.yaml + codigo generado (pendiente)
+packages/openapi/ -> openapi.yaml vigente + codigo generado posterior
 agents/           -> definiciones MD de agentes
 skills/           -> definiciones MD de skills
 config/           -> YAML de runtime
@@ -115,7 +115,7 @@ docker compose -f infra/docker-compose.yml down
 | 0 | Bootstrap del repo | Completado |
 | 1 | `battos status` funcional | Completado |
 | 2 | DB + Memory Core | Completado |
-| 3A | Contratos, ADRs finales y OpenAPI | Pending |
+| 3A | Contratos, ADRs finales y OpenAPI | Completado |
 | 3B | Work model y Knowledge Center | Pending |
 | 4A | Runtime adapters Claude Code/Codex | Pending |
 | 4B | Runs aislados, approvals y logs | Pending |
@@ -134,3 +134,5 @@ docker compose -f infra/docker-compose.yml down
 - Knowledge Workspace/Obsidian opcional: `docs/adr/0010-knowledge-workspace-opcional.md`.
 - v0.1 ejecuta runs supervisados: `docs/adr/0011-v01-ejecucion-supervisada.md`.
 - Upgrades modulares con Extension Platform: `docs/adr/0012-extension-platform-modular.md`.
+- Auth single-owner y secretos por referencia: `docs/adr/0013-auth-y-secretos-v01.md`.
+- Runs y approvals auditables: `docs/adr/0014-run-lifecycle-y-approvals.md`.
