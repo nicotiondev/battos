@@ -46,6 +46,9 @@ services:
       # API
       BATTOS_ENV: ${BATTOS_ENV:-production}
       BATTOS_SECRET_KEY: ${BATTOS_SECRET_KEY}
+      BATTOS_API_HOST: "0.0.0.0"
+      BATTOS_AUTH_MODE: "token"
+      BATTOS_API_TOKEN: ${BATTOS_API_TOKEN}
       # DB
       DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@battos-db:5432/${POSTGRES_DB}?sslmode=disable"
       # Providers (solo presencia se valida en v0.1, no se llaman)

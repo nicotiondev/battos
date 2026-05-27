@@ -30,6 +30,9 @@ Implementado actualmente:
 - Middleware Bearer configurable y soporte CLI para `BATTOS_API_TOKEN`; en
   desarrollo sin token el API solo escucha en `127.0.0.1`.
 
+En Docker/VPS se debe definir `BATTOS_API_TOKEN`; el compose habilita
+`auth.mode: token` al publicar el API.
+
 Objetivo final de **v0.1**:
 
 - Modelo de trabajo: domains, projects, goals, tasks y board.

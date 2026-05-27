@@ -66,6 +66,8 @@ referencia:
   `--token` o `BATTOS_API_TOKEN`.
 - La configuracion local de desarrollo usa `auth.mode: disabled` con
   `api.host: 127.0.0.1`; el boot rechaza modo abierto sobre bind publico.
+- Docker/VPS sobreescribe `BATTOS_API_HOST=0.0.0.0`,
+  `BATTOS_AUTH_MODE=token` y requiere `BATTOS_API_TOKEN`.
 - La configuracion debera distinguir claramente `dev` de `production`.
 
 ## Related
