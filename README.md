@@ -118,6 +118,29 @@ go run ./apps/cli/cmd/battos project list
 go test ./apps/api/... ./apps/cli/... ./packages/core/...
 ```
 
+### Firma local de desarrollo en Windows
+
+Si Windows bloquea `battos.exe` por control de aplicaciones tras recompilarlo,
+puedes firmar el binario con un certificado local de desarrollo. Por defecto,
+el script confia el certificado solo como `TrustedPublisher` del usuario actual
+y exporta el certificado publico a `data/certs/battos-dev-code-signing.cer`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\sign-battos-dev.ps1
+```
+
+Para confiar el mismo certificado publico en otro Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\trust-battos-dev-cert.ps1 `
+  -CertificatePath .\data\certs\battos-dev-code-signing.cer
+```
+
+Esto no reemplaza una firma comercial para distribuir BattOS; solo deja el
+binario local firmado y confiado en la maquina de desarrollo. Algunas politicas
+de Windows App Control pueden exigir tambien confianza de raiz (`-TrustRoot`) o
+un certificado comercial/empresarial.
+
 ## CLI disponible
 
 La terminal usa un `ASCII wordmark` propio de BattOS, un bat-mark/mascota

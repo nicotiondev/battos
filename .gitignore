@@ -41,6 +41,7 @@ data/memory/*.db-shm
 data/memory/*.db-wal
 data/logs/*.jsonl
 data/workspaces/
+data/certs/
 
 # --- Generados no versionados ---
 # El store Go generado por sqlc se versiona para que un checkout compile sin
