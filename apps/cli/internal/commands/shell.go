@@ -28,7 +28,14 @@ type shellOption struct {
 	Description string
 	Args        []string
 	NeedsInput  string
+	Prompts     []shellPrompt
 	Action      string
+}
+
+type shellPrompt struct {
+	Label    string
+	Flag     string
+	Required bool
 }
 
 type shellKey int
@@ -105,6 +112,15 @@ type tuiCopy struct {
 	memoryDesc        string
 	helpDesc          string
 	languageDesc      string
+	createDomainDesc  string
+	createProjectDesc string
+	createGoalDesc    string
+	createTaskDesc    string
+	inputHelp         string
+	slugLabel         string
+	nameLabel         string
+	domainIDLabel     string
+	titleLabel        string
 	terminalUI        string
 }
 
@@ -148,6 +164,15 @@ var tuiCopies = map[tuiLanguage]tuiCopy{
 		memoryDesc:        "Ver estadisticas de memoria",
 		helpDesc:          "Ayuda del CLI",
 		languageDesc:      "Cambiar idioma",
+		createDomainDesc:  "Crear dominio",
+		createProjectDesc: "Crear proyecto",
+		createGoalDesc:    "Crear objetivo",
+		createTaskDesc:    "Crear tarea",
+		inputHelp:         "Enter confirmar   Esc cancelar   Ctrl+C salir",
+		slugLabel:         "slug",
+		nameLabel:         "nombre",
+		domainIDLabel:     "domain id opcional",
+		titleLabel:        "titulo",
 		terminalUI:        "TERMINAL UI",
 	},
 	tuiLanguageEN: {
@@ -189,6 +214,15 @@ var tuiCopies = map[tuiLanguage]tuiCopy{
 		memoryDesc:        "View memory statistics",
 		helpDesc:          "CLI help",
 		languageDesc:      "Change language",
+		createDomainDesc:  "Create domain",
+		createProjectDesc: "Create project",
+		createGoalDesc:    "Create goal",
+		createTaskDesc:    "Create task",
+		inputHelp:         "Enter confirm   Esc cancel   Ctrl+C quit",
+		slugLabel:         "slug",
+		nameLabel:         "name",
+		domainIDLabel:     "optional domain id",
+		titleLabel:        "title",
 		terminalUI:        "TERMINAL UI",
 	},
 }
@@ -605,7 +639,10 @@ func selectTUILanguage(current tuiLanguage, out io.Writer) (tuiLanguage, command
 func runTUIOption(ctx context.Context, cfg ShellConfig, option shellOption, state *xterm.State, out io.Writer, language tuiLanguage) (commandResultAction, error) {
 	args := append([]string(nil), option.Args...)
 	if option.NeedsInput != "" {
-		value, err := promptTUIInput(option.NeedsInput, state, out)
+		value, action, err := promptTUIInput(option.NeedsInput, out, language)
+		if action == commandExit {
+			return commandExit, nil
+		}
 		if err != nil {
 			return commandBack, err
 		}
@@ -614,27 +651,68 @@ func runTUIOption(ctx context.Context, cfg ShellConfig, option shellOption, stat
 		}
 		args = append(args, strings.TrimSpace(value))
 	}
+	for _, prompt := range option.Prompts {
+		value, action, err := promptTUIInput(prompt.Label, out, language)
+		if action == commandExit {
+			return commandExit, nil
+		}
+		if err != nil {
+			return commandBack, err
+		}
+		value = strings.TrimSpace(value)
+		if value == "" {
+			if prompt.Required {
+				return commandBack, nil
+			}
+			continue
+		}
+		if prompt.Flag != "" {
+			args = append(args, prompt.Flag, value)
+		} else {
+			args = append(args, value)
+		}
+	}
 	return runTUICommand(ctx, cfg, args, state, out, language)
 }
 
-func promptTUIInput(label string, state *xterm.State, out io.Writer) (string, error) {
-	if err := xterm.Restore(os.Stdin.Fd(), state); err != nil {
-		return "", err
+func promptTUIInput(label string, out io.Writer, language tuiLanguage) (string, commandResultAction, error) {
+	copy := copyForLanguage(language)
+	var value strings.Builder
+	pendingKeyBytes = nil
+	for {
+		clearTUIScreen(out)
+		fmt.Fprint(out, "\x1b[?25h")
+		body := strings.Join([]string{
+			styleHeader.Render(label),
+			"",
+			stylePrompt.Render(label+" > ") + value.String(),
+			"",
+			styleSubtle.Render(copy.inputHelp),
+		}, "\n")
+		fmt.Fprintln(out, stylePanel.Render(body))
+		event, err := readKey(os.Stdin)
+		if err != nil {
+			return "", commandBack, err
+		}
+		switch event.Key {
+		case keyCtrlC:
+			return "", commandExit, nil
+		case keyEscape:
+			return "", commandBack, nil
+		case keyEnter:
+			return value.String(), commandBack, nil
+		case keyBackspace:
+			current := value.String()
+			if len(current) > 0 {
+				value.Reset()
+				value.WriteString(current[:len(current)-1])
+			}
+		case keySlash:
+			value.WriteRune('/')
+		case keyRune:
+			value.WriteRune(event.Ch)
+		}
 	}
-	clearTUIScreen(out)
-	fmt.Fprint(out, "\x1b[?25h")
-	PrintBanner("TERMINAL UI")
-	fmt.Fprint(out, stylePrompt.Render(label+" > "))
-	reader := bufio.NewReader(os.Stdin)
-	value, err := reader.ReadString('\n')
-	newState, rawErr := xterm.MakeRaw(os.Stdin.Fd())
-	if rawErr == nil {
-		*state = *newState
-	}
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(value), nil
 }
 
 func runTUICommand(ctx context.Context, cfg ShellConfig, args []string, state *xterm.State, out io.Writer, language tuiLanguage) (commandResultAction, error) {
@@ -874,6 +952,24 @@ func runShellPalette(ctx context.Context, cfg ShellConfig, scanner *bufio.Scanne
 				}
 				args = append(args, value)
 			}
+			for _, prompt := range option.Prompts {
+				fmt.Fprint(out, stylePrompt.Render(prompt.Label+" > "))
+				if !scanner.Scan() {
+					return scanner.Err()
+				}
+				value := strings.TrimSpace(scanner.Text())
+				if value == "" {
+					if prompt.Required {
+						return nil
+					}
+					continue
+				}
+				if prompt.Flag != "" {
+					args = append(args, prompt.Flag, value)
+				} else {
+					args = append(args, value)
+				}
+			}
 			return runBattOSCommand(ctx, cfg, args, out)
 		}
 	}
@@ -889,9 +985,26 @@ func shellOptions(language tuiLanguage) []shellOption {
 	return []shellOption{
 		{Key: "/status", Description: copy.statusDescription, Args: []string{"status"}},
 		{Key: "/domains", Description: copy.domainsDesc, Args: []string{"domain", "list"}},
+		{Key: "/domain-new", Description: copy.createDomainDesc, Args: []string{"domain", "create"}, Prompts: []shellPrompt{
+			{Label: copy.slugLabel, Required: true},
+			{Label: copy.nameLabel, Flag: "--name", Required: true},
+		}},
 		{Key: "/projects", Description: copy.projectsDesc, Args: []string{"project", "list"}},
+		{Key: "/project-new", Description: copy.createProjectDesc, Args: []string{"project", "create"}, Prompts: []shellPrompt{
+			{Label: copy.slugLabel, Required: true},
+			{Label: copy.nameLabel, Flag: "--name", Required: true},
+			{Label: copy.domainIDLabel, Flag: "--domain"},
+		}},
 		{Key: "/goals", Description: copy.goalsDesc, Args: []string{"goal", "list", "--project"}, NeedsInput: copy.projectID},
+		{Key: "/goal-new", Description: copy.createGoalDesc, Args: []string{"goal", "create"}, Prompts: []shellPrompt{
+			{Label: copy.projectID, Flag: "--project", Required: true},
+			{Label: copy.titleLabel, Flag: "--title", Required: true},
+		}},
 		{Key: "/tasks", Description: copy.tasksDesc, Args: []string{"task", "list", "--project"}, NeedsInput: copy.projectID},
+		{Key: "/task-new", Description: copy.createTaskDesc, Args: []string{"task", "create"}, Prompts: []shellPrompt{
+			{Label: copy.projectID, Flag: "--project", Required: true},
+			{Label: copy.titleLabel, Flag: "--title", Required: true},
+		}},
 		{Key: "/memory", Description: copy.memoryDesc, Args: []string{"memory", "stats"}},
 		{Key: "/language", Description: copy.languageDesc, Action: shellActionLanguage},
 		{Key: "/help", Description: copy.helpDesc, Args: []string{"--help"}},

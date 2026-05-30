@@ -42,8 +42,8 @@ func TestShellArgsRequiresProjectForTasks(t *testing.T) {
 
 func TestFilteredOptionsNarrowsPalette(t *testing.T) {
 	got := filteredOptions("proj", tuiLanguageES)
-	if len(got) != 1 || got[0].Key != "/projects" {
-		t.Fatalf("filteredOptions(proj) = %#v, want only /projects", got)
+	if len(got) != 2 || got[0].Key != "/projects" || got[1].Key != "/project-new" {
+		t.Fatalf("filteredOptions(proj) = %#v, want /projects and /project-new", got)
 	}
 }
 

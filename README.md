@@ -178,7 +178,9 @@ l cambiar idioma
 Ctrl+C salida de emergencia
 /status
 /projects
+/project-new
 /tasks landing-acme
+/task-new
 /memory
 /language
 /help
@@ -189,6 +191,11 @@ En modo TUI, `Esc` o `Enter` vuelven desde un resultado al Mission Control y
 `Ctrl+C` sale de la interfaz. La TUI parte por defecto en espanol; puedes
 cambiar a ingles desde `/language`, con la tecla `l`, usando `--lang en` o
 definiendo `BATTOS_LANG=en`.
+
+Las acciones `/goals` y `/tasks` listan datos de un proyecto existente, por eso
+primero piden `project id`. Para crear desde la TUI usa `/domain-new`,
+`/project-new`, `/goal-new` o `/task-new`; los prompts internos se cancelan con
+`Esc`.
 
 La CLI de v0.1 agregara los recursos de conocimiento, repositorios, adapters,
 creacion y aprobacion de runs, logs y uso.
