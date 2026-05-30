@@ -2,6 +2,7 @@ package commands
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -35,5 +36,32 @@ func TestShellArgsRequiresProjectForTasks(t *testing.T) {
 	_, err := shellArgs("/tasks")
 	if err == nil {
 		t.Fatal("shellArgs(/tasks) error = nil, want usage error")
+	}
+}
+
+func TestFilteredOptionsNarrowsPalette(t *testing.T) {
+	got := filteredOptions("proj")
+	if len(got) != 1 || got[0].Key != "/projects" {
+		t.Fatalf("filteredOptions(proj) = %#v, want only /projects", got)
+	}
+}
+
+func TestReadKeyParsesArrowDown(t *testing.T) {
+	got, err := readKey(strings.NewReader("\x1b[B"))
+	if err != nil {
+		t.Fatalf("readKey returned error: %v", err)
+	}
+	if got.Key != keyDown {
+		t.Fatalf("readKey = %#v, want keyDown", got)
+	}
+}
+
+func TestReadKeyParsesEscape(t *testing.T) {
+	got, err := readKey(strings.NewReader("\x1b"))
+	if err != nil {
+		t.Fatalf("readKey returned error: %v", err)
+	}
+	if got.Key != keyEscape {
+		t.Fatalf("readKey = %#v, want keyEscape", got)
 	}
 }

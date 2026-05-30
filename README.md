@@ -33,7 +33,8 @@ Implementado actualmente:
 - Fase 3B en curso: persistencia `sqlc` y API/CLI del Work Board para domains,
   projects, goals y tasks; persistencia preparada para knowledge workspaces,
   journals y artifacts.
-- Modo interactivo `battos` / `battos shell` con comandos slash iniciales.
+- TUI interactiva `battos` / `battos shell` con navegacion por flechas,
+  command palette `/` y fallback scriptable.
 
 En Docker/VPS se debe definir `BATTOS_API_TOKEN`; el compose habilita
 `auth.mode: token` al publicar el API.
@@ -119,9 +120,8 @@ go test ./apps/api/... ./apps/cli/... ./packages/core/...
 ## CLI disponible
 
 La terminal usa un `ASCII wordmark` propio de BattOS y la firma
-`Desarrollado por [ N ] Nicotion.dev` como cabecera visual en los comandos
-principales. Puedes usarla de dos formas: comandos directos o shell
-interactiva.
+`Desarrollado por [ N ] Nicotion.dev` como cabecera visual. Puedes usarla de
+dos formas: comandos directos o TUI interactiva.
 
 ```bash
 battos
@@ -141,6 +141,10 @@ battos task list --project landing-acme
 Dentro de `battos shell`, escribe `/` para abrir el menu inicial o usa atajos:
 
 ```text
+↑/↓ navegar
+Enter ejecutar
+/ abrir command palette
+q salir
 /status
 /projects
 /tasks landing-acme
