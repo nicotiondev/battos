@@ -54,6 +54,7 @@ go build ./apps/cli/cmd/battos
 
 cd apps/api; go run ./cmd/api
 cd apps/cli; go run ./cmd/battos status
+cd apps/cli; go run ./cmd/battos shell
 cd apps/cli; go run ./cmd/battos memory stats
 cd apps/cli; go run ./cmd/battos project list
 
@@ -117,7 +118,7 @@ docker compose -f infra/docker-compose.yml down
 | 1 | `battos status` funcional | Completado |
 | 2 | DB + Memory Core | Completado |
 | 3A | Contratos, ADRs finales y OpenAPI | Completado |
-| 3B | Work model y Knowledge Center | En curso: Work Board API/CLI; Knowledge pendiente |
+| 3B | Work model y Knowledge Center | En curso: Work Board API/CLI y shell interactiva inicial; Knowledge pendiente |
 | 4A | Runtime adapters Claude Code/Codex | Pending |
 | 4B | Runs aislados, approvals y logs | Pending |
 | 4C | Repositories, diff, commit y push | Pending |

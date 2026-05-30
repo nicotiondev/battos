@@ -179,12 +179,18 @@ curl http://localhost:8000/memory/stats | jq
 ### Con el CLI
 ```powershell
 battos status
+battos shell
 battos memory stats
 battos memory search "FTS5"
 battos domain create clientes --name "Clientes"
 battos project create landing-acme --name "Landing Acme" --domain clientes
 battos task create --project landing-acme --title "Preparar brief"
 battos task list --project landing-acme
+
+# Dentro de battos shell:
+/status
+/projects
+/tasks landing-acme
 
 # Cuando auth.mode=token:
 $env:BATTOS_API_TOKEN="<token>"; battos status

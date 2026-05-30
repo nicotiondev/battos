@@ -11,7 +11,7 @@
 | 1 | API `/health`, `/version`, `/status` y CLI `status` | Completada |
 | 2 | PostgreSQL base + Memory Core SQLite/FTS5 + CLI/HTTP memory | Completada |
 | 3A | OpenAPI, autenticacion/secretos y lifecycle de runs/approvals | Completada |
-| 3B | Work model y Knowledge Center | En curso: persistencia y CRUD API/CLI de Work Board listos; Knowledge HTTP/CLI pendiente |
+| 3B | Work model y Knowledge Center | En curso: persistencia y CRUD API/CLI de Work Board listos; shell interactiva inicial; Knowledge HTTP/CLI pendiente |
 
 Validacion disponible:
 
@@ -49,7 +49,8 @@ BattOS mantiene sus principios:
 La siguiente implementacion de **Fase 3B** es exponer Knowledge Center
 (`workspaces`, `journals`, `artifacts`) por API/CLI. Ya estan activos el
 almacenamiento tipado y el CRUD API/CLI del Work Board para `domains`,
-`projects`, `goals` y `tasks`, siguiendo
+`projects`, `goals` y `tasks`; tambien existe una shell interactiva inicial
+con comandos slash para operar la CLI sin salir de sesion, siguiendo
 `packages/openapi/openapi.yaml`.
 
 Prerequisito seguro ya implementado para Fase 3B: middleware Bearer

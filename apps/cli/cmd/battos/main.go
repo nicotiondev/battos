@@ -42,8 +42,10 @@ func newRootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: false,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			commands.PrintBanner("CLI")
-			return cmd.Help()
+			return commands.RunShell(cmd.Context(), commands.ShellConfig{
+				APIURL: apiURL,
+				Token:  apiToken,
+			})
 		},
 	}
 
@@ -63,6 +65,12 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(commands.NewProjectCmd(getClient))
 	root.AddCommand(commands.NewGoalCmd(getClient))
 	root.AddCommand(commands.NewTaskCmd(getClient))
+	root.AddCommand(commands.NewShellCmd(func() commands.ShellConfig {
+		return commands.ShellConfig{
+			APIURL: apiURL,
+			Token:  apiToken,
+		}
+	}))
 
 	return root
 }
@@ -87,4 +95,6 @@ desde un único panel.
 
 Este binario es el CLI cliente. Habla con el API de BattOS por HTTP.
 Asegurate de que el API esté corriendo (docker compose up -d) antes
-de usar los comandos.`
+de usar los comandos.
+
+Ejecuta battos o battos shell para abrir el modo interactivo con comandos slash.`
