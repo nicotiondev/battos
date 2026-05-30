@@ -41,9 +41,28 @@ func TestShellArgsRequiresProjectForTasks(t *testing.T) {
 }
 
 func TestFilteredOptionsNarrowsPalette(t *testing.T) {
-	got := filteredOptions("proj")
+	got := filteredOptions("proj", tuiLanguageES)
 	if len(got) != 1 || got[0].Key != "/projects" {
 		t.Fatalf("filteredOptions(proj) = %#v, want only /projects", got)
+	}
+}
+
+func TestShellOptionsLocalizeLanguage(t *testing.T) {
+	got := shellOptions(tuiLanguageEN)
+	if len(got) == 0 {
+		t.Fatal("shellOptions(en) returned no options")
+	}
+	if got[0].Description != "OS status overview" {
+		t.Fatalf("shellOptions(en)[0].Description = %q, want English copy", got[0].Description)
+	}
+	foundLanguage := false
+	for _, option := range got {
+		if option.Key == "/language" && option.Action == shellActionLanguage {
+			foundLanguage = true
+		}
+	}
+	if !foundLanguage {
+		t.Fatalf("shellOptions(en) missing /language action: %#v", got)
 	}
 }
 
@@ -68,7 +87,7 @@ func TestReadKeyParsesEscape(t *testing.T) {
 }
 
 func TestFriendlyCommandErrorExplainsOfflineAPI(t *testing.T) {
-	got := friendlyCommandError(fmt.Errorf("dial tcp [::1]:8000: connectex: No connection could be made because the target machine actively refused it"), "http://localhost:8000")
+	got := friendlyCommandError(fmt.Errorf("dial tcp [::1]:8000: connectex: No connection could be made because the target machine actively refused it"), "http://localhost:8000", tuiLanguageES)
 	if !strings.Contains(got, "BattOS API no esta corriendo") || !strings.Contains(got, "http://localhost:8000") {
 		t.Fatalf("friendlyCommandError = %q, want offline API guidance", got)
 	}

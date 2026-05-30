@@ -33,6 +33,7 @@ func main() {
 func newRootCmd() *cobra.Command {
 	var apiURL string
 	var apiToken string
+	var language string
 
 	root := &cobra.Command{
 		Use:           "battos",
@@ -43,8 +44,9 @@ func newRootCmd() *cobra.Command {
 		SilenceErrors: false,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return commands.RunShell(cmd.Context(), commands.ShellConfig{
-				APIURL: apiURL,
-				Token:  apiToken,
+				APIURL:   apiURL,
+				Token:    apiToken,
+				Language: language,
 			})
 		},
 	}
@@ -52,6 +54,7 @@ func newRootCmd() *cobra.Command {
 	// Flag global: URL del API. Por defecto localhost, override con --api o BATTOS_API_URL.
 	root.PersistentFlags().StringVar(&apiURL, "api", defaultAPIURL(), "URL del API BattOS")
 	root.PersistentFlags().StringVar(&apiToken, "token", defaultAPIToken(), "Token de acceso BattOS")
+	root.PersistentFlags().StringVar(&language, "lang", defaultLanguage(), "Idioma de la TUI BattOS: es o en")
 
 	// Factory que devuelve un cliente con el apiURL resuelto en tiempo de ejecución.
 	getClient := func() *client.Client {
@@ -67,8 +70,9 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(commands.NewTaskCmd(getClient))
 	root.AddCommand(commands.NewShellCmd(func() commands.ShellConfig {
 		return commands.ShellConfig{
-			APIURL: apiURL,
-			Token:  apiToken,
+			APIURL:   apiURL,
+			Token:    apiToken,
+			Language: language,
 		}
 	}))
 
@@ -87,6 +91,13 @@ func defaultAPIURL() string {
 
 func defaultAPIToken() string {
 	return os.Getenv("BATTOS_API_TOKEN")
+}
+
+func defaultLanguage() string {
+	if v := os.Getenv("BATTOS_LANG"); v != "" {
+		return v
+	}
+	return "es"
 }
 
 const longDescription = `BattOS es una capa agentic self-hosted para orquestar proyectos,

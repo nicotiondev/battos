@@ -35,7 +35,7 @@ Implementado actualmente:
   journals y artifacts.
 - TUI interactiva `battos` / `battos shell` con welcome deck amplio,
   mascota pixel-art, navegacion por flechas, command palette `/`, footer fijo
-  y panel de resultados para comandos.
+  selector de idioma y panel de resultados para comandos.
 
 En Docker/VPS se debe definir `BATTOS_API_TOKEN`; el compose habilita
 `auth.mode: token` al publicar el API.
@@ -124,7 +124,9 @@ La terminal usa un `ASCII wordmark` propio de BattOS, un bat-mark/mascota
 original nocturno y una paleta negro/amarillo/gris como cabecera visual. La
 TUI ocupa el ancho disponible para mostrar un welcome deck y, al ejecutar una
 accion, captura la salida del comando en un panel de resultado para no volver a
-la salida suelta de consola.
+la salida suelta de consola. En pantallas angostas cambia a layout compacto,
+pero conserva la misma mascota pixel-art para que la identidad no salte entre
+versiones visuales distintas.
 Puedes usarla de dos formas: comandos directos o TUI interactiva.
 
 ```bash
@@ -149,18 +151,22 @@ Dentro de `battos shell`, escribe `/` para abrir el menu inicial o usa atajos:
 Enter ejecutar
 / abrir command palette
 Esc volver/cerrar palette
+l cambiar idioma
 q salir
 Ctrl+C salida de emergencia
 /status
 /projects
 /tasks landing-acme
 /memory
+/language
 /help
 /exit
 ```
 
 En modo TUI, `Esc` o `Enter` vuelven desde un resultado al Mission Control,
-`q` sale de la interfaz y `Ctrl+C` queda como salida de emergencia.
+`q` sale de la interfaz y `Ctrl+C` queda como salida de emergencia. La TUI
+parte por defecto en espanol; puedes cambiar a ingles desde `/language`, con
+la tecla `l`, usando `--lang en` o definiendo `BATTOS_LANG=en`.
 
 La CLI de v0.1 agregara los recursos de conocimiento, repositorios, adapters,
 creacion y aprobacion de runs, logs y uso.

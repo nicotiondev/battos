@@ -17,10 +17,11 @@ import (
 )
 
 type ShellConfig struct {
-	APIURL string
-	Token  string
-	In     io.Reader
-	Out    io.Writer
+	APIURL   string
+	Token    string
+	Language string
+	In       io.Reader
+	Out      io.Writer
 }
 
 type shellOption struct {
@@ -28,6 +29,7 @@ type shellOption struct {
 	Description string
 	Args        []string
 	NeedsInput  string
+	Action      string
 }
 
 type shellKey int
@@ -55,6 +57,142 @@ const (
 	commandBack commandResultAction = iota
 	commandExit
 )
+
+type tuiLanguage string
+
+const (
+	tuiLanguageES tuiLanguage = "es"
+	tuiLanguageEN tuiLanguage = "en"
+)
+
+const shellActionLanguage = "language"
+
+type tuiCopy struct {
+	welcome           string
+	missionControl    string
+	commandPalette    string
+	filter            string
+	noActions         string
+	tip               string
+	footer            string
+	resultFooter      string
+	inputSection      string
+	resultTitle       string
+	noOutput          string
+	apiOffline        string
+	apiOfflineDetail  string
+	commandError      string
+	languageTitle     string
+	languageHelp      string
+	languageUpdated   string
+	tipsTitle         string
+	tipProjects       string
+	tipTasks          string
+	tipBack           string
+	whatsNewTitle     string
+	whatsNewLine      string
+	brandingLine      string
+	missionName       string
+	lineShellHelp     string
+	lineShellClose    string
+	availableActions  string
+	choose            string
+	projectID         string
+	statusDescription string
+	domainsDesc       string
+	projectsDesc      string
+	goalsDesc         string
+	tasksDesc         string
+	memoryDesc        string
+	helpDesc          string
+	languageDesc      string
+	terminalUI        string
+}
+
+var tuiCopies = map[tuiLanguage]tuiCopy{
+	tuiLanguageES: {
+		welcome:           "Bienvenido.",
+		missionControl:    "Mission Control",
+		commandPalette:    "Paleta de Comandos",
+		filter:            "Filtro",
+		noActions:         "Sin acciones para ese filtro.",
+		tip:               "Tip: /tasks <project> tambien funciona desde el modo shell simple.",
+		footer:            "↑/↓ navegar   Enter ejecutar   / palette   Esc volver   l idioma   q salir   Ctrl+C salir",
+		resultFooter:      "Esc/Enter volver   q salir   Ctrl+C salir",
+		inputSection:      "TERMINAL UI",
+		resultTitle:       "BattOS // Resultado",
+		noOutput:          "(sin salida)",
+		apiOffline:        "BattOS API no esta corriendo.",
+		apiOfflineDetail:  "El comando intento conectarse a %s. Inicia el API y vuelve a ejecutar la accion.",
+		commandError:      "El comando termino con error: ",
+		languageTitle:     "Idioma",
+		languageHelp:      "↑/↓ seleccionar   Enter aplicar   Esc volver",
+		languageUpdated:   "Idioma actualizado.",
+		tipsTitle:         "Tips para empezar",
+		tipProjects:       "Ejecuta /projects para revisar tu tablero",
+		tipTasks:          "Ejecuta /tasks <project> para revisar tareas activas",
+		tipBack:           "Usa Esc para volver, q para salir de la TUI",
+		whatsNewTitle:     "Novedades",
+		whatsNewLine:      "TUI v1 usa deck amplio, paleta de comandos, idioma y footer fijo",
+		brandingLine:      "Branding con mascota BattOS original, sin logos externos",
+		missionName:       "BattOS Mission Control",
+		lineShellHelp:     "Escribe / para ver acciones, /help para ayuda, /exit para salir.",
+		lineShellClose:    "Cerrando BattOS shell.",
+		availableActions:  "Acciones disponibles",
+		choose:            "elige",
+		projectID:         "project id",
+		statusDescription: "Estado general del OS",
+		domainsDesc:       "Listar dominios",
+		projectsDesc:      "Listar proyectos",
+		goalsDesc:         "Listar objetivos por proyecto",
+		tasksDesc:         "Listar tareas por proyecto",
+		memoryDesc:        "Ver estadisticas de memoria",
+		helpDesc:          "Ayuda del CLI",
+		languageDesc:      "Cambiar idioma",
+		terminalUI:        "TERMINAL UI",
+	},
+	tuiLanguageEN: {
+		welcome:           "Welcome back.",
+		missionControl:    "Mission Control",
+		commandPalette:    "Command Palette",
+		filter:            "Filter",
+		noActions:         "No actions for that filter.",
+		tip:               "Tip: /tasks <project> also works from the simple shell mode.",
+		footer:            "↑/↓ navigate   Enter run   / palette   Esc back   l language   q quit   Ctrl+C quit",
+		resultFooter:      "Esc/Enter back   q quit   Ctrl+C quit",
+		inputSection:      "TERMINAL UI",
+		resultTitle:       "BattOS // Command Result",
+		noOutput:          "(no output)",
+		apiOffline:        "BattOS API is not running.",
+		apiOfflineDetail:  "The command tried to connect to %s. Start the API and run the action again.",
+		commandError:      "The command ended with an error: ",
+		languageTitle:     "Language",
+		languageHelp:      "↑/↓ select   Enter apply   Esc back",
+		languageUpdated:   "Language updated.",
+		tipsTitle:         "Tips for getting started",
+		tipProjects:       "Run /projects to review your work board",
+		tipTasks:          "Run /tasks <project> to inspect active tasks",
+		tipBack:           "Use Esc to go back, q to leave the terminal UI",
+		whatsNewTitle:     "What's new",
+		whatsNewLine:      "TUI v1 has a wide deck, command palette, language and fixed footer",
+		brandingLine:      "Branding uses an original BattOS mascot, not any external logo",
+		missionName:       "BattOS Mission Control",
+		lineShellHelp:     "Type / to see actions, /help for help, /exit to quit.",
+		lineShellClose:    "Closing BattOS shell.",
+		availableActions:  "Available actions",
+		choose:            "choose",
+		projectID:         "project id",
+		statusDescription: "OS status overview",
+		domainsDesc:       "List domains",
+		projectsDesc:      "List projects",
+		goalsDesc:         "List goals by project",
+		tasksDesc:         "List tasks by project",
+		memoryDesc:        "View memory statistics",
+		helpDesc:          "CLI help",
+		languageDesc:      "Change language",
+		terminalUI:        "TERMINAL UI",
+	},
+}
 
 var (
 	stylePrompt   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FACC15"))
@@ -89,6 +227,7 @@ func RunShell(ctx context.Context, cfg ShellConfig) error {
 }
 
 func runLineShell(ctx context.Context, cfg ShellConfig) error {
+	copy := copyForLanguage(normalizeTUILanguage(cfg.Language))
 	in := cfg.In
 	if in == nil {
 		in = os.Stdin
@@ -99,7 +238,7 @@ func runLineShell(ctx context.Context, cfg ShellConfig) error {
 	}
 
 	PrintBanner("INTERACTIVE SHELL")
-	fmt.Fprintln(out, styleSubtle.Render("Escribe / para ver acciones, /help para ayuda, /exit para salir."))
+	fmt.Fprintln(out, styleSubtle.Render(copy.lineShellHelp))
 	fmt.Fprintln(out)
 
 	scanner := bufio.NewScanner(in)
@@ -114,7 +253,7 @@ func runLineShell(ctx context.Context, cfg ShellConfig) error {
 			continue
 		}
 		if line == "/exit" || line == "exit" || line == "quit" {
-			fmt.Fprintln(out, styleSubtle.Render("Cerrando BattOS shell."))
+			fmt.Fprintln(out, styleSubtle.Render(copy.lineShellClose))
 			return nil
 		}
 		if line == "/" || line == "/menu" {
@@ -147,7 +286,7 @@ func RunTUI(ctx context.Context, cfg ShellConfig) error {
 	fmt.Fprint(out, "\x1b[?1049h")
 	defer fmt.Fprint(out, "\x1b[?25h\x1b[?1049l\x1b[0m")
 
-	app := tuiState{selected: 0}
+	app := tuiState{selected: 0, language: normalizeTUILanguage(cfg.Language)}
 	for {
 		renderTUI(out, app)
 		event, err := readKey(os.Stdin)
@@ -162,7 +301,7 @@ func RunTUI(ctx context.Context, cfg ShellConfig) error {
 				app.selected--
 			}
 		case keyDown:
-			if app.selected < len(shellOptions())-1 {
+			if app.selected < len(shellOptions(app.language))-1 {
 				app.selected++
 			}
 		case keySlash:
@@ -190,8 +329,15 @@ func RunTUI(ctx context.Context, cfg ShellConfig) error {
 				switch event.Ch {
 				case 'q':
 					return nil
+				case 'l':
+					language, action := selectTUILanguage(app.language, out)
+					if action == commandExit {
+						return nil
+					}
+					app.language = language
+					app.selected = 0
 				case 'j':
-					if app.selected < len(shellOptions())-1 {
+					if app.selected < len(shellOptions(app.language))-1 {
 						app.selected++
 					}
 				case 'k':
@@ -205,7 +351,7 @@ func RunTUI(ctx context.Context, cfg ShellConfig) error {
 				}
 			}
 		case keyEnter:
-			options := filteredOptions(app.filter)
+			options := filteredOptions(app.filter, app.language)
 			if len(options) == 0 {
 				continue
 			}
@@ -213,7 +359,19 @@ func RunTUI(ctx context.Context, cfg ShellConfig) error {
 				app.selected = len(options) - 1
 			}
 			option := options[app.selected]
-			action, err := runTUIOption(ctx, cfg, option, state, out)
+			if option.Action == shellActionLanguage {
+				language, action := selectTUILanguage(app.language, out)
+				if action == commandExit {
+					return nil
+				}
+				app.language = language
+				app.palette = false
+				app.filter = ""
+				app.selected = 0
+				continue
+			}
+			cfg.Language = string(app.language)
+			action, err := runTUIOption(ctx, cfg, option, state, out, app.language)
 			if err != nil {
 				showTUIMessage(out, state, "error: "+err.Error())
 			}
@@ -231,18 +389,20 @@ type tuiState struct {
 	selected int
 	palette  bool
 	filter   string
+	language tuiLanguage
 }
 
 func renderTUI(out io.Writer, app tuiState) {
 	clearTUIScreen(out)
-	options := filteredOptions(app.filter)
-	fmt.Fprintln(out, renderWelcomeDeck())
+	copy := copyForLanguage(app.language)
+	options := filteredOptions(app.filter, app.language)
+	fmt.Fprintln(out, renderWelcomeDeck(app.language))
 	fmt.Fprintln(out)
 	if app.palette {
-		fmt.Fprintln(out, styleHeader.Render("Command Palette"))
-		fmt.Fprintln(out, styleSubtle.Render("Filtro: /"+app.filter))
+		fmt.Fprintln(out, styleHeader.Render(copy.commandPalette))
+		fmt.Fprintln(out, styleSubtle.Render(copy.filter+": /"+app.filter))
 	} else {
-		fmt.Fprintln(out, styleHeader.Render("Mission Control"))
+		fmt.Fprintln(out, styleHeader.Render(copy.missionControl))
 	}
 	fmt.Fprintln(out)
 	lines := make([]string, 0, len(options))
@@ -255,18 +415,19 @@ func renderTUI(out io.Writer, app tuiState) {
 		}
 	}
 	if len(lines) == 0 {
-		lines = append(lines, styleSubtle.Render("Sin acciones para ese filtro."))
+		lines = append(lines, styleSubtle.Render(copy.noActions))
 	}
 	fmt.Fprintln(out, stylePanel.Render(strings.Join(lines, "\n")))
 	fmt.Fprintln(out)
-	fmt.Fprintln(out, styleSubtle.Render("Tip: /tasks <project> tambien funciona desde el modo shell simple."))
-	renderFooter(out, "↑/↓ navegar   Enter ejecutar   / palette   Esc volver   q salir   Ctrl+C salir")
+	fmt.Fprintln(out, styleSubtle.Render(copy.tip))
+	renderFooter(out, copy.footer)
 }
 
-func renderWelcomeDeck() string {
+func renderWelcomeDeck(language tuiLanguage) string {
 	width, _, err := xterm.GetSize(os.Stdout.Fd())
+	copy := copyForLanguage(language)
 	if err != nil || width < 92 {
-		return BrandHeader("TERMINAL UI")
+		return renderCompactWelcomeDeck(copy, width)
 	}
 	leftWidth := 42
 	rightWidth := width - leftWidth - 6
@@ -291,23 +452,23 @@ func renderWelcomeDeck() string {
 		BorderForeground(lipgloss.Color("#FACC15")).
 		Padding(1, 2).
 		Render(strings.Join([]string{
-			styleBrand.Render("Welcome back."),
+			styleBrand.Render(copy.welcome),
 			"",
 			PixelBatMascot(),
 			"",
-			styleStudioName.Render("BattOS Mission Control"),
+			styleStudioName.Render(copy.missionName),
 			styleBrandMeta.Render(cwd),
 		}, "\n"))
 
 	rightBody := strings.Join([]string{
-		styleBrand.Render("Tips for getting started"),
-		styleStudioName.Render("Run /projects to review your work board"),
-		styleStudioName.Render("Run /tasks <project> to inspect active tasks"),
-		styleBrandMeta.Render("Use Esc to go back, q to leave the terminal UI"),
+		styleBrand.Render(copy.tipsTitle),
+		styleStudioName.Render(copy.tipProjects),
+		styleStudioName.Render(copy.tipTasks),
+		styleBrandMeta.Render(copy.tipBack),
 		strings.Repeat("─", maxInt(20, rightWidth-6)),
-		styleBrand.Render("What's new"),
-		styleStudioName.Render("TUI v1 now has a wide welcome deck, command palette and fixed footer"),
-		styleBrandMeta.Render("Branding uses an original BattOS bat mascot, not any external logo"),
+		styleBrand.Render(copy.whatsNewTitle),
+		styleStudioName.Render(copy.whatsNewLine),
+		styleBrandMeta.Render(copy.brandingLine),
 	}, "\n")
 
 	right := lipgloss.NewStyle().
@@ -321,8 +482,31 @@ func renderWelcomeDeck() string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right)
 }
 
-func filteredOptions(filter string) []shellOption {
-	all := shellOptions()
+func renderCompactWelcomeDeck(copy tuiCopy, width int) string {
+	panelWidth := width - 4
+	if panelWidth < 38 {
+		panelWidth = 38
+	}
+	if panelWidth > 58 {
+		panelWidth = 58
+	}
+	return lipgloss.NewStyle().
+		Width(panelWidth).
+		Align(lipgloss.Center).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#FACC15")).
+		Padding(1, 2).
+		Render(strings.Join([]string{
+			styleBrand.Render(copy.welcome),
+			"",
+			PixelBatMascot(),
+			"",
+			styleStudioName.Render(copy.missionName),
+		}, "\n"))
+}
+
+func filteredOptions(filter string, language tuiLanguage) []shellOption {
+	all := shellOptions(language)
 	filter = strings.ToLower(strings.TrimSpace(filter))
 	if filter == "" {
 		return all
@@ -337,6 +521,23 @@ func filteredOptions(filter string) []shellOption {
 	return out
 }
 
+func normalizeTUILanguage(value string) tuiLanguage {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "en", "eng", "english":
+		return tuiLanguageEN
+	default:
+		return tuiLanguageES
+	}
+}
+
+func copyForLanguage(language tuiLanguage) tuiCopy {
+	copy, ok := tuiCopies[language]
+	if !ok {
+		return tuiCopies[tuiLanguageES]
+	}
+	return copy
+}
+
 func maxInt(a, b int) int {
 	if a > b {
 		return a
@@ -344,7 +545,69 @@ func maxInt(a, b int) int {
 	return b
 }
 
-func runTUIOption(ctx context.Context, cfg ShellConfig, option shellOption, state *xterm.State, out io.Writer) (commandResultAction, error) {
+func selectTUILanguage(current tuiLanguage, out io.Writer) (tuiLanguage, commandResultAction) {
+	selected := 0
+	if current == tuiLanguageEN {
+		selected = 1
+	}
+	languages := []struct {
+		value tuiLanguage
+		label string
+	}{
+		{value: tuiLanguageES, label: "Español"},
+		{value: tuiLanguageEN, label: "English"},
+	}
+	for {
+		copy := copyForLanguage(current)
+		clearTUIScreen(out)
+		fmt.Fprintln(out, renderCompactWelcomeDeck(copy, 72))
+		fmt.Fprintln(out)
+		fmt.Fprintln(out, styleHeader.Render(copy.languageTitle))
+		fmt.Fprintln(out)
+		lines := make([]string, 0, len(languages))
+		for i, language := range languages {
+			line := fmt.Sprintf("%-10s %s", language.value, language.label)
+			if i == selected {
+				lines = append(lines, styleSelected.Render("> "+line))
+			} else {
+				lines = append(lines, "  "+styleCommand.Render(string(language.value))+"  "+styleSubtle.Render(language.label))
+			}
+		}
+		fmt.Fprintln(out, stylePanel.Render(strings.Join(lines, "\n")))
+		renderFooter(out, copy.languageHelp)
+		event, err := readKey(os.Stdin)
+		if err != nil {
+			return current, commandBack
+		}
+		switch event.Key {
+		case keyCtrlC:
+			return current, commandExit
+		case keyEscape:
+			return current, commandBack
+		case keyUp:
+			if selected > 0 {
+				selected--
+			}
+		case keyDown:
+			if selected < len(languages)-1 {
+				selected++
+			}
+		case keyEnter:
+			return languages[selected].value, commandBack
+		case keyRune:
+			switch strings.ToLower(string(event.Ch)) {
+			case "q":
+				return current, commandExit
+			case "e":
+				return tuiLanguageES, commandBack
+			case "i":
+				return tuiLanguageEN, commandBack
+			}
+		}
+	}
+}
+
+func runTUIOption(ctx context.Context, cfg ShellConfig, option shellOption, state *xterm.State, out io.Writer, language tuiLanguage) (commandResultAction, error) {
 	args := append([]string(nil), option.Args...)
 	if option.NeedsInput != "" {
 		value, err := promptTUIInput(option.NeedsInput, state, out)
@@ -356,7 +619,7 @@ func runTUIOption(ctx context.Context, cfg ShellConfig, option shellOption, stat
 		}
 		args = append(args, strings.TrimSpace(value))
 	}
-	return runTUICommand(ctx, cfg, args, state, out)
+	return runTUICommand(ctx, cfg, args, state, out, language)
 }
 
 func promptTUIInput(label string, state *xterm.State, out io.Writer) (string, error) {
@@ -379,12 +642,12 @@ func promptTUIInput(label string, state *xterm.State, out io.Writer) (string, er
 	return strings.TrimSpace(value), nil
 }
 
-func runTUICommand(ctx context.Context, cfg ShellConfig, args []string, state *xterm.State, out io.Writer) (commandResultAction, error) {
+func runTUICommand(ctx context.Context, cfg ShellConfig, args []string, state *xterm.State, out io.Writer, language tuiLanguage) (commandResultAction, error) {
 	clearTUIScreen(out)
 	fmt.Fprint(out, "\x1b[?25h")
 	output, err := runBattOSCommandOutput(ctx, cfg, args)
-	renderCommandResult(out, args, output, err, cfg.APIURL)
-	renderFooter(out, "Esc/Enter volver   q salir   Ctrl+C salir")
+	renderCommandResult(out, args, output, err, cfg.APIURL, language)
+	renderFooter(out, copyForLanguage(language).resultFooter)
 	action := waitTUIReturn(os.Stdin)
 	return action, nil
 }
@@ -398,7 +661,7 @@ func showTUIMessage(out io.Writer, state *xterm.State, message string) {
 	if err == nil {
 		*state = *newState
 	}
-	renderFooter(out, "Esc/Enter volver   q salir   Ctrl+C salir")
+	renderFooter(out, copyForLanguage(tuiLanguageES).resultFooter)
 	_ = waitTUIReturn(os.Stdin)
 }
 
@@ -436,16 +699,18 @@ func waitTUIReturn(in io.Reader) commandResultAction {
 	}
 }
 
-func friendlyCommandError(err error, apiURL string) string {
+func friendlyCommandError(err error, apiURL string, language tuiLanguage) string {
+	copy := copyForLanguage(language)
 	msg := err.Error()
 	if strings.Contains(msg, "connection refused") || strings.Contains(msg, "No connection could be made") {
-		return styleDown.Render("BattOS API no esta corriendo.") + "\n" +
-			styleSubtle.Render("El comando intento conectarse a "+apiURL+". Inicia el API y vuelve a ejecutar la accion.")
+		return styleDown.Render(copy.apiOffline) + "\n" +
+			styleSubtle.Render(fmt.Sprintf(copy.apiOfflineDetail, apiURL))
 	}
-	return styleDown.Render("El comando termino con error: ") + styleSubtle.Render(msg)
+	return styleDown.Render(copy.commandError) + styleSubtle.Render(msg)
 }
 
-func renderCommandResult(out io.Writer, args []string, output string, err error, apiURL string) {
+func renderCommandResult(out io.Writer, args []string, output string, err error, apiURL string, language tuiLanguage) {
+	copy := copyForLanguage(language)
 	width, height, sizeErr := xterm.GetSize(os.Stdout.Fd())
 	if sizeErr != nil || width < 40 {
 		width = 100
@@ -463,14 +728,14 @@ func renderCommandResult(out io.Writer, args []string, output string, err error,
 		panelHeight = 8
 	}
 
-	title := styleBrand.Render("BattOS // Command Result")
+	title := styleBrand.Render(copy.resultTitle)
 	commandLine := styleSubtle.Render("$ battos " + strings.Join(args, " "))
 	body := strings.TrimSpace(output)
 	if body == "" {
-		body = "(sin salida)"
+		body = copy.noOutput
 	}
 	if err != nil {
-		body += "\n\n" + friendlyCommandError(err, apiURL)
+		body += "\n\n" + friendlyCommandError(err, apiURL, language)
 	}
 	body = fitText(body, panelWidth-6, panelHeight-4)
 	panel := lipgloss.NewStyle().
@@ -562,13 +827,15 @@ func readBytesWithTimeout(in io.Reader, size int, timeout time.Duration) ([]byte
 }
 
 func runShellPalette(ctx context.Context, cfg ShellConfig, scanner *bufio.Scanner, out io.Writer) error {
-	options := shellOptions()
-	fmt.Fprintln(out, styleHeader.Render("Acciones disponibles"))
+	language := normalizeTUILanguage(cfg.Language)
+	copy := copyForLanguage(language)
+	options := shellOptions(language)
+	fmt.Fprintln(out, styleHeader.Render(copy.availableActions))
 	for i, option := range options {
 		fmt.Fprintf(out, "  %d. %-12s %s\n", i+1, styleCommand.Render(option.Key), styleSubtle.Render(option.Description))
 	}
 	fmt.Fprintln(out)
-	fmt.Fprint(out, stylePrompt.Render("elige > "))
+	fmt.Fprint(out, stylePrompt.Render(copy.choose+" > "))
 	if !scanner.Scan() {
 		return scanner.Err()
 	}
@@ -578,6 +845,10 @@ func runShellPalette(ctx context.Context, cfg ShellConfig, scanner *bufio.Scanne
 	}
 	for i, option := range options {
 		if choice == fmt.Sprintf("%d", i+1) || choice == option.Key || choice == strings.TrimPrefix(option.Key, "/") {
+			if option.Action == shellActionLanguage {
+				fmt.Fprintln(out, styleSubtle.Render("TUI: presiona l o usa /language dentro de battos."))
+				return nil
+			}
 			args := append([]string(nil), option.Args...)
 			if option.NeedsInput != "" {
 				fmt.Fprint(out, stylePrompt.Render(option.NeedsInput+" > "))
@@ -600,15 +871,17 @@ func runShellPalette(ctx context.Context, cfg ShellConfig, scanner *bufio.Scanne
 	return runBattOSCommand(ctx, cfg, args, out)
 }
 
-func shellOptions() []shellOption {
+func shellOptions(language tuiLanguage) []shellOption {
+	copy := copyForLanguage(language)
 	return []shellOption{
-		{Key: "/status", Description: "Estado general del OS", Args: []string{"status"}},
-		{Key: "/domains", Description: "Listar dominios", Args: []string{"domain", "list"}},
-		{Key: "/projects", Description: "Listar proyectos", Args: []string{"project", "list"}},
-		{Key: "/goals", Description: "Listar objetivos por proyecto", Args: []string{"goal", "list", "--project"}, NeedsInput: "project id"},
-		{Key: "/tasks", Description: "Listar tareas por proyecto", Args: []string{"task", "list", "--project"}, NeedsInput: "project id"},
-		{Key: "/memory", Description: "Ver estadisticas de memoria", Args: []string{"memory", "stats"}},
-		{Key: "/help", Description: "Ayuda del CLI", Args: []string{"--help"}},
+		{Key: "/status", Description: copy.statusDescription, Args: []string{"status"}},
+		{Key: "/domains", Description: copy.domainsDesc, Args: []string{"domain", "list"}},
+		{Key: "/projects", Description: copy.projectsDesc, Args: []string{"project", "list"}},
+		{Key: "/goals", Description: copy.goalsDesc, Args: []string{"goal", "list", "--project"}, NeedsInput: copy.projectID},
+		{Key: "/tasks", Description: copy.tasksDesc, Args: []string{"task", "list", "--project"}, NeedsInput: copy.projectID},
+		{Key: "/memory", Description: copy.memoryDesc, Args: []string{"memory", "stats"}},
+		{Key: "/language", Description: copy.languageDesc, Action: shellActionLanguage},
+		{Key: "/help", Description: copy.helpDesc, Args: []string{"--help"}},
 	}
 }
 
@@ -665,6 +938,9 @@ func runBattOSCommand(ctx context.Context, cfg ShellConfig, args []string, out i
 	if cfg.Token != "" {
 		fullArgs = append(fullArgs, "--token", cfg.Token)
 	}
+	if cfg.Language != "" {
+		fullArgs = append(fullArgs, "--lang", cfg.Language)
+	}
 	fullArgs = append(fullArgs, args...)
 
 	fmt.Fprintln(out, styleSubtle.Render("$ battos "+strings.Join(args, " ")))
@@ -686,6 +962,9 @@ func runBattOSCommandOutput(ctx context.Context, cfg ShellConfig, args []string)
 	}
 	if cfg.Token != "" {
 		fullArgs = append(fullArgs, "--token", cfg.Token)
+	}
+	if cfg.Language != "" {
+		fullArgs = append(fullArgs, "--lang", cfg.Language)
 	}
 	fullArgs = append(fullArgs, args...)
 	cmd := exec.CommandContext(ctx, exe, fullArgs...)

@@ -51,8 +51,8 @@ La siguiente implementacion de **Fase 3B** es exponer Knowledge Center
 almacenamiento tipado y el CRUD API/CLI del Work Board para `domains`,
 `projects`, `goals` y `tasks`; tambien existe una TUI CLI v1 con welcome deck
 amplio, mascota BattOS pixel-art, flechas, command palette `/`, footer fijo de
-atajos, panel de resultados para comandos y fallback lineal para operar sin
-salir de sesion, siguiendo
+atajos, selector de idioma espanol/ingles, panel de resultados para comandos y
+fallback lineal para operar sin salir de sesion, siguiendo
 `packages/openapi/openapi.yaml`.
 
 Prerequisito seguro ya implementado para Fase 3B: middleware Bearer
