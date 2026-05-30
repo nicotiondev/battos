@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -63,5 +64,12 @@ func TestReadKeyParsesEscape(t *testing.T) {
 	}
 	if got.Key != keyEscape {
 		t.Fatalf("readKey = %#v, want keyEscape", got)
+	}
+}
+
+func TestFriendlyCommandErrorExplainsOfflineAPI(t *testing.T) {
+	got := friendlyCommandError(fmt.Errorf("dial tcp [::1]:8000: connectex: No connection could be made because the target machine actively refused it"), "http://localhost:8000")
+	if !strings.Contains(got, "BattOS API no esta corriendo") || !strings.Contains(got, "http://localhost:8000") {
+		t.Fatalf("friendlyCommandError = %q, want offline API guidance", got)
 	}
 }

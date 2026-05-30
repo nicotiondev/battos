@@ -136,7 +136,8 @@ func RunTUI(ctx context.Context, cfg ShellConfig) error {
 		return runLineShell(ctx, cfg)
 	}
 	defer xterm.Restore(os.Stdin.Fd(), state)
-	defer fmt.Fprint(out, "\x1b[?25h\x1b[0m")
+	fmt.Fprint(out, "\x1b[?1049h")
+	defer fmt.Fprint(out, "\x1b[?25h\x1b[?1049l\x1b[0m")
 
 	app := tuiState{selected: 0}
 	for {
@@ -221,7 +222,7 @@ type tuiState struct {
 }
 
 func renderTUI(out io.Writer, app tuiState) {
-	fmt.Fprint(out, "\x1b[?25l\x1b[H\x1b[2J")
+	clearTUIScreen(out)
 	options := filteredOptions(app.filter)
 	title := styleBrand.Render(wordmark) + "\n" +
 		styleBrandMeta.Render("  MISSION CONTROL  //  TERMINAL UI") + "\n" +
@@ -292,7 +293,8 @@ func promptTUIInput(label string, state *xterm.State, out io.Writer) (string, er
 	if err := xterm.Restore(os.Stdin.Fd(), state); err != nil {
 		return "", err
 	}
-	fmt.Fprint(out, "\x1b[?25h\x1b[H\x1b[2J")
+	clearTUIScreen(out)
+	fmt.Fprint(out, "\x1b[?25h")
 	PrintBanner("TERMINAL UI")
 	fmt.Fprint(out, stylePrompt.Render(label+" > "))
 	reader := bufio.NewReader(os.Stdin)
@@ -311,8 +313,13 @@ func runTUICommand(ctx context.Context, cfg ShellConfig, args []string, state *x
 	if err := xterm.Restore(os.Stdin.Fd(), state); err != nil {
 		return err
 	}
-	fmt.Fprint(out, "\x1b[?25h\x1b[H\x1b[2J")
+	clearTUIScreen(out)
+	fmt.Fprint(out, "\x1b[?25h")
 	err := runBattOSCommand(ctx, cfg, args, out)
+	if err != nil {
+		fmt.Fprintln(out)
+		fmt.Fprintln(out, friendlyCommandError(err, cfg.APIURL))
+	}
 	fmt.Fprintln(out)
 	fmt.Fprint(out, styleSubtle.Render("Presiona Enter para volver a BattOS..."))
 	_, _ = bufio.NewReader(os.Stdin).ReadString('\n')
@@ -325,7 +332,8 @@ func runTUICommand(ctx context.Context, cfg ShellConfig, args []string, state *x
 
 func showTUIMessage(out io.Writer, state *xterm.State, message string) {
 	_ = xterm.Restore(os.Stdin.Fd(), state)
-	fmt.Fprint(out, "\x1b[?25h\x1b[H\x1b[2J")
+	clearTUIScreen(out)
+	fmt.Fprint(out, "\x1b[?25h")
 	fmt.Fprintln(out, styleDown.Render(message))
 	fmt.Fprintln(out)
 	fmt.Fprint(out, styleSubtle.Render("Presiona Enter para volver a BattOS..."))
@@ -334,6 +342,19 @@ func showTUIMessage(out io.Writer, state *xterm.State, message string) {
 	if err == nil {
 		*state = *newState
 	}
+}
+
+func clearTUIScreen(out io.Writer) {
+	fmt.Fprint(out, "\x1b[?25l\x1b[H\x1b[2J\x1b[3J")
+}
+
+func friendlyCommandError(err error, apiURL string) string {
+	msg := err.Error()
+	if strings.Contains(msg, "connection refused") || strings.Contains(msg, "No connection could be made") {
+		return styleDown.Render("BattOS API no esta corriendo.") + "\n" +
+			styleSubtle.Render("El comando intento conectarse a "+apiURL+". Inicia el API y vuelve a ejecutar la accion.")
+	}
+	return styleDown.Render("El comando termino con error: ") + styleSubtle.Render(msg)
 }
 
 func readKey(in io.Reader) (keyEvent, error) {
