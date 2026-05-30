@@ -119,9 +119,9 @@ go test ./apps/api/... ./apps/cli/... ./packages/core/...
 
 ## CLI disponible
 
-La terminal usa un `ASCII wordmark` propio de BattOS y la firma
-`Desarrollado por [ N ] Nicotion.dev` como cabecera visual. Puedes usarla de
-dos formas: comandos directos o TUI interactiva.
+La terminal usa un `ASCII wordmark` propio de BattOS, un bat-mark original
+nocturno y la firma `Desarrollado por [ N ] Nicotion.dev` como cabecera
+visual. Puedes usarla de dos formas: comandos directos o TUI interactiva.
 
 ```bash
 battos

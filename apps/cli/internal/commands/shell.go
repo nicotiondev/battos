@@ -235,14 +235,8 @@ type tuiState struct {
 func renderTUI(out io.Writer, app tuiState) {
 	clearTUIScreen(out)
 	options := filteredOptions(app.filter)
-	title := styleBrand.Render(wordmark) + "\n" +
-		styleBrandMeta.Render("  MISSION CONTROL  //  TERMINAL UI") + "\n" +
-		fmt.Sprintf("  %s  %s %s\n\n",
-			styleBrandMeta.Render("DESARROLLADO POR"),
-			styleStudioMark.Render("[ N ]"),
-			styleStudioName.Render("Nicotion.dev"),
-		)
-	fmt.Fprint(out, title)
+	fmt.Fprintln(out, BrandHeader("TERMINAL UI"))
+	fmt.Fprintln(out)
 	if app.palette {
 		fmt.Fprintln(out, styleHeader.Render("Command Palette"))
 		fmt.Fprintln(out, styleSubtle.Render("Filtro: /"+app.filter))

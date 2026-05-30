@@ -12,6 +12,11 @@ const wordmark = `   ____        __  __  ____  _____
 / /_/ / /_/ / /_/ /_/ /_/ /___/ /
 /_____/\__,_/\__/\__/\____//____/`
 
+const batMark = `     /\                 /\
+ ___/  \__  BATT-OS  __/  \___
+ \__    _/\/\____/\/\_    __/
+    \__/              \__/`
+
 var (
 	styleBrand = lipgloss.NewStyle().
 			Bold(true).
@@ -29,17 +34,22 @@ var (
 			Foreground(lipgloss.Color("#D1D5DB"))
 )
 
-// PrintBanner renders BattOS identity before interactive command output.
-func PrintBanner(section string) {
-	fmt.Println()
-	fmt.Println(styleBrand.Render(wordmark))
+func BrandHeader(section string) string {
+	header := styleBrand.Render(batMark) + "\n" + styleBrand.Render(wordmark)
 	if section != "" {
-		fmt.Println(styleBrandMeta.Render("  MISSION CONTROL  //  " + section))
+		header += "\n" + styleBrandMeta.Render("  MISSION CONTROL  //  "+section)
 	}
-	fmt.Printf("  %s  %s %s\n",
+	header += "\n" + fmt.Sprintf("  %s  %s %s",
 		styleBrandMeta.Render("DESARROLLADO POR"),
 		styleStudioMark.Render("[ N ]"),
 		styleStudioName.Render("Nicotion.dev"),
 	)
+	return header
+}
+
+// PrintBanner renders BattOS identity before interactive command output.
+func PrintBanner(section string) {
+	fmt.Println()
+	fmt.Println(BrandHeader(section))
 	fmt.Println()
 }
