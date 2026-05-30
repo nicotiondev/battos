@@ -117,8 +117,8 @@ var tuiCopies = map[tuiLanguage]tuiCopy{
 		filter:            "Filtro",
 		noActions:         "Sin acciones para ese filtro.",
 		tip:               "Tip: /tasks <project> tambien funciona desde el modo shell simple.",
-		footer:            "↑/↓ navegar   Enter ejecutar   / palette   Esc volver   l idioma   q salir   Ctrl+C salir",
-		resultFooter:      "Esc/Enter volver   q salir   Ctrl+C salir",
+		footer:            "↑/↓ navegar   Enter ejecutar   / palette   Esc volver   l idioma   Ctrl+C salir",
+		resultFooter:      "Esc/Enter volver   Ctrl+C salir",
 		inputSection:      "TERMINAL UI",
 		resultTitle:       "BattOS // Resultado",
 		noOutput:          "(sin salida)",
@@ -131,7 +131,7 @@ var tuiCopies = map[tuiLanguage]tuiCopy{
 		tipsTitle:         "Tips para empezar",
 		tipProjects:       "Ejecuta /projects para revisar tu tablero",
 		tipTasks:          "Ejecuta /tasks <project> para revisar tareas activas",
-		tipBack:           "Usa Esc para volver, q para salir de la TUI",
+		tipBack:           "Usa Esc para volver y Ctrl+C para salir de la TUI",
 		whatsNewTitle:     "Novedades",
 		whatsNewLine:      "TUI v1 usa deck amplio, paleta de comandos, idioma y footer fijo",
 		brandingLine:      "Branding con mascota BattOS original, sin logos externos",
@@ -158,8 +158,8 @@ var tuiCopies = map[tuiLanguage]tuiCopy{
 		filter:            "Filter",
 		noActions:         "No actions for that filter.",
 		tip:               "Tip: /tasks <project> also works from the simple shell mode.",
-		footer:            "↑/↓ navigate   Enter run   / palette   Esc back   l language   q quit   Ctrl+C quit",
-		resultFooter:      "Esc/Enter back   q quit   Ctrl+C quit",
+		footer:            "↑/↓ navigate   Enter run   / palette   Esc back   l language   Ctrl+C quit",
+		resultFooter:      "Esc/Enter back   Ctrl+C quit",
 		inputSection:      "TERMINAL UI",
 		resultTitle:       "BattOS // Command Result",
 		noOutput:          "(no output)",
@@ -172,7 +172,7 @@ var tuiCopies = map[tuiLanguage]tuiCopy{
 		tipsTitle:         "Tips for getting started",
 		tipProjects:       "Run /projects to review your work board",
 		tipTasks:          "Run /tasks <project> to inspect active tasks",
-		tipBack:           "Use Esc to go back, q to leave the terminal UI",
+		tipBack:           "Use Esc to go back and Ctrl+C to leave the terminal UI",
 		whatsNewTitle:     "What's new",
 		whatsNewLine:      "TUI v1 has a wide deck, command palette, language and fixed footer",
 		brandingLine:      "Branding uses an original BattOS mascot, not any external logo",
@@ -327,8 +327,6 @@ func RunTUI(ctx context.Context, cfg ShellConfig) error {
 				app.selected = 0
 			} else {
 				switch event.Ch {
-				case 'q':
-					return nil
 				case 'l':
 					language, action := selectTUILanguage(app.language, out)
 					if action == commandExit {
@@ -596,8 +594,6 @@ func selectTUILanguage(current tuiLanguage, out io.Writer) (tuiLanguage, command
 			return languages[selected].value, commandBack
 		case keyRune:
 			switch strings.ToLower(string(event.Ch)) {
-			case "q":
-				return current, commandExit
 			case "e":
 				return tuiLanguageES, commandBack
 			case "i":
@@ -691,10 +687,6 @@ func waitTUIReturn(in io.Reader) commandResultAction {
 			return commandBack
 		case keyCtrlC:
 			return commandExit
-		case keyRune:
-			if event.Ch == 'q' {
-				return commandExit
-			}
 		}
 	}
 }

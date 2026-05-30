@@ -152,7 +152,6 @@ Enter ejecutar
 / abrir command palette
 Esc volver/cerrar palette
 l cambiar idioma
-q salir
 Ctrl+C salida de emergencia
 /status
 /projects
@@ -163,10 +162,10 @@ Ctrl+C salida de emergencia
 /exit
 ```
 
-En modo TUI, `Esc` o `Enter` vuelven desde un resultado al Mission Control,
-`q` sale de la interfaz y `Ctrl+C` queda como salida de emergencia. La TUI
-parte por defecto en espanol; puedes cambiar a ingles desde `/language`, con
-la tecla `l`, usando `--lang en` o definiendo `BATTOS_LANG=en`.
+En modo TUI, `Esc` o `Enter` vuelven desde un resultado al Mission Control y
+`Ctrl+C` sale de la interfaz. La TUI parte por defecto en espanol; puedes
+cambiar a ingles desde `/language`, con la tecla `l`, usando `--lang en` o
+definiendo `BATTOS_LANG=en`.
 
 La CLI de v0.1 agregara los recursos de conocimiento, repositorios, adapters,
 creacion y aprobacion de runs, logs y uso.

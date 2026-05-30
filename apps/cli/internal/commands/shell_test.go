@@ -100,10 +100,10 @@ func TestWaitTUIReturnMapsEscapeToBack(t *testing.T) {
 	}
 }
 
-func TestWaitTUIReturnMapsQToExit(t *testing.T) {
-	got := waitTUIReturn(strings.NewReader("q"))
+func TestWaitTUIReturnMapsCtrlCToExit(t *testing.T) {
+	got := waitTUIReturn(strings.NewReader("\x03"))
 	if got != commandExit {
-		t.Fatalf("waitTUIReturn(q) = %v, want commandExit", got)
+		t.Fatalf("waitTUIReturn(Ctrl+C) = %v, want commandExit", got)
 	}
 }
 
