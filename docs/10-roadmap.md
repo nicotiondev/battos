@@ -1,6 +1,6 @@
 # 10 - Roadmap
 
-> Estado revisado el 27 de mayo de 2026. El producto final y sus capacidades
+> Estado revisado el 30 de mayo de 2026. El producto final y sus capacidades
 > se describen en `docs/14-producto-final-y-roadmap.md`.
 
 ## Estado Actual Verificado
@@ -50,7 +50,9 @@ La siguiente implementacion de **Fase 3B** es exponer Knowledge Center
 (`workspaces`, `journals`, `artifacts`) por API/CLI. Ya estan activos el
 almacenamiento tipado y el CRUD API/CLI del Work Board para `domains`,
 `projects`, `goals` y `tasks`; tambien existe una TUI CLI v1 con welcome deck
-amplio, mascota BattOS, flechas, command palette `/`, footer fijo de atajos y fallback lineal para operar sin salir de sesion, siguiendo
+amplio, mascota BattOS pixel-art, flechas, command palette `/`, footer fijo de
+atajos, panel de resultados para comandos y fallback lineal para operar sin
+salir de sesion, siguiendo
 `packages/openapi/openapi.yaml`.
 
 Prerequisito seguro ya implementado para Fase 3B: middleware Bearer

@@ -15,6 +15,9 @@ func TestBrandHeaderUsesOriginalBattOSMark(t *testing.T) {
 	if !strings.Contains(batMascot, "o.o") {
 		t.Fatalf("batMascot should keep the original mascot face, got %q", batMascot)
 	}
+	if !strings.Contains(PixelBatMascot(), "██") {
+		t.Fatalf("PixelBatMascot should render block art")
+	}
 	if strings.Contains(strings.ToLower(got), "batman") {
 		t.Fatalf("BrandHeader should use BattOS branding, got %q", got)
 	}

@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -22,6 +23,22 @@ const batMascot = `  /\_/\
   > ^ <
  /|___|\
    |_|`
+
+func PixelBatMascot() string {
+	yellow := lipgloss.NewStyle().Foreground(lipgloss.Color("#FACC15")).Render
+	dim := lipgloss.NewStyle().Foreground(lipgloss.Color("#A16207")).Render
+	eye := lipgloss.NewStyle().Foreground(lipgloss.Color("#0F172A")).Background(lipgloss.Color("#FACC15")).Render
+	rows := []string{
+		"    " + yellow("██") + "          " + yellow("██"),
+		"  " + yellow("██████") + "    " + yellow("██████"),
+		yellow("████████████████████"),
+		yellow("████") + eye(" ●") + yellow("████") + eye("● ") + yellow("████"),
+		"  " + yellow("████████████████"),
+		"    " + yellow("████████████"),
+		"      " + dim("████████"),
+	}
+	return strings.Join(rows, "\n")
+}
 
 var (
 	styleBrand = lipgloss.NewStyle().

@@ -2,6 +2,7 @@ package commands
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -292,7 +293,7 @@ func renderWelcomeDeck() string {
 		Render(strings.Join([]string{
 			styleBrand.Render("Welcome back."),
 			"",
-			styleBrand.Render(batMascot),
+			PixelBatMascot(),
 			"",
 			styleStudioName.Render("BattOS Mission Control"),
 			styleBrandMeta.Render(cwd),
@@ -379,20 +380,10 @@ func promptTUIInput(label string, state *xterm.State, out io.Writer) (string, er
 }
 
 func runTUICommand(ctx context.Context, cfg ShellConfig, args []string, state *xterm.State, out io.Writer) (commandResultAction, error) {
-	if err := xterm.Restore(os.Stdin.Fd(), state); err != nil {
-		return commandBack, err
-	}
 	clearTUIScreen(out)
 	fmt.Fprint(out, "\x1b[?25h")
-	err := runBattOSCommand(ctx, cfg, args, out)
-	if err != nil {
-		fmt.Fprintln(out)
-		fmt.Fprintln(out, friendlyCommandError(err, cfg.APIURL))
-	}
-	newState, rawErr := xterm.MakeRaw(os.Stdin.Fd())
-	if rawErr == nil {
-		*state = *newState
-	}
+	output, err := runBattOSCommandOutput(ctx, cfg, args)
+	renderCommandResult(out, args, output, err, cfg.APIURL)
 	renderFooter(out, "Esc/Enter volver   q salir   Ctrl+C salir")
 	action := waitTUIReturn(os.Stdin)
 	return action, nil
@@ -452,6 +443,70 @@ func friendlyCommandError(err error, apiURL string) string {
 			styleSubtle.Render("El comando intento conectarse a "+apiURL+". Inicia el API y vuelve a ejecutar la accion.")
 	}
 	return styleDown.Render("El comando termino con error: ") + styleSubtle.Render(msg)
+}
+
+func renderCommandResult(out io.Writer, args []string, output string, err error, apiURL string) {
+	width, height, sizeErr := xterm.GetSize(os.Stdout.Fd())
+	if sizeErr != nil || width < 40 {
+		width = 100
+		height = 32
+	}
+	if height < 16 {
+		height = 16
+	}
+	panelWidth := width - 4
+	if panelWidth < 36 {
+		panelWidth = 36
+	}
+	panelHeight := height - 8
+	if panelHeight < 8 {
+		panelHeight = 8
+	}
+
+	title := styleBrand.Render("BattOS // Command Result")
+	commandLine := styleSubtle.Render("$ battos " + strings.Join(args, " "))
+	body := strings.TrimSpace(output)
+	if body == "" {
+		body = "(sin salida)"
+	}
+	if err != nil {
+		body += "\n\n" + friendlyCommandError(err, apiURL)
+	}
+	body = fitText(body, panelWidth-6, panelHeight-4)
+	panel := lipgloss.NewStyle().
+		Width(panelWidth).
+		Height(panelHeight).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#FACC15")).
+		Padding(1, 2).
+		Render(title + "\n" + commandLine + "\n\n" + body)
+	fmt.Fprintln(out, panel)
+}
+
+func fitText(text string, width, height int) string {
+	if width <= 0 || height <= 0 {
+		return text
+	}
+	lines := strings.Split(text, "\n")
+	out := make([]string, 0, height)
+	for _, line := range lines {
+		for len(line) > width {
+			out = append(out, line[:width])
+			line = line[width:]
+			if len(out) == height {
+				out[height-1] = out[height-1] + "..."
+				return strings.Join(out, "\n")
+			}
+		}
+		out = append(out, line)
+		if len(out) == height {
+			if len(lines) > height {
+				out[height-1] = out[height-1] + "..."
+			}
+			return strings.Join(out, "\n")
+		}
+	}
+	return strings.Join(out, "\n")
 }
 
 func readKey(in io.Reader) (keyEvent, error) {
@@ -618,4 +673,25 @@ func runBattOSCommand(ctx context.Context, cfg ShellConfig, args []string, out i
 	cmd.Stdout = out
 	cmd.Stderr = out
 	return cmd.Run()
+}
+
+func runBattOSCommandOutput(ctx context.Context, cfg ShellConfig, args []string) (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("resolviendo ejecutable: %w", err)
+	}
+	fullArgs := []string{}
+	if cfg.APIURL != "" {
+		fullArgs = append(fullArgs, "--api", cfg.APIURL)
+	}
+	if cfg.Token != "" {
+		fullArgs = append(fullArgs, "--token", cfg.Token)
+	}
+	fullArgs = append(fullArgs, args...)
+	cmd := exec.CommandContext(ctx, exe, fullArgs...)
+	var output bytes.Buffer
+	cmd.Stdout = &output
+	cmd.Stderr = &output
+	err = cmd.Run()
+	return output.String(), err
 }

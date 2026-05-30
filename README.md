@@ -33,8 +33,9 @@ Implementado actualmente:
 - Fase 3B en curso: persistencia `sqlc` y API/CLI del Work Board para domains,
   projects, goals y tasks; persistencia preparada para knowledge workspaces,
   journals y artifacts.
-- TUI interactiva `battos` / `battos shell` con navegacion por flechas,
-  command palette `/` y fallback scriptable.
+- TUI interactiva `battos` / `battos shell` con welcome deck amplio,
+  mascota pixel-art, navegacion por flechas, command palette `/`, footer fijo
+  y panel de resultados para comandos.
 
 En Docker/VPS se debe definir `BATTOS_API_TOKEN`; el compose habilita
 `auth.mode: token` al publicar el API.
@@ -120,7 +121,10 @@ go test ./apps/api/... ./apps/cli/... ./packages/core/...
 ## CLI disponible
 
 La terminal usa un `ASCII wordmark` propio de BattOS, un bat-mark/mascota
-original nocturno y una paleta negro/amarillo/gris como cabecera visual.
+original nocturno y una paleta negro/amarillo/gris como cabecera visual. La
+TUI ocupa el ancho disponible para mostrar un welcome deck y, al ejecutar una
+accion, captura la salida del comando en un panel de resultado para no volver a
+la salida suelta de consola.
 Puedes usarla de dos formas: comandos directos o TUI interactiva.
 
 ```bash
@@ -154,6 +158,9 @@ Ctrl+C salida de emergencia
 /help
 /exit
 ```
+
+En modo TUI, `Esc` o `Enter` vuelven desde un resultado al Mission Control,
+`q` sale de la interfaz y `Ctrl+C` queda como salida de emergencia.
 
 La CLI de v0.1 agregara los recursos de conocimiento, repositorios, adapters,
 creacion y aprobacion de runs, logs y uso.

@@ -87,3 +87,11 @@ func TestWaitTUIReturnMapsQToExit(t *testing.T) {
 		t.Fatalf("waitTUIReturn(q) = %v, want commandExit", got)
 	}
 }
+
+func TestFitTextClampsHeight(t *testing.T) {
+	got := fitText("one\ntwo\nthree", 10, 2)
+	lines := strings.Split(got, "\n")
+	if len(lines) != 2 {
+		t.Fatalf("fitText lines = %d, want 2: %q", len(lines), got)
+	}
+}
