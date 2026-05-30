@@ -76,6 +76,30 @@ func TestReadKeyParsesArrowDown(t *testing.T) {
 	}
 }
 
+func TestReadKeyIgnoresFunctionKeys(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{name: "F1 application mode", input: "\x1bOP"},
+		{name: "F2 application mode", input: "\x1bOQ"},
+		{name: "F3 application mode", input: "\x1bOR"},
+		{name: "F1 bracket mode", input: "\x1b[11~"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := readKey(strings.NewReader(tt.input))
+			if err != nil {
+				t.Fatalf("readKey returned error: %v", err)
+			}
+			if got.Key != keyUnknown {
+				t.Fatalf("readKey(%q) = %#v, want keyUnknown", tt.name, got)
+			}
+		})
+	}
+}
+
 func TestReadKeyParsesEscape(t *testing.T) {
 	got, err := readKey(strings.NewReader("\x1b"))
 	if err != nil {

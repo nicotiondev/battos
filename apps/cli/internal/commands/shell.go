@@ -313,8 +313,6 @@ func RunTUI(ctx context.Context, cfg ShellConfig) error {
 				app.palette = false
 				app.filter = ""
 				app.selected = 0
-			} else {
-				return nil
 			}
 		case keyBackspace:
 			if app.palette && len(app.filter) > 0 {
@@ -777,8 +775,11 @@ func readKey(in io.Reader) (keyEvent, error) {
 	case 13, 10:
 		return keyEvent{Key: keyEnter}, nil
 	case 27:
-		seq, err := readBytesWithTimeout(in, 2, 25*time.Millisecond)
-		if err == nil && len(seq) == 2 && seq[0] == '[' {
+		seq, _ := readBytesWithTimeout(in, 8, 25*time.Millisecond)
+		if len(seq) == 0 {
+			return keyEvent{Key: keyEscape}, nil
+		}
+		if len(seq) >= 2 && seq[0] == '[' {
 			switch seq[1] {
 			case 'A':
 				return keyEvent{Key: keyUp}, nil
@@ -786,7 +787,7 @@ func readKey(in io.Reader) (keyEvent, error) {
 				return keyEvent{Key: keyDown}, nil
 			}
 		}
-		return keyEvent{Key: keyEscape}, nil
+		return keyEvent{Key: keyUnknown}, nil
 	case 8, 127:
 		return keyEvent{Key: keyBackspace}, nil
 	case '/':
