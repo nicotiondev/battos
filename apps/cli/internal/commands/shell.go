@@ -775,19 +775,33 @@ func readKey(in io.Reader) (keyEvent, error) {
 	case 13, 10:
 		return keyEvent{Key: keyEnter}, nil
 	case 27:
-		seq, _ := readBytesWithTimeout(in, 8, 25*time.Millisecond)
-		if len(seq) == 0 {
+		first, ok := readByteWithTimeout(in, 8*time.Millisecond)
+		if !ok {
 			return keyEvent{Key: keyEscape}, nil
 		}
-		if len(seq) >= 2 && seq[0] == '[' {
-			switch seq[1] {
+		switch first {
+		case '[':
+			second, ok := readByteWithTimeout(in, 8*time.Millisecond)
+			if !ok {
+				return keyEvent{Key: keyUnknown}, nil
+			}
+			switch second {
 			case 'A':
 				return keyEvent{Key: keyUp}, nil
 			case 'B':
 				return keyEvent{Key: keyDown}, nil
+			default:
+				if second >= '0' && second <= '9' {
+					consumeUntilTerminator(in, '~', 8*time.Millisecond, 6)
+				}
+				return keyEvent{Key: keyUnknown}, nil
 			}
+		case 'O':
+			_, _ = readByteWithTimeout(in, 8*time.Millisecond)
+			return keyEvent{Key: keyUnknown}, nil
+		default:
+			return keyEvent{Key: keyUnknown}, nil
 		}
-		return keyEvent{Key: keyUnknown}, nil
 	case 8, 127:
 		return keyEvent{Key: keyBackspace}, nil
 	case '/':
@@ -797,6 +811,23 @@ func readKey(in io.Reader) (keyEvent, error) {
 			return keyEvent{Key: keyRune, Ch: rune(buf[0])}, nil
 		}
 		return keyEvent{Key: keyUnknown}, nil
+	}
+}
+
+func readByteWithTimeout(in io.Reader, timeout time.Duration) (byte, bool) {
+	data, err := readBytesWithTimeout(in, 1, timeout)
+	if err != nil || len(data) == 0 {
+		return 0, false
+	}
+	return data[0], true
+}
+
+func consumeUntilTerminator(in io.Reader, terminator byte, timeout time.Duration, max int) {
+	for i := 0; i < max; i++ {
+		b, ok := readByteWithTimeout(in, timeout)
+		if !ok || b == terminator {
+			return
+		}
 	}
 }
 

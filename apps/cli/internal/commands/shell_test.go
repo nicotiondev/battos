@@ -76,6 +76,16 @@ func TestReadKeyParsesArrowDown(t *testing.T) {
 	}
 }
 
+func TestReadKeyParsesArrowUp(t *testing.T) {
+	got, err := readKey(strings.NewReader("\x1b[A"))
+	if err != nil {
+		t.Fatalf("readKey returned error: %v", err)
+	}
+	if got.Key != keyUp {
+		t.Fatalf("readKey = %#v, want keyUp", got)
+	}
+}
+
 func TestReadKeyIgnoresFunctionKeys(t *testing.T) {
 	tests := []struct {
 		name  string
