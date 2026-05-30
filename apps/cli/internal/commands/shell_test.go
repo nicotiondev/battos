@@ -73,3 +73,17 @@ func TestFriendlyCommandErrorExplainsOfflineAPI(t *testing.T) {
 		t.Fatalf("friendlyCommandError = %q, want offline API guidance", got)
 	}
 }
+
+func TestWaitTUIReturnMapsEscapeToBack(t *testing.T) {
+	got := waitTUIReturn(strings.NewReader("\x1b"))
+	if got != commandBack {
+		t.Fatalf("waitTUIReturn(Esc) = %v, want commandBack", got)
+	}
+}
+
+func TestWaitTUIReturnMapsQToExit(t *testing.T) {
+	got := waitTUIReturn(strings.NewReader("q"))
+	if got != commandExit {
+		t.Fatalf("waitTUIReturn(q) = %v, want commandExit", got)
+	}
+}

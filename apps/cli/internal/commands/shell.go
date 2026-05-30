@@ -48,6 +48,13 @@ type keyEvent struct {
 	Ch  rune
 }
 
+type commandResultAction int
+
+const (
+	commandBack commandResultAction = iota
+	commandExit
+)
+
 var (
 	stylePrompt   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#10B981"))
 	styleCommand  = lipgloss.NewStyle().Foreground(lipgloss.Color("#A7F3D0"))
@@ -205,8 +212,12 @@ func RunTUI(ctx context.Context, cfg ShellConfig) error {
 				app.selected = len(options) - 1
 			}
 			option := options[app.selected]
-			if err := runTUIOption(ctx, cfg, option, state, out); err != nil {
+			action, err := runTUIOption(ctx, cfg, option, state, out)
+			if err != nil {
 				showTUIMessage(out, state, "error: "+err.Error())
+			}
+			if action == commandExit {
+				return nil
 			}
 			app.palette = false
 			app.filter = ""
@@ -232,8 +243,6 @@ func renderTUI(out io.Writer, app tuiState) {
 			styleStudioName.Render("Nicotion.dev"),
 		)
 	fmt.Fprint(out, title)
-	fmt.Fprintln(out, styleSubtle.Render("↑/↓ navegar  Enter ejecutar  / palette  q salir"))
-	fmt.Fprintln(out)
 	if app.palette {
 		fmt.Fprintln(out, styleHeader.Render("Command Palette"))
 		fmt.Fprintln(out, styleSubtle.Render("Filtro: /"+app.filter))
@@ -256,6 +265,7 @@ func renderTUI(out io.Writer, app tuiState) {
 	fmt.Fprintln(out, stylePanel.Render(strings.Join(lines, "\n")))
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, styleSubtle.Render("Tip: /tasks <project> tambien funciona desde el modo shell simple."))
+	renderFooter(out, "↑/↓ navegar   Enter ejecutar   / palette   Esc volver   q salir   Ctrl+C salir")
 }
 
 func filteredOptions(filter string) []shellOption {
@@ -274,15 +284,15 @@ func filteredOptions(filter string) []shellOption {
 	return out
 }
 
-func runTUIOption(ctx context.Context, cfg ShellConfig, option shellOption, state *xterm.State, out io.Writer) error {
+func runTUIOption(ctx context.Context, cfg ShellConfig, option shellOption, state *xterm.State, out io.Writer) (commandResultAction, error) {
 	args := append([]string(nil), option.Args...)
 	if option.NeedsInput != "" {
 		value, err := promptTUIInput(option.NeedsInput, state, out)
 		if err != nil {
-			return err
+			return commandBack, err
 		}
 		if strings.TrimSpace(value) == "" {
-			return nil
+			return commandBack, nil
 		}
 		args = append(args, strings.TrimSpace(value))
 	}
@@ -309,9 +319,9 @@ func promptTUIInput(label string, state *xterm.State, out io.Writer) (string, er
 	return strings.TrimSpace(value), nil
 }
 
-func runTUICommand(ctx context.Context, cfg ShellConfig, args []string, state *xterm.State, out io.Writer) error {
+func runTUICommand(ctx context.Context, cfg ShellConfig, args []string, state *xterm.State, out io.Writer) (commandResultAction, error) {
 	if err := xterm.Restore(os.Stdin.Fd(), state); err != nil {
-		return err
+		return commandBack, err
 	}
 	clearTUIScreen(out)
 	fmt.Fprint(out, "\x1b[?25h")
@@ -320,14 +330,13 @@ func runTUICommand(ctx context.Context, cfg ShellConfig, args []string, state *x
 		fmt.Fprintln(out)
 		fmt.Fprintln(out, friendlyCommandError(err, cfg.APIURL))
 	}
-	fmt.Fprintln(out)
-	fmt.Fprint(out, styleSubtle.Render("Presiona Enter para volver a BattOS..."))
-	_, _ = bufio.NewReader(os.Stdin).ReadString('\n')
 	newState, rawErr := xterm.MakeRaw(os.Stdin.Fd())
 	if rawErr == nil {
 		*state = *newState
 	}
-	return err
+	renderFooter(out, "Esc/Enter volver   q salir   Ctrl+C salir")
+	action := waitTUIReturn(os.Stdin)
+	return action, nil
 }
 
 func showTUIMessage(out io.Writer, state *xterm.State, message string) {
@@ -335,17 +344,46 @@ func showTUIMessage(out io.Writer, state *xterm.State, message string) {
 	clearTUIScreen(out)
 	fmt.Fprint(out, "\x1b[?25h")
 	fmt.Fprintln(out, styleDown.Render(message))
-	fmt.Fprintln(out)
-	fmt.Fprint(out, styleSubtle.Render("Presiona Enter para volver a BattOS..."))
-	_, _ = bufio.NewReader(os.Stdin).ReadString('\n')
 	newState, err := xterm.MakeRaw(os.Stdin.Fd())
 	if err == nil {
 		*state = *newState
 	}
+	renderFooter(out, "Esc/Enter volver   q salir   Ctrl+C salir")
+	_ = waitTUIReturn(os.Stdin)
 }
 
 func clearTUIScreen(out io.Writer) {
 	fmt.Fprint(out, "\x1b[?25l\x1b[H\x1b[2J\x1b[3J")
+}
+
+func renderFooter(out io.Writer, text string) {
+	_, height, err := xterm.GetSize(os.Stdout.Fd())
+	footer := styleSubtle.Render(text)
+	if err != nil || height <= 0 {
+		fmt.Fprintln(out)
+		fmt.Fprintln(out, footer)
+		return
+	}
+	fmt.Fprintf(out, "\x1b[%d;1H\x1b[2K%s", height, footer)
+}
+
+func waitTUIReturn(in io.Reader) commandResultAction {
+	for {
+		event, err := readKey(in)
+		if err != nil {
+			return commandBack
+		}
+		switch event.Key {
+		case keyEnter, keyEscape:
+			return commandBack
+		case keyCtrlC:
+			return commandExit
+		case keyRune:
+			if event.Ch == 'q' {
+				return commandExit
+			}
+		}
+	}
 }
 
 func friendlyCommandError(err error, apiURL string) string {

@@ -188,7 +188,7 @@ battos task create --project landing-acme --title "Preparar brief"
 battos task list --project landing-acme
 
 # Dentro de battos shell:
-↑/↓ navegar, Enter ejecutar, / command palette, q salir
+↑/↓ navegar, Enter ejecutar, / command palette, Esc volver, q salir
 /status
 /projects
 /tasks landing-acme

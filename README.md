@@ -144,7 +144,9 @@ Dentro de `battos shell`, escribe `/` para abrir el menu inicial o usa atajos:
 ↑/↓ navegar
 Enter ejecutar
 / abrir command palette
+Esc volver/cerrar palette
 q salir
+Ctrl+C salida de emergencia
 /status
 /projects
 /tasks landing-acme
