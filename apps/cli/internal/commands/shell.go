@@ -56,13 +56,13 @@ const (
 )
 
 var (
-	stylePrompt   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#10B981"))
-	styleCommand  = lipgloss.NewStyle().Foreground(lipgloss.Color("#A7F3D0"))
-	stylePanel    = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("#10B981")).Padding(1, 2)
+	stylePrompt   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FACC15"))
+	styleCommand  = lipgloss.NewStyle().Foreground(lipgloss.Color("#FDE68A"))
+	stylePanel    = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("#FACC15")).Padding(1, 2)
 	styleSelected = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#0F172A")).
-			Background(lipgloss.Color("#10B981")).
+			Background(lipgloss.Color("#FACC15")).
 			Padding(0, 1)
 )
 
@@ -235,7 +235,7 @@ type tuiState struct {
 func renderTUI(out io.Writer, app tuiState) {
 	clearTUIScreen(out)
 	options := filteredOptions(app.filter)
-	fmt.Fprintln(out, BrandHeader("TERMINAL UI"))
+	fmt.Fprintln(out, renderWelcomeDeck())
 	fmt.Fprintln(out)
 	if app.palette {
 		fmt.Fprintln(out, styleHeader.Render("Command Palette"))
@@ -262,6 +262,64 @@ func renderTUI(out io.Writer, app tuiState) {
 	renderFooter(out, "↑/↓ navegar   Enter ejecutar   / palette   Esc volver   q salir   Ctrl+C salir")
 }
 
+func renderWelcomeDeck() string {
+	width, _, err := xterm.GetSize(os.Stdout.Fd())
+	if err != nil || width < 92 {
+		return BrandHeader("TERMINAL UI")
+	}
+	leftWidth := 42
+	rightWidth := width - leftWidth - 6
+	if rightWidth > 105 {
+		rightWidth = 105
+	}
+	if rightWidth < 50 {
+		rightWidth = 50
+	}
+
+	home, _ := os.UserHomeDir()
+	cwd, _ := os.Getwd()
+	if home != "" {
+		cwd = strings.Replace(cwd, home, "~", 1)
+	}
+
+	left := lipgloss.NewStyle().
+		Width(leftWidth).
+		Height(10).
+		Align(lipgloss.Center).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#FACC15")).
+		Padding(1, 2).
+		Render(strings.Join([]string{
+			styleBrand.Render("Welcome back."),
+			"",
+			styleBrand.Render(batMascot),
+			"",
+			styleStudioName.Render("BattOS Mission Control"),
+			styleBrandMeta.Render(cwd),
+		}, "\n"))
+
+	rightBody := strings.Join([]string{
+		styleBrand.Render("Tips for getting started"),
+		styleStudioName.Render("Run /projects to review your work board"),
+		styleStudioName.Render("Run /tasks <project> to inspect active tasks"),
+		styleBrandMeta.Render("Use Esc to go back, q to leave the terminal UI"),
+		strings.Repeat("─", maxInt(20, rightWidth-6)),
+		styleBrand.Render("What's new"),
+		styleStudioName.Render("TUI v1 now has a wide welcome deck, command palette and fixed footer"),
+		styleBrandMeta.Render("Branding uses an original BattOS bat mascot, not any external logo"),
+	}, "\n")
+
+	right := lipgloss.NewStyle().
+		Width(rightWidth).
+		Height(10).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#FACC15")).
+		Padding(1, 2).
+		Render(rightBody)
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right)
+}
+
 func filteredOptions(filter string) []shellOption {
 	all := shellOptions()
 	filter = strings.ToLower(strings.TrimSpace(filter))
@@ -276,6 +334,13 @@ func filteredOptions(filter string) []shellOption {
 		}
 	}
 	return out
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func runTUIOption(ctx context.Context, cfg ShellConfig, option shellOption, state *xterm.State, out io.Writer) (commandResultAction, error) {

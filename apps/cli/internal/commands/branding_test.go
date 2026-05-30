@@ -12,6 +12,9 @@ func TestBrandHeaderUsesOriginalBattOSMark(t *testing.T) {
 			t.Fatalf("BrandHeader missing %q in %q", want, got)
 		}
 	}
+	if !strings.Contains(batMascot, "o.o") {
+		t.Fatalf("batMascot should keep the original mascot face, got %q", batMascot)
+	}
 	if strings.Contains(strings.ToLower(got), "batman") {
 		t.Fatalf("BrandHeader should use BattOS branding, got %q", got)
 	}

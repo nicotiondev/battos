@@ -20,11 +20,11 @@ import (
 var (
 	styleHeader = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("#10B981")). // verde BattOS
+			Foreground(lipgloss.Color("#FACC15")).
 			Padding(0, 1)
 
 	styleSubtle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#6B7280")) // gris
+			Foreground(lipgloss.Color("#71717A"))
 
 	styleOK = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#10B981")).

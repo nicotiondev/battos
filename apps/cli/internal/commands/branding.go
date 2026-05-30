@@ -17,17 +17,23 @@ const batMark = `     /\                 /\
  \__    _/\/\____/\/\_    __/
     \__/              \__/`
 
+const batMascot = `  /\_/\
+ < o.o >
+  > ^ <
+ /|___|\
+   |_|`
+
 var (
 	styleBrand = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("#10B981"))
+			Foreground(lipgloss.Color("#FACC15"))
 
 	styleBrandMeta = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#6B7280"))
+			Foreground(lipgloss.Color("#71717A"))
 
 	styleStudioMark = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("#F9FAFB"))
+			Foreground(lipgloss.Color("#FACC15"))
 
 	styleStudioName = lipgloss.NewStyle().
 			Bold(true).
