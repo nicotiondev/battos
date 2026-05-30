@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	xterm "github.com/charmbracelet/x/term"
@@ -203,6 +202,8 @@ var (
 			Foreground(lipgloss.Color("#0F172A")).
 			Background(lipgloss.Color("#FACC15")).
 			Padding(0, 1)
+
+	pendingKeyBytes []byte
 )
 
 func NewShellCmd(config func() ShellConfig) *cobra.Command {
@@ -765,88 +766,76 @@ func fitText(text string, width, height int) string {
 }
 
 func readKey(in io.Reader) (keyEvent, error) {
-	buf := make([]byte, 1)
-	if _, err := in.Read(buf); err != nil {
-		return keyEvent{}, err
+	if len(pendingKeyBytes) == 0 {
+		buf := make([]byte, 16)
+		n, err := in.Read(buf)
+		if err != nil {
+			return keyEvent{}, err
+		}
+		if n == 0 {
+			return keyEvent{Key: keyUnknown}, nil
+		}
+		pendingKeyBytes = append(pendingKeyBytes, buf[:n]...)
 	}
-	switch buf[0] {
-	case 3:
-		return keyEvent{Key: keyCtrlC}, nil
-	case 13, 10:
-		return keyEvent{Key: keyEnter}, nil
-	case 27:
-		first, ok := readByteWithTimeout(in, 8*time.Millisecond)
-		if !ok {
-			return keyEvent{Key: keyEscape}, nil
-		}
-		switch first {
-		case '[':
-			second, ok := readByteWithTimeout(in, 8*time.Millisecond)
-			if !ok {
-				return keyEvent{Key: keyUnknown}, nil
-			}
-			switch second {
-			case 'A':
-				return keyEvent{Key: keyUp}, nil
-			case 'B':
-				return keyEvent{Key: keyDown}, nil
-			default:
-				if second >= '0' && second <= '9' {
-					consumeUntilTerminator(in, '~', 8*time.Millisecond, 6)
-				}
-				return keyEvent{Key: keyUnknown}, nil
-			}
-		case 'O':
-			_, _ = readByteWithTimeout(in, 8*time.Millisecond)
-			return keyEvent{Key: keyUnknown}, nil
-		default:
-			return keyEvent{Key: keyUnknown}, nil
-		}
-	case 8, 127:
-		return keyEvent{Key: keyBackspace}, nil
-	case '/':
-		return keyEvent{Key: keySlash, Ch: '/'}, nil
-	default:
-		if buf[0] >= 32 {
-			return keyEvent{Key: keyRune, Ch: rune(buf[0])}, nil
-		}
+	event, consumed := parseKeyBytes(pendingKeyBytes)
+	if consumed <= 0 || consumed > len(pendingKeyBytes) {
+		pendingKeyBytes = nil
 		return keyEvent{Key: keyUnknown}, nil
 	}
+	pendingKeyBytes = pendingKeyBytes[consumed:]
+	return event, nil
 }
 
-func readByteWithTimeout(in io.Reader, timeout time.Duration) (byte, bool) {
-	data, err := readBytesWithTimeout(in, 1, timeout)
-	if err != nil || len(data) == 0 {
-		return 0, false
-	}
-	return data[0], true
-}
-
-func consumeUntilTerminator(in io.Reader, terminator byte, timeout time.Duration, max int) {
-	for i := 0; i < max; i++ {
-		b, ok := readByteWithTimeout(in, timeout)
-		if !ok || b == terminator {
-			return
+func parseKeyBytes(buf []byte) (keyEvent, int) {
+	switch buf[0] {
+	case 3:
+		return keyEvent{Key: keyCtrlC}, 1
+	case 13, 10:
+		return keyEvent{Key: keyEnter}, 1
+	case 27:
+		if len(buf) == 1 {
+			return keyEvent{Key: keyEscape}, 1
 		}
-	}
-}
-
-func readBytesWithTimeout(in io.Reader, size int, timeout time.Duration) ([]byte, error) {
-	type result struct {
-		data []byte
-		err  error
-	}
-	ch := make(chan result, 1)
-	go func() {
-		buf := make([]byte, size)
-		n, err := io.ReadFull(in, buf)
-		ch <- result{data: buf[:n], err: err}
-	}()
-	select {
-	case res := <-ch:
-		return res.data, res.err
-	case <-time.After(timeout):
-		return nil, fmt.Errorf("timeout")
+		switch buf[1] {
+		case '[':
+			if len(buf) < 3 {
+				return keyEvent{Key: keyUnknown}, len(buf)
+			}
+			switch buf[2] {
+			case 'A':
+				return keyEvent{Key: keyUp}, 3
+			case 'B':
+				return keyEvent{Key: keyDown}, 3
+			default:
+				if buf[2] >= '0' && buf[2] <= '9' {
+					for i := 3; i < len(buf); i++ {
+						if buf[i] == '~' {
+							return keyEvent{Key: keyUnknown}, i + 1
+						}
+					}
+				}
+				return keyEvent{Key: keyUnknown}, 3
+			}
+		case 'O':
+			if len(buf) >= 3 {
+				return keyEvent{Key: keyUnknown}, 3
+			}
+			return keyEvent{Key: keyUnknown}, len(buf)
+		default:
+			if buf[1] == 27 {
+				return keyEvent{Key: keyEscape}, 1
+			}
+			return keyEvent{Key: keyUnknown}, 2
+		}
+	case 8, 127:
+		return keyEvent{Key: keyBackspace}, 1
+	case '/':
+		return keyEvent{Key: keySlash, Ch: '/'}, 1
+	default:
+		if buf[0] >= 32 {
+			return keyEvent{Key: keyRune, Ch: rune(buf[0])}, 1
+		}
+		return keyEvent{Key: keyUnknown}, 1
 	}
 }
 
@@ -992,6 +981,7 @@ func runBattOSCommandOutput(ctx context.Context, cfg ShellConfig, args []string)
 	}
 	fullArgs = append(fullArgs, args...)
 	cmd := exec.CommandContext(ctx, exe, fullArgs...)
+	cmd.Env = append(os.Environ(), "BATTOS_NO_BANNER=1")
 	var output bytes.Buffer
 	cmd.Stdout = &output
 	cmd.Stderr = &output

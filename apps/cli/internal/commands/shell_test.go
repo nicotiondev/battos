@@ -67,6 +67,7 @@ func TestShellOptionsLocalizeLanguage(t *testing.T) {
 }
 
 func TestReadKeyParsesArrowDown(t *testing.T) {
+	pendingKeyBytes = nil
 	got, err := readKey(strings.NewReader("\x1b[B"))
 	if err != nil {
 		t.Fatalf("readKey returned error: %v", err)
@@ -76,7 +77,27 @@ func TestReadKeyParsesArrowDown(t *testing.T) {
 	}
 }
 
+func TestReadKeyParsesArrowDownWithoutStealingNextKey(t *testing.T) {
+	pendingKeyBytes = nil
+	in := strings.NewReader("\x1b\x1b[B")
+	got, err := readKey(in)
+	if err != nil {
+		t.Fatalf("readKey escape returned error: %v", err)
+	}
+	if got.Key != keyEscape {
+		t.Fatalf("first readKey = %#v, want keyEscape", got)
+	}
+	got, err = readKey(in)
+	if err != nil {
+		t.Fatalf("readKey arrow returned error: %v", err)
+	}
+	if got.Key != keyDown {
+		t.Fatalf("second readKey = %#v, want keyDown", got)
+	}
+}
+
 func TestReadKeyParsesArrowUp(t *testing.T) {
+	pendingKeyBytes = nil
 	got, err := readKey(strings.NewReader("\x1b[A"))
 	if err != nil {
 		t.Fatalf("readKey returned error: %v", err)
@@ -87,6 +108,7 @@ func TestReadKeyParsesArrowUp(t *testing.T) {
 }
 
 func TestReadKeyIgnoresFunctionKeys(t *testing.T) {
+	pendingKeyBytes = nil
 	tests := []struct {
 		name  string
 		input string
@@ -111,6 +133,7 @@ func TestReadKeyIgnoresFunctionKeys(t *testing.T) {
 }
 
 func TestReadKeyParsesEscape(t *testing.T) {
+	pendingKeyBytes = nil
 	got, err := readKey(strings.NewReader("\x1b"))
 	if err != nil {
 		t.Fatalf("readKey returned error: %v", err)

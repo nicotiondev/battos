@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -72,6 +73,9 @@ func BrandHeader(section string) string {
 
 // PrintBanner renders BattOS identity before interactive command output.
 func PrintBanner(section string) {
+	if os.Getenv("BATTOS_NO_BANNER") == "1" {
+		return
+	}
 	fmt.Println()
 	fmt.Println(BrandHeader(section))
 	fmt.Println()
