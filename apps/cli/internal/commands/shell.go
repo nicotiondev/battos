@@ -71,159 +71,184 @@ const (
 	tuiLanguageEN tuiLanguage = "en"
 )
 
-const shellActionLanguage = "language"
+const (
+	shellActionLanguage = "language"
+	shellActionOpen     = "open:"
+
+	tuiViewRoot     = ""
+	tuiViewWork     = "work"
+	tuiViewDomains  = "domains"
+	tuiViewProjects = "projects"
+	tuiViewGoals    = "goals"
+	tuiViewTasks    = "tasks"
+)
 
 type tuiCopy struct {
-	welcome           string
-	missionControl    string
-	commandPalette    string
-	filter            string
-	noActions         string
-	tip               string
-	footer            string
-	resultFooter      string
-	inputSection      string
-	resultTitle       string
-	noOutput          string
-	apiOffline        string
-	apiOfflineDetail  string
-	commandError      string
-	languageTitle     string
-	languageHelp      string
-	languageUpdated   string
-	tipsTitle         string
-	tipProjects       string
-	tipTasks          string
-	tipBack           string
-	whatsNewTitle     string
-	whatsNewLine      string
-	brandingLine      string
-	missionName       string
-	lineShellHelp     string
-	lineShellClose    string
-	availableActions  string
-	choose            string
-	projectID         string
-	statusDescription string
-	domainsDesc       string
-	projectsDesc      string
-	goalsDesc         string
-	tasksDesc         string
-	memoryDesc        string
-	helpDesc          string
-	languageDesc      string
-	createDomainDesc  string
-	createProjectDesc string
-	createGoalDesc    string
-	createTaskDesc    string
-	inputHelp         string
-	slugLabel         string
-	nameLabel         string
-	domainIDLabel     string
-	titleLabel        string
-	terminalUI        string
+	welcome            string
+	missionControl     string
+	commandPalette     string
+	filter             string
+	noActions          string
+	tip                string
+	footer             string
+	resultFooter       string
+	inputSection       string
+	resultTitle        string
+	noOutput           string
+	apiOffline         string
+	apiOfflineDetail   string
+	commandError       string
+	languageTitle      string
+	languageHelp       string
+	languageUpdated    string
+	tipsTitle          string
+	tipProjects        string
+	tipTasks           string
+	tipBack            string
+	whatsNewTitle      string
+	whatsNewLine       string
+	brandingLine       string
+	missionName        string
+	lineShellHelp      string
+	lineShellClose     string
+	availableActions   string
+	workBoardDesc      string
+	domainsFolderDesc  string
+	projectsFolderDesc string
+	goalsFolderDesc    string
+	tasksFolderDesc    string
+	choose             string
+	projectID          string
+	statusDescription  string
+	domainsDesc        string
+	projectsDesc       string
+	goalsDesc          string
+	tasksDesc          string
+	memoryDesc         string
+	helpDesc           string
+	languageDesc       string
+	createDomainDesc   string
+	createProjectDesc  string
+	createGoalDesc     string
+	createTaskDesc     string
+	inputHelp          string
+	slugLabel          string
+	nameLabel          string
+	domainIDLabel      string
+	titleLabel         string
+	terminalUI         string
 }
 
 var tuiCopies = map[tuiLanguage]tuiCopy{
 	tuiLanguageES: {
-		welcome:           "Bienvenido.",
-		missionControl:    "Mission Control",
-		commandPalette:    "Paleta de Comandos",
-		filter:            "Filtro",
-		noActions:         "Sin acciones para ese filtro.",
-		tip:               "Tip: /tasks <project> tambien funciona desde el modo shell simple.",
-		footer:            "↑/↓ navegar   Enter ejecutar   / palette   Esc volver   l idioma   Ctrl+C salir",
-		resultFooter:      "Esc/Enter volver   Ctrl+C salir",
-		inputSection:      "TERMINAL UI",
-		resultTitle:       "BattOS // Resultado",
-		noOutput:          "(sin salida)",
-		apiOffline:        "BattOS API no esta corriendo.",
-		apiOfflineDetail:  "El comando intento conectarse a %s. Inicia el API y vuelve a ejecutar la accion.",
-		commandError:      "El comando termino con error: ",
-		languageTitle:     "Idioma",
-		languageHelp:      "↑/↓ seleccionar   Enter aplicar   Esc volver",
-		languageUpdated:   "Idioma actualizado.",
-		tipsTitle:         "Tips para empezar",
-		tipProjects:       "Ejecuta /projects para revisar tu tablero",
-		tipTasks:          "Ejecuta /tasks <project> para revisar tareas activas",
-		tipBack:           "Usa Esc para volver y Ctrl+C para salir de la TUI",
-		whatsNewTitle:     "Novedades",
-		whatsNewLine:      "TUI v1 usa deck amplio, paleta de comandos, idioma y footer fijo",
-		brandingLine:      "Branding con mascota BattOS original, sin logos externos",
-		missionName:       "BattOS Mission Control",
-		lineShellHelp:     "Escribe / para ver acciones, /help para ayuda, /exit para salir.",
-		lineShellClose:    "Cerrando BattOS shell.",
-		availableActions:  "Acciones disponibles",
-		choose:            "elige",
-		projectID:         "project id",
-		statusDescription: "Estado general del OS",
-		domainsDesc:       "Listar dominios",
-		projectsDesc:      "Listar proyectos",
-		goalsDesc:         "Listar objetivos por proyecto",
-		tasksDesc:         "Listar tareas por proyecto",
-		memoryDesc:        "Ver estadisticas de memoria",
-		helpDesc:          "Ayuda del CLI",
-		languageDesc:      "Cambiar idioma",
-		createDomainDesc:  "Crear dominio",
-		createProjectDesc: "Crear proyecto",
-		createGoalDesc:    "Crear objetivo",
-		createTaskDesc:    "Crear tarea",
-		inputHelp:         "Enter confirmar   Esc cancelar   Ctrl+C salir",
-		slugLabel:         "slug",
-		nameLabel:         "nombre",
-		domainIDLabel:     "domain id opcional",
-		titleLabel:        "titulo",
-		terminalUI:        "TERMINAL UI",
+		welcome:            "Bienvenido.",
+		missionControl:     "Mission Control",
+		commandPalette:     "Paleta de Comandos",
+		filter:             "Filtro",
+		noActions:          "Sin acciones para ese filtro.",
+		tip:                "Tip: /tasks <project> tambien funciona desde el modo shell simple.",
+		footer:             "↑/↓ navegar   Enter ejecutar   / palette   Esc volver   l idioma   Ctrl+C salir",
+		resultFooter:       "Esc/Enter volver   Ctrl+C salir",
+		inputSection:       "TERMINAL UI",
+		resultTitle:        "BattOS // Resultado",
+		noOutput:           "(sin salida)",
+		apiOffline:         "BattOS API no esta corriendo.",
+		apiOfflineDetail:   "El comando intento conectarse a %s. Inicia el API y vuelve a ejecutar la accion.",
+		commandError:       "El comando termino con error: ",
+		languageTitle:      "Idioma",
+		languageHelp:       "↑/↓ seleccionar   Enter aplicar   Esc volver",
+		languageUpdated:    "Idioma actualizado.",
+		tipsTitle:          "Tips para empezar",
+		tipProjects:        "Ejecuta /projects para revisar tu tablero",
+		tipTasks:           "Ejecuta /tasks <project> para revisar tareas activas",
+		tipBack:            "Usa Esc para volver y Ctrl+C para salir de la TUI",
+		whatsNewTitle:      "Novedades",
+		whatsNewLine:       "TUI v1 usa deck amplio, paleta de comandos, idioma y footer fijo",
+		brandingLine:       "Branding con mascota BattOS original, sin logos externos",
+		missionName:        "BattOS Mission Control",
+		lineShellHelp:      "Escribe / para ver acciones, /help para ayuda, /exit para salir.",
+		lineShellClose:     "Cerrando BattOS shell.",
+		availableActions:   "Acciones disponibles",
+		workBoardDesc:      "Administrar dominios, proyectos, objetivos y tareas",
+		domainsFolderDesc:  "Dominios",
+		projectsFolderDesc: "Proyectos",
+		goalsFolderDesc:    "Objetivos",
+		tasksFolderDesc:    "Tareas",
+		choose:             "elige",
+		projectID:          "project id",
+		statusDescription:  "Estado general del OS",
+		domainsDesc:        "Listar dominios",
+		projectsDesc:       "Listar proyectos",
+		goalsDesc:          "Listar objetivos por proyecto",
+		tasksDesc:          "Listar tareas por proyecto",
+		memoryDesc:         "Ver estadisticas de memoria",
+		helpDesc:           "Ayuda del CLI",
+		languageDesc:       "Cambiar idioma",
+		createDomainDesc:   "Crear dominio",
+		createProjectDesc:  "Crear proyecto",
+		createGoalDesc:     "Crear objetivo",
+		createTaskDesc:     "Crear tarea",
+		inputHelp:          "Enter confirmar   Esc cancelar   Ctrl+C salir",
+		slugLabel:          "slug",
+		nameLabel:          "nombre",
+		domainIDLabel:      "domain id opcional",
+		titleLabel:         "titulo",
+		terminalUI:         "TERMINAL UI",
 	},
 	tuiLanguageEN: {
-		welcome:           "Welcome back.",
-		missionControl:    "Mission Control",
-		commandPalette:    "Command Palette",
-		filter:            "Filter",
-		noActions:         "No actions for that filter.",
-		tip:               "Tip: /tasks <project> also works from the simple shell mode.",
-		footer:            "↑/↓ navigate   Enter run   / palette   Esc back   l language   Ctrl+C quit",
-		resultFooter:      "Esc/Enter back   Ctrl+C quit",
-		inputSection:      "TERMINAL UI",
-		resultTitle:       "BattOS // Command Result",
-		noOutput:          "(no output)",
-		apiOffline:        "BattOS API is not running.",
-		apiOfflineDetail:  "The command tried to connect to %s. Start the API and run the action again.",
-		commandError:      "The command ended with an error: ",
-		languageTitle:     "Language",
-		languageHelp:      "↑/↓ select   Enter apply   Esc back",
-		languageUpdated:   "Language updated.",
-		tipsTitle:         "Tips for getting started",
-		tipProjects:       "Run /projects to review your work board",
-		tipTasks:          "Run /tasks <project> to inspect active tasks",
-		tipBack:           "Use Esc to go back and Ctrl+C to leave the terminal UI",
-		whatsNewTitle:     "What's new",
-		whatsNewLine:      "TUI v1 has a wide deck, command palette, language and fixed footer",
-		brandingLine:      "Branding uses an original BattOS mascot, not any external logo",
-		missionName:       "BattOS Mission Control",
-		lineShellHelp:     "Type / to see actions, /help for help, /exit to quit.",
-		lineShellClose:    "Closing BattOS shell.",
-		availableActions:  "Available actions",
-		choose:            "choose",
-		projectID:         "project id",
-		statusDescription: "OS status overview",
-		domainsDesc:       "List domains",
-		projectsDesc:      "List projects",
-		goalsDesc:         "List goals by project",
-		tasksDesc:         "List tasks by project",
-		memoryDesc:        "View memory statistics",
-		helpDesc:          "CLI help",
-		languageDesc:      "Change language",
-		createDomainDesc:  "Create domain",
-		createProjectDesc: "Create project",
-		createGoalDesc:    "Create goal",
-		createTaskDesc:    "Create task",
-		inputHelp:         "Enter confirm   Esc cancel   Ctrl+C quit",
-		slugLabel:         "slug",
-		nameLabel:         "name",
-		domainIDLabel:     "optional domain id",
-		titleLabel:        "title",
-		terminalUI:        "TERMINAL UI",
+		welcome:            "Welcome back.",
+		missionControl:     "Mission Control",
+		commandPalette:     "Command Palette",
+		filter:             "Filter",
+		noActions:          "No actions for that filter.",
+		tip:                "Tip: /tasks <project> also works from the simple shell mode.",
+		footer:             "↑/↓ navigate   Enter run   / palette   Esc back   l language   Ctrl+C quit",
+		resultFooter:       "Esc/Enter back   Ctrl+C quit",
+		inputSection:       "TERMINAL UI",
+		resultTitle:        "BattOS // Command Result",
+		noOutput:           "(no output)",
+		apiOffline:         "BattOS API is not running.",
+		apiOfflineDetail:   "The command tried to connect to %s. Start the API and run the action again.",
+		commandError:       "The command ended with an error: ",
+		languageTitle:      "Language",
+		languageHelp:       "↑/↓ select   Enter apply   Esc back",
+		languageUpdated:    "Language updated.",
+		tipsTitle:          "Tips for getting started",
+		tipProjects:        "Run /projects to review your work board",
+		tipTasks:           "Run /tasks <project> to inspect active tasks",
+		tipBack:            "Use Esc to go back and Ctrl+C to leave the terminal UI",
+		whatsNewTitle:      "What's new",
+		whatsNewLine:       "TUI v1 has a wide deck, command palette, language and fixed footer",
+		brandingLine:       "Branding uses an original BattOS mascot, not any external logo",
+		missionName:        "BattOS Mission Control",
+		lineShellHelp:      "Type / to see actions, /help for help, /exit to quit.",
+		lineShellClose:     "Closing BattOS shell.",
+		availableActions:   "Available actions",
+		workBoardDesc:      "Manage domains, projects, goals and tasks",
+		domainsFolderDesc:  "Domains",
+		projectsFolderDesc: "Projects",
+		goalsFolderDesc:    "Goals",
+		tasksFolderDesc:    "Tasks",
+		choose:             "choose",
+		projectID:          "project id",
+		statusDescription:  "OS status overview",
+		domainsDesc:        "List domains",
+		projectsDesc:       "List projects",
+		goalsDesc:          "List goals by project",
+		tasksDesc:          "List tasks by project",
+		memoryDesc:         "View memory statistics",
+		helpDesc:           "CLI help",
+		languageDesc:       "Change language",
+		createDomainDesc:   "Create domain",
+		createProjectDesc:  "Create project",
+		createGoalDesc:     "Create goal",
+		createTaskDesc:     "Create task",
+		inputHelp:          "Enter confirm   Esc cancel   Ctrl+C quit",
+		slugLabel:          "slug",
+		nameLabel:          "name",
+		domainIDLabel:      "optional domain id",
+		titleLabel:         "title",
+		terminalUI:         "TERMINAL UI",
 	},
 }
 
@@ -336,7 +361,7 @@ func RunTUI(ctx context.Context, cfg ShellConfig) error {
 				app.selected--
 			}
 		case keyDown:
-			if app.selected < len(shellOptions(app.language))-1 {
+			if app.selected < len(optionsForView(app.view, app.language))-1 {
 				app.selected++
 			}
 		case keySlash:
@@ -347,6 +372,9 @@ func RunTUI(ctx context.Context, cfg ShellConfig) error {
 			if app.palette {
 				app.palette = false
 				app.filter = ""
+				app.selected = 0
+			} else if app.view != tuiViewRoot {
+				app.view = parentView(app.view)
 				app.selected = 0
 			}
 		case keyBackspace:
@@ -368,7 +396,7 @@ func RunTUI(ctx context.Context, cfg ShellConfig) error {
 					app.language = language
 					app.selected = 0
 				case 'j':
-					if app.selected < len(shellOptions(app.language))-1 {
+					if app.selected < len(optionsForView(app.view, app.language))-1 {
 						app.selected++
 					}
 				case 'k':
@@ -382,7 +410,7 @@ func RunTUI(ctx context.Context, cfg ShellConfig) error {
 				}
 			}
 		case keyEnter:
-			options := filteredOptions(app.filter, app.language)
+			options := filteredOptionsForView(app.view, app.filter, app.language)
 			if len(options) == 0 {
 				continue
 			}
@@ -396,6 +424,13 @@ func RunTUI(ctx context.Context, cfg ShellConfig) error {
 					return nil
 				}
 				app.language = language
+				app.palette = false
+				app.filter = ""
+				app.selected = 0
+				continue
+			}
+			if strings.HasPrefix(option.Action, shellActionOpen) {
+				app.view = strings.TrimPrefix(option.Action, shellActionOpen)
 				app.palette = false
 				app.filter = ""
 				app.selected = 0
@@ -421,19 +456,20 @@ type tuiState struct {
 	palette  bool
 	filter   string
 	language tuiLanguage
+	view     string
 }
 
 func renderTUI(out io.Writer, app tuiState) {
 	clearTUIScreen(out)
 	copy := copyForLanguage(app.language)
-	options := filteredOptions(app.filter, app.language)
+	options := filteredOptionsForView(app.view, app.filter, app.language)
 	fmt.Fprintln(out, renderWelcomeDeck(app.language))
 	fmt.Fprintln(out)
 	if app.palette {
 		fmt.Fprintln(out, styleHeader.Render(copy.commandPalette))
 		fmt.Fprintln(out, styleSubtle.Render(copy.filter+": /"+app.filter))
 	} else {
-		fmt.Fprintln(out, styleHeader.Render(copy.missionControl))
+		fmt.Fprintln(out, styleHeader.Render(viewTitle(app.view, copy)))
 	}
 	fmt.Fprintln(out)
 	lines := make([]string, 0, len(options))
@@ -550,6 +586,50 @@ func filteredOptions(filter string, language tuiLanguage) []shellOption {
 		}
 	}
 	return out
+}
+
+func filteredOptionsForView(view, filter string, language tuiLanguage) []shellOption {
+	all := optionsForView(view, language)
+	filter = strings.ToLower(strings.TrimSpace(filter))
+	if filter == "" {
+		return all
+	}
+	var out []shellOption
+	for _, option := range all {
+		haystack := strings.ToLower(option.Key + " " + option.Description)
+		if strings.Contains(haystack, filter) {
+			out = append(out, option)
+		}
+	}
+	return out
+}
+
+func viewTitle(view string, copy tuiCopy) string {
+	switch view {
+	case tuiViewWork:
+		return "Work Board"
+	case tuiViewDomains:
+		return "Work Board / " + copy.domainsFolderDesc
+	case tuiViewProjects:
+		return "Work Board / " + copy.projectsFolderDesc
+	case tuiViewGoals:
+		return "Work Board / " + copy.goalsFolderDesc
+	case tuiViewTasks:
+		return "Work Board / " + copy.tasksFolderDesc
+	default:
+		return copy.missionControl
+	}
+}
+
+func parentView(view string) string {
+	switch view {
+	case tuiViewDomains, tuiViewProjects, tuiViewGoals, tuiViewTasks:
+		return tuiViewWork
+	case tuiViewWork:
+		return tuiViewRoot
+	default:
+		return tuiViewRoot
+	}
 }
 
 func normalizeTUILanguage(value string) tuiLanguage {
@@ -940,6 +1020,10 @@ func runShellPalette(ctx context.Context, cfg ShellConfig, scanner *bufio.Scanne
 				fmt.Fprintln(out, styleSubtle.Render("TUI: presiona l o usa /language dentro de battos."))
 				return nil
 			}
+			if strings.HasPrefix(option.Action, shellActionOpen) {
+				fmt.Fprintln(out, styleSubtle.Render("TUI: abre battos para navegar por carpetas."))
+				return nil
+			}
 			args := append([]string(nil), option.Args...)
 			if option.NeedsInput != "" {
 				fmt.Fprint(out, stylePrompt.Render(option.NeedsInput+" > "))
@@ -984,6 +1068,7 @@ func shellOptions(language tuiLanguage) []shellOption {
 	copy := copyForLanguage(language)
 	return []shellOption{
 		{Key: "/status", Description: copy.statusDescription, Args: []string{"status"}},
+		{Key: "/work-board", Description: copy.workBoardDesc, Action: shellActionOpen + tuiViewWork},
 		{Key: "/domains", Description: copy.domainsDesc, Args: []string{"domain", "list"}},
 		{Key: "/domain-new", Description: copy.createDomainDesc, Args: []string{"domain", "create"}, Prompts: []shellPrompt{
 			{Label: copy.slugLabel, Required: true},
@@ -1008,6 +1093,60 @@ func shellOptions(language tuiLanguage) []shellOption {
 		{Key: "/memory", Description: copy.memoryDesc, Args: []string{"memory", "stats"}},
 		{Key: "/language", Description: copy.languageDesc, Action: shellActionLanguage},
 		{Key: "/help", Description: copy.helpDesc, Args: []string{"--help"}},
+	}
+}
+
+func optionsForView(view string, language tuiLanguage) []shellOption {
+	copy := copyForLanguage(language)
+	switch view {
+	case tuiViewWork:
+		return []shellOption{
+			{Key: "/domains", Description: copy.domainsFolderDesc, Action: shellActionOpen + tuiViewDomains},
+			{Key: "/projects", Description: copy.projectsFolderDesc, Action: shellActionOpen + tuiViewProjects},
+			{Key: "/goals", Description: copy.goalsFolderDesc, Action: shellActionOpen + tuiViewGoals},
+			{Key: "/tasks", Description: copy.tasksFolderDesc, Action: shellActionOpen + tuiViewTasks},
+		}
+	case tuiViewDomains:
+		return []shellOption{
+			{Key: "/domains", Description: copy.domainsDesc, Args: []string{"domain", "list"}},
+			{Key: "/domain-new", Description: copy.createDomainDesc, Args: []string{"domain", "create"}, Prompts: []shellPrompt{
+				{Label: copy.slugLabel, Required: true},
+				{Label: copy.nameLabel, Flag: "--name", Required: true},
+			}},
+		}
+	case tuiViewProjects:
+		return []shellOption{
+			{Key: "/projects", Description: copy.projectsDesc, Args: []string{"project", "list"}},
+			{Key: "/project-new", Description: copy.createProjectDesc, Args: []string{"project", "create"}, Prompts: []shellPrompt{
+				{Label: copy.slugLabel, Required: true},
+				{Label: copy.nameLabel, Flag: "--name", Required: true},
+				{Label: copy.domainIDLabel, Flag: "--domain"},
+			}},
+		}
+	case tuiViewGoals:
+		return []shellOption{
+			{Key: "/goals", Description: copy.goalsDesc, Args: []string{"goal", "list", "--project"}, NeedsInput: copy.projectID},
+			{Key: "/goal-new", Description: copy.createGoalDesc, Args: []string{"goal", "create"}, Prompts: []shellPrompt{
+				{Label: copy.projectID, Flag: "--project", Required: true},
+				{Label: copy.titleLabel, Flag: "--title", Required: true},
+			}},
+		}
+	case tuiViewTasks:
+		return []shellOption{
+			{Key: "/tasks", Description: copy.tasksDesc, Args: []string{"task", "list", "--project"}, NeedsInput: copy.projectID},
+			{Key: "/task-new", Description: copy.createTaskDesc, Args: []string{"task", "create"}, Prompts: []shellPrompt{
+				{Label: copy.projectID, Flag: "--project", Required: true},
+				{Label: copy.titleLabel, Flag: "--title", Required: true},
+			}},
+		}
+	default:
+		return []shellOption{
+			{Key: "/status", Description: copy.statusDescription, Args: []string{"status"}},
+			{Key: "/work-board", Description: copy.workBoardDesc, Action: shellActionOpen + tuiViewWork},
+			{Key: "/memory", Description: copy.memoryDesc, Args: []string{"memory", "stats"}},
+			{Key: "/language", Description: copy.languageDesc, Action: shellActionLanguage},
+			{Key: "/help", Description: copy.helpDesc, Args: []string{"--help"}},
+		}
 	}
 }
 

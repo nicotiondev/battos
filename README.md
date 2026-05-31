@@ -192,10 +192,11 @@ En modo TUI, `Esc` o `Enter` vuelven desde un resultado al Mission Control y
 cambiar a ingles desde `/language`, con la tecla `l`, usando `--lang en` o
 definiendo `BATTOS_LANG=en`.
 
-Las acciones `/goals` y `/tasks` listan datos de un proyecto existente, por eso
-primero piden `project id`. Para crear desde la TUI usa `/domain-new`,
-`/project-new`, `/goal-new` o `/task-new`; los prompts internos se cancelan con
-`Esc`.
+La TUI organiza Work Board como carpetas: entra a `/work-board` y luego a
+`/domains`, `/projects`, `/goals` o `/tasks`. Dentro de cada carpeta puedes
+listar o crear: por ejemplo `/project-new`, `/goal-new` y `/task-new`. Las
+acciones `/goals` y `/tasks` listan datos de un proyecto existente, por eso
+primero piden `project id`; los prompts internos se cancelan con `Esc`.
 
 La CLI de v0.1 agregara los recursos de conocimiento, repositorios, adapters,
 creacion y aprobacion de runs, logs y uso.
