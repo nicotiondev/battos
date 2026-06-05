@@ -485,8 +485,51 @@ paths:
       x-battos-phase: 4A
       summary: Detect installed runtimes without granting execution rights
       responses:
-        "202":
-          description: Detection scheduled
+        "200":
+          description: Detection result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuntimeAdapterList"
+  /cli-tools:
+    get:
+      tags: [Runtimes]
+      operationId: listCliTools
+      x-battos-phase: 4A
+      summary: List detected host CLI tools
+      responses:
+        "200":
+          description: CLI tools
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CliToolList"
+  /providers:
+    get:
+      tags: [Providers]
+      operationId: listProviders
+      x-battos-phase: 4A
+      summary: List provider status without exposing secrets
+      responses:
+        "200":
+          description: Providers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderList"
+  /providers/detect:
+    post:
+      tags: [Providers]
+      operationId: detectProviders
+      x-battos-phase: 4A
+      summary: Validate provider env key presence without exposing values
+      responses:
+        "200":
+          description: Provider detection result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderList"
   /repositories:
     get:
       tags: [Repositories]
@@ -577,12 +620,12 @@ paths:
             schema:
               $ref: "#/components/schemas/ApprovalInput"
       responses:
-        "201":
-          description: Approval recorded
+        "200":
+          description: Approval recorded and resulting run state
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Approval"
+                $ref: "#/components/schemas/RunApprovalResult"
   /runs/{id}/cancel:
     parameters:
       - $ref: "#/components/parameters/UUID"
@@ -591,8 +634,12 @@ paths:
       operationId: cancelRun
       x-battos-phase: 4B
       responses:
-        "202":
-          description: Cancellation requested
+        "200":
+          description: Run cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Run"
   /runs/{id}/logs:
     parameters:
       - $ref: "#/components/parameters/UUID"
@@ -654,6 +701,34 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ChatResponse"
+  /novacore/conversations:
+    get:
+      tags: [NovaCore]
+      operationId: listNovaCoreConversations
+      x-battos-phase: 5A
+      summary: List NovaCore conversations
+      responses:
+        "200":
+          description: NovaCore conversations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NovaCoreConversationList"
+  /novacore/conversations/{id}/messages:
+    parameters:
+      - $ref: "#/components/parameters/UUID"
+    get:
+      tags: [NovaCore]
+      operationId: listNovaCoreMessages
+      x-battos-phase: 5A
+      summary: List messages in one NovaCore conversation
+      responses:
+        "200":
+          description: NovaCore messages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NovaCoreMessageList"
   /usage/overview:
     get:
       tags: [Usage]
@@ -665,7 +740,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UsageOverview"
+                type: array
+                items:
+                  $ref: "#/components/schemas/UsageOverviewItem"
   /events/system-metrics:
     get:
       tags: [Events]
@@ -684,10 +761,11 @@ paths:
     get:
       tags: [Events]
       operationId: streamRunEvents
-      x-battos-phase: 5B
+      x-battos-phase: 4B
+      summary: Stream run snapshots, logs and terminal state
       responses:
         "200":
-          description: SSE run state and log events
+          description: SSE events `run.snapshot`, `run.log`, `run.done` and `run.error`
           content:
             text/event-stream:
               schema:
@@ -731,6 +809,7 @@ components:
     ProjectID:
       name: project_id
       in: query
+      description: Optional filter for project-scoped collections.
       schema:
         type: string
   requestBodies:
@@ -1084,9 +1163,11 @@ components:
         $ref: "#/components/schemas/Goal"
     TaskInput:
       type: object
-      required: [project_id, title]
+      required: [title]
       properties:
-        project_id: { type: string }
+        project_id:
+          type: string
+          description: Optional. If omitted, BattOS stores the task in the system Inbox project.
         goal_id: { type: string }
         title: { type: string }
         description: { type: string }
@@ -1110,6 +1191,7 @@ components:
     TaskPatch:
       type: object
       properties:
+        project_id: { type: string }
         goal_id: { type: string }
         title: { type: string }
         description: { type: string }
@@ -1153,6 +1235,7 @@ components:
         project_id: { type: string }
         title: { type: string }
         content: { type: string }
+        journal_date: { type: string, format: date }
     Journal:
       allOf:
         - $ref: "#/components/schemas/JournalInput"
@@ -1169,11 +1252,15 @@ components:
       required: [project_id, name, kind]
       properties:
         project_id: { type: string }
+        task_id: { type: string }
         run_id: { type: string, format: uuid }
         name: { type: string }
         kind:
           type: string
           enum: [markdown, image, link, diff, build_report]
+        bucket:
+          type: string
+          enum: [raw, wiki, outputs]
         content: { type: string }
         managed_path: { type: string }
         external_url: { type: string, format: uri }
@@ -1195,8 +1282,10 @@ components:
         slug: { type: string }
         name: { type: string }
         role: { type: string }
+        description: { type: string }
         runtime_id: { type: string }
         system_prompt: { type: string }
+        risk_level: { type: string }
         status:
           $ref: "#/components/schemas/LifecycleStatus"
     Agent:
@@ -1204,8 +1293,11 @@ components:
         - $ref: "#/components/schemas/AgentInput"
         - $ref: "#/components/schemas/Timestamps"
         - type: object
+          required: [id, is_lead, is_meta]
           properties:
             id: { type: string }
+            is_lead: { type: boolean }
+            is_meta: { type: boolean }
     AgentList:
       type: array
       items:
@@ -1217,7 +1309,11 @@ components:
         slug: { type: string }
         name: { type: string }
         description: { type: string }
+        category: { type: string }
+        risk_level: { type: string }
         version: { type: string }
+        status:
+          $ref: "#/components/schemas/LifecycleStatus"
         prompt_template: { type: string }
         lifecycle:
           type: string
@@ -1235,21 +1331,61 @@ components:
         $ref: "#/components/schemas/Skill"
     RuntimeAdapter:
       type: object
-      required: [id, name, status, approval_required]
+      required: [id, name, status, approval_required, approved_for_execution, requires_auth]
       properties:
         id: { type: string }
         name: { type: string }
         status:
           type: string
-          enum: [available, unavailable, disabled]
+          enum: [configured, detected, unavailable, blocked, disabled]
         version: { type: string }
         executable: { type: string }
+        command: { type: string }
         approval_required: { type: boolean, const: true }
         approved_for_execution: { type: boolean }
+        requires_auth: { type: boolean }
+        last_detected_at: { type: string, format: date-time }
     RuntimeAdapterList:
       type: array
       items:
         $ref: "#/components/schemas/RuntimeAdapter"
+    CliTool:
+      type: object
+      required: [id, name, command, kind, status]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        command: { type: string }
+        kind: { type: string }
+        status:
+          type: string
+          enum: [detected, not_detected, broken]
+        detected_path: { type: string }
+        version: { type: string }
+        runtime_id: { type: string }
+        risk_level: { type: string }
+        requires_auth: { type: boolean }
+        last_detected_at: { type: string, format: date-time }
+    CliToolList:
+      type: array
+      items:
+        $ref: "#/components/schemas/CliTool"
+    Provider:
+      type: object
+      required: [id, name, kind, env_key, status]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        kind: { type: string }
+        env_key: { type: string }
+        status:
+          type: string
+          enum: [configured, not_configured, down]
+        last_check_at: { type: string, format: date-time }
+    ProviderList:
+      type: array
+      items:
+        $ref: "#/components/schemas/Provider"
     RepositoryInput:
       type: object
       required: [project_id, kind, name]
@@ -1266,6 +1402,7 @@ components:
         - $ref: "#/components/schemas/RepositoryInput"
         - $ref: "#/components/schemas/Timestamps"
         - type: object
+          required: [id, default_branch]
           properties:
             id: { type: string }
             default_branch: { type: string }
@@ -1286,7 +1423,7 @@ components:
         skill_id: { type: string }
         runtime_adapter_id:
           type: string
-          enum: [claude-code, codex]
+          enum: [claude-code, codex, sandbox-smoke, sandbox-memory-smoke]
         repository_id: { type: string }
         prompt: { type: string }
         requested_network:
@@ -1305,7 +1442,10 @@ components:
             network_enabled: { type: boolean }
             branch_name: { type: string }
             result_summary: { type: string }
+            error_message: { type: string }
             estimated_cost_usd: { type: number }
+            started_at: { type: string, format: date-time }
+            completed_at: { type: string, format: date-time }
     RunList:
       type: array
       items:
@@ -1316,7 +1456,7 @@ components:
       properties:
         kind:
           type: string
-          enum: [execute, network, commit, push]
+          enum: [execute, network, commit, push, remember]
         decision:
           type: string
           enum: [approved, rejected]
@@ -1330,6 +1470,14 @@ components:
             id: { type: string, format: uuid }
             run_id: { type: string, format: uuid }
             decided_at: { type: string, format: date-time }
+    RunApprovalResult:
+      type: object
+      required: [run, approval]
+      properties:
+        run:
+          $ref: "#/components/schemas/Run"
+        approval:
+          $ref: "#/components/schemas/Approval"
     RunLog:
       type: object
       required: [id, run_id, stream, message, created_at]
@@ -1347,40 +1495,87 @@ components:
         $ref: "#/components/schemas/RunLog"
     ChatRequest:
       type: object
-      required: [message]
+      required: [content]
       properties:
         conversation_id: { type: string, format: uuid }
-        message: { type: string }
+        content: { type: string }
         project_id: { type: string }
-    ProposedAction:
-      type: object
-      required: [kind, requires_approval]
-      properties:
-        kind:
-          type: string
-          enum: [create_project, create_task, propose_run]
-        payload:
-          type: object
-          additionalProperties: true
-        requires_approval: { type: boolean, const: true }
     ChatResponse:
       type: object
-      required: [conversation_id, message, proposed_actions]
+      required: [conversation_id, role, content, tokens_in, tokens_out]
       properties:
         conversation_id: { type: string, format: uuid }
-        message: { type: string }
-        proposed_actions:
-          type: array
-          items:
-            $ref: "#/components/schemas/ProposedAction"
-    UsageOverview:
+        role: { type: string }
+        content: { type: string }
+        tokens_in: { type: integer }
+        tokens_out: { type: integer }
+    NovaCoreConversation:
       type: object
-      required: [input_tokens, output_tokens, reporting]
+      required:
+        - id
+        - started_at
+        - message_count
+        - total_input_tokens
+        - total_output_tokens
+        - total_cost_usd
       properties:
-        input_tokens: { type: integer }
-        output_tokens: { type: integer }
-        cost_usd: { type: number }
-        reporting:
+        id: { type: string, format: uuid }
+        user_id: { type: string }
+        started_at: { type: string, format: date-time }
+        ended_at: { type: string, format: date-time }
+        message_count: { type: integer }
+        total_input_tokens: { type: integer }
+        total_output_tokens: { type: integer }
+        total_cost_usd: { type: number }
+    NovaCoreConversationList:
+      type: array
+      items:
+        $ref: "#/components/schemas/NovaCoreConversation"
+    NovaCoreMessage:
+      type: object
+      required: [id, conversation_id, role, content, tokens_in, tokens_out, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        conversation_id: { type: string, format: uuid }
+        role:
+          type: string
+          enum: [system, user, assistant, tool]
+        content: { type: string }
+        tokens_in: { type: integer }
+        tokens_out: { type: integer }
+        created_at: { type: string, format: date-time }
+    NovaCoreMessageList:
+      type: array
+      items:
+        $ref: "#/components/schemas/NovaCoreMessage"
+    UsageOverviewItem:
+      type: object
+      required:
+        - project_id
+        - project_name
+        - project_monthly_budget_usd
+        - agent_id
+        - model_id
+        - provider_id
+        - total_input_tokens
+        - total_output_tokens
+        - total_cached_tokens
+        - total_requests
+        - total_cost_usd
+        - cost_precision
+      properties:
+        project_id: { type: string }
+        project_name: { type: string }
+        project_monthly_budget_usd: { type: number }
+        agent_id: { type: string }
+        model_id: { type: string }
+        provider_id: { type: string }
+        total_input_tokens: { type: integer }
+        total_output_tokens: { type: integer }
+        total_cached_tokens: { type: integer }
+        total_requests: { type: integer }
+        total_cost_usd: { type: number }
+        cost_precision:
           type: string
           enum: [exact, estimated, not_reported]
     Timestamps:
