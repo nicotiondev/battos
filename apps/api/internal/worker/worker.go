@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/nicotion/battos/apps/api/internal/gitauth"
 	"github.com/nicotion/battos/apps/api/internal/store"
 )
 
@@ -208,15 +209,37 @@ func (w *Worker) processClaimedRun(ctx context.Context, run store.Run) (bool, er
 			_ = os.Chmod(workDir, 0o777)
 
 			repoPath := filepath.Join(w.RepositoriesDir, repo.ID)
+			cloneSource := repoPath
+			var gitToken string
+			if repo.Kind == "github" {
+				remoteURL := strings.TrimSpace(repo.RemoteUrl.String)
+				if !repo.RemoteUrl.Valid || remoteURL == "" {
+					_ = os.RemoveAll(workDir)
+					failErr := w.fail(ctx, run.ID, "git clone failed", "repositorio github sin remote_url configurado")
+					if failErr != nil {
+						return true, failErr
+					}
+					return true, nil
+				}
+				gitToken = gitauth.Resolve(repo.CredentialRef.String)
+				cloneSource = gitauth.AuthenticatedURL(remoteURL, gitToken)
+			}
 			_ = w.log(ctx, run.ID, "system", fmt.Sprintf("git: cloning repository %s", repo.Name))
-			cmdClone := exec.Command("git", "clone", repoPath, workDir)
+			cmdClone := exec.Command("git", "clone", cloneSource, workDir)
 			if outClone, errClone := cmdClone.CombinedOutput(); errClone != nil {
 				_ = os.RemoveAll(workDir)
-				failErr := w.fail(ctx, run.ID, "git clone failed", fmt.Sprintf("error: %v, output: %s", errClone, string(outClone)))
+				failErr := w.fail(ctx, run.ID, "git clone failed", gitauth.Redact(fmt.Sprintf("error: %v, output: %s", errClone, string(outClone)), gitToken))
 				if failErr != nil {
 					return true, failErr
 				}
 				return true, nil
+			}
+			// No dejar el token persistido en .git/config del workspace temporal:
+			// restauramos el remote limpio. El push re-inyecta el token al vuelo.
+			if repo.Kind == "github" && gitToken != "" {
+				cmdSetURL := exec.Command("git", "remote", "set-url", "origin", strings.TrimSpace(repo.RemoteUrl.String))
+				cmdSetURL.Dir = workDir
+				_ = cmdSetURL.Run()
 			}
 
 			branchName = fmt.Sprintf("battos-run-%s", uuid.UUID(run.ID.Bytes).String())

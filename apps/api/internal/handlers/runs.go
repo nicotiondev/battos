@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/nicotion/battos/apps/api/internal/gitauth"
 	"github.com/nicotion/battos/apps/api/internal/memory"
 	"github.com/nicotion/battos/apps/api/internal/store"
 )
@@ -31,6 +32,7 @@ type RunStore interface {
 	ListRunLogs(context.Context, pgtype.UUID) ([]store.RunLog, error)
 	GetArtifactByRunAndKind(context.Context, store.GetArtifactByRunAndKindParams) (store.Artifact, error)
 	UpdateRunBranchAndMetadata(context.Context, store.UpdateRunBranchAndMetadataParams) (store.Run, error)
+	GetRepository(context.Context, string) (store.Repository, error)
 }
 
 type RunHandler struct {
@@ -314,11 +316,36 @@ func (h *RunHandler) ApproveRunAction(w http.ResponseWriter, r *http.Request) {
 				branchName = fmt.Sprintf("battos-run-%s", uuidValue(current.ID))
 			}
 
-			// git push origin <branchName>
-			cmdPush := exec.Command("git", "push", "origin", branchName)
+			// Destino del push: por defecto el remoto `origin` del workspace
+			// (repos managed_local). Para repos github, resolvemos un remoto
+			// https autenticado con el token referenciado por credential_ref.
+			pushTarget := "origin"
+			var gitToken string
+			repo, errRepo := h.store.GetRepository(r.Context(), current.RepositoryID.String)
+			if errRepo != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"message": "no se pudo leer el repositorio: " + errRepo.Error(), "code": 500}})
+				return
+			}
+			if repo.Kind == "github" {
+				remoteURL := strings.TrimSpace(textValue(repo.RemoteUrl))
+				if remoteURL == "" {
+					writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"message": "el repositorio github no tiene remote_url configurado", "code": 400}})
+					return
+				}
+				gitToken = gitauth.Resolve(textValue(repo.CredentialRef))
+				if gitToken == "" {
+					writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"message": "credential_ref no resuelve un token; define la variable de entorno referenciada antes de aprobar push", "code": 400}})
+					return
+				}
+				pushTarget = gitauth.AuthenticatedURL(remoteURL, gitToken)
+			}
+
+			// git push <target> <branchName>
+			cmdPush := exec.Command("git", "push", pushTarget, branchName)
 			cmdPush.Dir = workDir
 			if out, errPush := cmdPush.CombinedOutput(); errPush != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"message": fmt.Sprintf("git push fallo: %v, output: %s", errPush, string(out)), "code": 500}})
+				msg := gitauth.Redact(fmt.Sprintf("git push fallo: %v, output: %s", errPush, string(out)), gitToken)
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"message": msg, "code": 500}})
 				return
 			}
 

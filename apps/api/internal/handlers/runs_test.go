@@ -26,6 +26,14 @@ type fakeRunStore struct {
 	current              store.Run
 	updatedStatus        string
 	networkEnabled       bool
+	repo                 *store.Repository
+}
+
+func (f *fakeRunStore) GetRepository(_ context.Context, id string) (store.Repository, error) {
+	if f.repo != nil {
+		return *f.repo, nil
+	}
+	return store.Repository{ID: id, Kind: "managed_local"}, nil
 }
 
 func (f *fakeRunStore) CreateRun(_ context.Context, arg store.CreateRunParams) (store.Run, error) {
@@ -361,6 +369,43 @@ func TestApprovePushSuccess(t *testing.T) {
 	errShowRef := cmdShowRef.Run()
 	if errShowRef != nil {
 		t.Fatalf("expected branch %s to exist in origin repository, show-ref failed: %v, output: %s", branchName, errShowRef, string(outBranch))
+	}
+}
+
+func TestApprovePushGithubMissingCredentialRejected(t *testing.T) {
+	workDir := t.TempDir()
+	setupTestGitRepo(t, workDir)
+
+	runItem := testRun("succeeded", false)
+	runItem.RepositoryID = pgtype.Text{String: "repo-1", Valid: true}
+	runItem.BranchName = pgtype.Text{String: "battos-run-11111111-1111-1111-1111-111111111111", Valid: true}
+	runItem.Metadata = []byte(`{"work_dir":"` + filepath.ToSlash(workDir) + `"}`)
+
+	q := &fakeRunStore{
+		current: runItem,
+		repo: &store.Repository{
+			ID:            "repo-1",
+			Kind:          "github",
+			RemoteUrl:     pgtype.Text{String: "https://github.com/acme/web.git", Valid: true},
+			CredentialRef: pgtype.Text{String: "BATTOS_CREDENTIAL_ABSENT_FOR_TEST", Valid: true},
+		},
+	}
+	h := NewRunHandler(q, nil)
+
+	req := runRequest(http.MethodPost, "/runs/11111111-1111-1111-1111-111111111111/approvals", `{"kind":"push","decision":"approved"}`)
+	rec := httptest.NewRecorder()
+
+	h.ApproveRunAction(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "credential_ref") {
+		t.Fatalf("expected credential_ref error, got: %s", rec.Body.String())
+	}
+	// El push se aborta antes de limpiar: el workspace debe seguir existiendo.
+	if _, err := os.Stat(workDir); err != nil {
+		t.Fatalf("workDir should remain after rejected push: %v", err)
 	}
 }
 

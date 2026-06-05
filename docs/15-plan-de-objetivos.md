@@ -493,10 +493,19 @@ Concretado:
 - Generar y persistir diff (`git diff`) del run en la base de datos como un artefacto `diff` asociado al `run_id`.
 - Implementar los approvals HITL para `commit` y `push`: al aprobarse, se ejecutan `git commit` y `git push` de forma supervisada en el workspace temporal, borrando la carpeta de trabajo y actualizando la base de datos al finalizar el push.
 - Validado con pruebas unitarias robustas en [runs_test.go](file:///c:/Users/nicoa/Desktop/CLAUDE CODE/battos/apps/api/internal/handlers/runs_test.go) utilizando repositorios git reales creados en carpetas temporales (`t.TempDir()`).
+- Autenticación GitHub por referencia de credenciales (ADR-0019): repos `github`
+  clonan y pushean contra un remoto `https` autenticado. El paquete
+  `internal/gitauth` resuelve `credential_ref` como nombre de env var, inyecta el
+  token (`x-access-token`) en la URL al vuelo y lo redacta de logs/errores. El
+  token nunca se persiste en `.git/config` (el clone restaura el remoto limpio).
+  Conectar un repo `github` exige `remote_url`; aprobar `push` sin un
+  `credential_ref` resoluble devuelve 400. Cubierto por tests en
+  `gitauth_test.go` y `runs_test.go`.
 
 Pendientes:
 
-- Conectar GitHub con autenticación extendida/referencia de credenciales (planeado para v0.2).
+- Pull request GitHub aprobado como paso posterior al push (v0.2).
+- UI de gestión de credenciales/repositorios mutables (v0.2).
 
 ## 8. NovaCore
 

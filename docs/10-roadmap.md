@@ -174,6 +174,11 @@ verificada contra el run `47485730-a770-4bc4-b8e5-a5b7351ec605`, preparando la
 base para el futuro Control Room del dashboard.
 
 **Fase 4C** queda completada. Añadimos el soporte para conectar y gestionar repositorios locales e integraciones supervisadas. El worker aísla los runs en ramas temporales (`battos-run-<id>`), clona localmente, ejecuta y calcula el diff final guardándolo como un artefacto `diff`. Adicionalmente, el endpoint `/runs/{id}/approvals` implementa los approvals para `commit` y `push`: al aprobarse, se ejecutan de manera automatizada en el workspace temporal, realizando el commit local y subiendo los cambios (push) a su origen original, eliminando físicamente la carpeta de trabajo temporal y actualizando la metadata del run. El flujo fue validado con tests unitarios robustos con repositorios git locales simulados en filesystem temporal (`runs_test.go`).
+Para repos `github`, el clone y el push usan un remoto `https` autenticado: el
+paquete `internal/gitauth` resuelve `credential_ref` como nombre de variable de
+entorno, inyecta el token (`x-access-token`) en la URL al vuelo y lo redacta de
+logs/errores; el token nunca queda persistido en `.git/config` del workspace
+temporal. Decisión documentada en `docs/adr/0019-github-push-auth.md`.
 
 **Fase 4D** queda completada. Consolidamos el **Memory Bridge** como capa transversal de memoria entre agentes y herramientas de BattOS.
 Por un lado, la inyección automática de contexto en los prompts del worker ahora busca y combina observaciones en el Memory Core de SQLite mediante políticas ordenadas por relevancia para memorias de proyecto (scope=project), personales del proyecto (scope=personal), del agente específico y memorias globales, deduplicándolas por id de observación en caliente.

@@ -89,6 +89,13 @@ func (h *RepositoriesHandler) ConnectRepository(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	// Un repo github necesita remote_url para clonar/pushear; credential_ref es
+	// opcional al conectar (puede definirse luego), pero sin remote no hay destino.
+	if in.Kind == "github" && strings.TrimSpace(in.RemoteURL) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"message": "un repositorio github requiere remote_url", "code": 400}})
+		return
+	}
+
 	// Verificar si el proyecto existe
 	_, errProj := h.store.GetProject(r.Context(), in.ProjectID)
 	if errProj != nil {
