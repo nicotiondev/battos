@@ -119,22 +119,46 @@ type tuiCopy struct {
 	tasksFolderDesc    string
 	choose             string
 	projectID          string
+	projectIDOptional  string
 	statusDescription  string
 	domainsDesc        string
 	projectsDesc       string
 	goalsDesc          string
 	tasksDesc          string
+	agentsDesc         string
 	memoryDesc         string
+	runsDesc           string
+	runProposeDesc     string
+	runApproveDesc     string
+	runLogsDesc        string
+	runtimesDesc       string
+	runtimeDetectDesc  string
+	providersDesc      string
+	providerDetectDesc string
+	cliToolsDesc       string
 	helpDesc           string
 	languageDesc       string
 	createDomainDesc   string
 	createProjectDesc  string
 	createGoalDesc     string
 	createTaskDesc     string
+	createAgentDesc    string
+	taskBoardDesc      string
+	moveTaskDesc       string
+	assignTaskDesc     string
+	linkTaskGoalDesc   string
+	positionTaskDesc   string
 	inputHelp          string
 	slugLabel          string
 	nameLabel          string
 	domainIDLabel      string
+	taskIDLabel        string
+	runIDLabel         string
+	agentIDLabel       string
+	runtimeIDLabel     string
+	promptLabel        string
+	statusLabel        string
+	positionLabel      string
 	titleLabel         string
 	terminalUI         string
 }
@@ -146,7 +170,7 @@ var tuiCopies = map[tuiLanguage]tuiCopy{
 		commandPalette:     "Paleta de Comandos",
 		filter:             "Filtro",
 		noActions:          "Sin acciones para ese filtro.",
-		tip:                "Tip: /tasks <project> tambien funciona desde el modo shell simple.",
+		tip:                "Tip: /tasks lista todo; /tasks <project> filtra por proyecto.",
 		footer:             "↑/↓ navegar   Enter ejecutar   / palette   Esc volver   l idioma   Ctrl+C salir",
 		resultFooter:       "Esc/Enter volver   Ctrl+C salir",
 		inputSection:       "TERMINAL UI",
@@ -160,7 +184,7 @@ var tuiCopies = map[tuiLanguage]tuiCopy{
 		languageUpdated:    "Idioma actualizado.",
 		tipsTitle:          "Tips para empezar",
 		tipProjects:        "Ejecuta /projects para revisar tu tablero",
-		tipTasks:           "Ejecuta /tasks <project> para revisar tareas activas",
+		tipTasks:           "Ejecuta /tasks para revisar tareas activas",
 		tipBack:            "Usa Esc para volver y Ctrl+C para salir de la TUI",
 		whatsNewTitle:      "Novedades",
 		whatsNewLine:       "TUI v1 usa deck amplio, paleta de comandos, idioma y footer fijo",
@@ -176,22 +200,46 @@ var tuiCopies = map[tuiLanguage]tuiCopy{
 		tasksFolderDesc:    "Tareas",
 		choose:             "elige",
 		projectID:          "project id",
+		projectIDOptional:  "project id opcional (Enter usa inbox)",
 		statusDescription:  "Estado general del OS",
 		domainsDesc:        "Listar dominios",
 		projectsDesc:       "Listar proyectos",
-		goalsDesc:          "Listar objetivos por proyecto",
-		tasksDesc:          "Listar tareas por proyecto",
+		goalsDesc:          "Listar objetivos",
+		tasksDesc:          "Listar tareas",
+		agentsDesc:         "Listar agentes",
 		memoryDesc:         "Ver estadisticas de memoria",
+		runsDesc:           "Listar runs",
+		runProposeDesc:     "Proponer run supervisado",
+		runApproveDesc:     "Aprobar run para ejecucion",
+		runLogsDesc:        "Ver logs de run",
+		runtimesDesc:       "Listar runtimes",
+		runtimeDetectDesc:  "Detectar Claude Code/Codex",
+		providersDesc:      "Listar providers",
+		providerDetectDesc: "Detectar provider keys",
+		cliToolsDesc:       "Listar CLIs detectadas",
 		helpDesc:           "Ayuda del CLI",
 		languageDesc:       "Cambiar idioma",
 		createDomainDesc:   "Crear dominio",
 		createProjectDesc:  "Crear proyecto",
 		createGoalDesc:     "Crear objetivo",
 		createTaskDesc:     "Crear tarea",
+		createAgentDesc:    "Crear agente",
+		taskBoardDesc:      "Ver tablero Kanban",
+		moveTaskDesc:       "Mover tarea de estado",
+		assignTaskDesc:     "Asignar tarea a proyecto",
+		linkTaskGoalDesc:   "Vincular tarea a objetivo",
+		positionTaskDesc:   "Ordenar tarea en tablero",
 		inputHelp:          "Enter confirmar   Esc cancelar   Ctrl+C salir",
 		slugLabel:          "slug",
 		nameLabel:          "nombre",
 		domainIDLabel:      "domain id opcional",
+		taskIDLabel:        "task id",
+		runIDLabel:         "run id",
+		agentIDLabel:       "agent id",
+		runtimeIDLabel:     "runtime id",
+		promptLabel:        "prompt",
+		statusLabel:        "estado",
+		positionLabel:      "posicion",
 		titleLabel:         "titulo",
 		terminalUI:         "TERMINAL UI",
 	},
@@ -201,7 +249,7 @@ var tuiCopies = map[tuiLanguage]tuiCopy{
 		commandPalette:     "Command Palette",
 		filter:             "Filter",
 		noActions:          "No actions for that filter.",
-		tip:                "Tip: /tasks <project> also works from the simple shell mode.",
+		tip:                "Tip: /tasks lists everything; /tasks <project> filters by project.",
 		footer:             "↑/↓ navigate   Enter run   / palette   Esc back   l language   Ctrl+C quit",
 		resultFooter:       "Esc/Enter back   Ctrl+C quit",
 		inputSection:       "TERMINAL UI",
@@ -215,7 +263,7 @@ var tuiCopies = map[tuiLanguage]tuiCopy{
 		languageUpdated:    "Language updated.",
 		tipsTitle:          "Tips for getting started",
 		tipProjects:        "Run /projects to review your work board",
-		tipTasks:           "Run /tasks <project> to inspect active tasks",
+		tipTasks:           "Run /tasks to inspect active tasks",
 		tipBack:            "Use Esc to go back and Ctrl+C to leave the terminal UI",
 		whatsNewTitle:      "What's new",
 		whatsNewLine:       "TUI v1 has a wide deck, command palette, language and fixed footer",
@@ -231,22 +279,46 @@ var tuiCopies = map[tuiLanguage]tuiCopy{
 		tasksFolderDesc:    "Tasks",
 		choose:             "choose",
 		projectID:          "project id",
+		projectIDOptional:  "optional project id (Enter uses inbox)",
 		statusDescription:  "OS status overview",
 		domainsDesc:        "List domains",
 		projectsDesc:       "List projects",
-		goalsDesc:          "List goals by project",
-		tasksDesc:          "List tasks by project",
+		goalsDesc:          "List goals",
+		tasksDesc:          "List tasks",
+		agentsDesc:         "List agents",
 		memoryDesc:         "View memory statistics",
+		runsDesc:           "List runs",
+		runProposeDesc:     "Propose supervised run",
+		runApproveDesc:     "Approve run execution",
+		runLogsDesc:        "View run logs",
+		runtimesDesc:       "List runtimes",
+		runtimeDetectDesc:  "Detect Claude Code/Codex",
+		providersDesc:      "List providers",
+		providerDetectDesc: "Detect provider keys",
+		cliToolsDesc:       "List detected CLIs",
 		helpDesc:           "CLI help",
 		languageDesc:       "Change language",
 		createDomainDesc:   "Create domain",
 		createProjectDesc:  "Create project",
 		createGoalDesc:     "Create goal",
 		createTaskDesc:     "Create task",
+		createAgentDesc:    "Create agent",
+		taskBoardDesc:      "View Kanban board",
+		moveTaskDesc:       "Move task status",
+		assignTaskDesc:     "Assign task to project",
+		linkTaskGoalDesc:   "Link task to goal",
+		positionTaskDesc:   "Order task on board",
 		inputHelp:          "Enter confirm   Esc cancel   Ctrl+C quit",
 		slugLabel:          "slug",
 		nameLabel:          "name",
 		domainIDLabel:      "optional domain id",
+		taskIDLabel:        "task id",
+		runIDLabel:         "run id",
+		agentIDLabel:       "agent id",
+		runtimeIDLabel:     "runtime id",
+		promptLabel:        "prompt",
+		statusLabel:        "status",
+		positionLabel:      "position",
 		titleLabel:         "title",
 		terminalUI:         "TERMINAL UI",
 	},
@@ -271,7 +343,7 @@ func NewShellCmd(config func() ShellConfig) *cobra.Command {
 		Short: "Modo interactivo de BattOS con comandos slash",
 		Long: `Abre una sesion interactiva estilo Mission Control.
 
-Puedes escribir comandos slash como /status, /projects, /tasks <project>,
+Puedes escribir comandos slash como /status, /projects, /tasks,
 o usar comandos normales como dentro de la terminal: status, project list, etc.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return RunShell(cmd.Context(), config())
@@ -1080,17 +1152,43 @@ func shellOptions(language tuiLanguage) []shellOption {
 			{Label: copy.nameLabel, Flag: "--name", Required: true},
 			{Label: copy.domainIDLabel, Flag: "--domain"},
 		}},
-		{Key: "/goals", Description: copy.goalsDesc, Args: []string{"goal", "list", "--project"}, NeedsInput: copy.projectID},
+		{Key: "/goals", Description: copy.goalsDesc, Args: []string{"goal", "list"}},
 		{Key: "/goal-new", Description: copy.createGoalDesc, Args: []string{"goal", "create"}, Prompts: []shellPrompt{
 			{Label: copy.projectID, Flag: "--project", Required: true},
 			{Label: copy.titleLabel, Flag: "--title", Required: true},
 		}},
-		{Key: "/tasks", Description: copy.tasksDesc, Args: []string{"task", "list", "--project"}, NeedsInput: copy.projectID},
+		{Key: "/tasks", Description: copy.tasksDesc, Args: []string{"task", "list"}},
+		{Key: "/task-board", Description: copy.taskBoardDesc, Args: []string{"task", "board"}},
 		{Key: "/task-new", Description: copy.createTaskDesc, Args: []string{"task", "create"}, Prompts: []shellPrompt{
-			{Label: copy.projectID, Flag: "--project", Required: true},
+			{Label: copy.projectIDOptional, Flag: "--project"},
 			{Label: copy.titleLabel, Flag: "--title", Required: true},
 		}},
+		{Key: "/agents", Description: copy.agentsDesc, Args: []string{"agent", "list"}},
+		{Key: "/agent-new", Description: copy.createAgentDesc, Args: []string{"agent", "create"}, Prompts: []shellPrompt{
+			{Label: copy.slugLabel, Required: true},
+			{Label: copy.nameLabel, Flag: "--name", Required: true},
+			{Label: copy.runtimeIDLabel, Flag: "--runtime", Required: true},
+		}},
 		{Key: "/memory", Description: copy.memoryDesc, Args: []string{"memory", "stats"}},
+		{Key: "/runs", Description: copy.runsDesc, Args: []string{"run", "list"}},
+		{Key: "/run-propose", Description: copy.runProposeDesc, Args: []string{"run", "propose"}, Prompts: []shellPrompt{
+			{Label: copy.projectID, Flag: "--project", Required: true},
+			{Label: copy.taskIDLabel, Flag: "--task", Required: true},
+			{Label: copy.agentIDLabel, Flag: "--agent", Required: true},
+			{Label: copy.runtimeIDLabel, Flag: "--runtime", Required: true},
+			{Label: copy.promptLabel, Flag: "--prompt", Required: true},
+		}},
+		{Key: "/run-approve", Description: copy.runApproveDesc, Args: []string{"run", "approve"}, Prompts: []shellPrompt{
+			{Label: copy.runIDLabel, Required: true},
+		}},
+		{Key: "/run-logs", Description: copy.runLogsDesc, Args: []string{"run", "logs"}, Prompts: []shellPrompt{
+			{Label: copy.runIDLabel, Required: true},
+		}},
+		{Key: "/runtimes", Description: copy.runtimesDesc, Args: []string{"runtime", "list"}},
+		{Key: "/runtime-detect", Description: copy.runtimeDetectDesc, Args: []string{"runtime", "detect"}},
+		{Key: "/providers", Description: copy.providersDesc, Args: []string{"provider", "list"}},
+		{Key: "/provider-detect", Description: copy.providerDetectDesc, Args: []string{"provider", "detect"}},
+		{Key: "/cli-tools", Description: copy.cliToolsDesc, Args: []string{"cli-tool", "list"}},
 		{Key: "/language", Description: copy.languageDesc, Action: shellActionLanguage},
 		{Key: "/help", Description: copy.helpDesc, Args: []string{"--help"}},
 	}
@@ -1125,7 +1223,7 @@ func optionsForView(view string, language tuiLanguage) []shellOption {
 		}
 	case tuiViewGoals:
 		return []shellOption{
-			{Key: "/goals", Description: copy.goalsDesc, Args: []string{"goal", "list", "--project"}, NeedsInput: copy.projectID},
+			{Key: "/goals", Description: copy.goalsDesc, Args: []string{"goal", "list"}},
 			{Key: "/goal-new", Description: copy.createGoalDesc, Args: []string{"goal", "create"}, Prompts: []shellPrompt{
 				{Label: copy.projectID, Flag: "--project", Required: true},
 				{Label: copy.titleLabel, Flag: "--title", Required: true},
@@ -1133,10 +1231,27 @@ func optionsForView(view string, language tuiLanguage) []shellOption {
 		}
 	case tuiViewTasks:
 		return []shellOption{
-			{Key: "/tasks", Description: copy.tasksDesc, Args: []string{"task", "list", "--project"}, NeedsInput: copy.projectID},
+			{Key: "/tasks", Description: copy.tasksDesc, Args: []string{"task", "list"}},
+			{Key: "/task-board", Description: copy.taskBoardDesc, Args: []string{"task", "board"}},
 			{Key: "/task-new", Description: copy.createTaskDesc, Args: []string{"task", "create"}, Prompts: []shellPrompt{
-				{Label: copy.projectID, Flag: "--project", Required: true},
+				{Label: copy.projectIDOptional, Flag: "--project"},
 				{Label: copy.titleLabel, Flag: "--title", Required: true},
+			}},
+			{Key: "/task-move", Description: copy.moveTaskDesc, Args: []string{"task", "move"}, Prompts: []shellPrompt{
+				{Label: copy.taskIDLabel, Required: true},
+				{Label: copy.statusLabel, Required: true},
+			}},
+			{Key: "/task-assign", Description: copy.assignTaskDesc, Args: []string{"task", "assign"}, Prompts: []shellPrompt{
+				{Label: copy.taskIDLabel, Required: true},
+				{Label: copy.projectID, Required: true},
+			}},
+			{Key: "/task-link-goal", Description: copy.linkTaskGoalDesc, Args: []string{"task", "link-goal"}, Prompts: []shellPrompt{
+				{Label: copy.taskIDLabel, Required: true},
+				{Label: "goal id", Required: true},
+			}},
+			{Key: "/task-position", Description: copy.positionTaskDesc, Args: []string{"task", "position"}, Prompts: []shellPrompt{
+				{Label: copy.taskIDLabel, Required: true},
+				{Label: copy.positionLabel, Required: true},
 			}},
 		}
 	default:
@@ -1144,6 +1259,31 @@ func optionsForView(view string, language tuiLanguage) []shellOption {
 			{Key: "/status", Description: copy.statusDescription, Args: []string{"status"}},
 			{Key: "/work-board", Description: copy.workBoardDesc, Action: shellActionOpen + tuiViewWork},
 			{Key: "/memory", Description: copy.memoryDesc, Args: []string{"memory", "stats"}},
+			{Key: "/agents", Description: copy.agentsDesc, Args: []string{"agent", "list"}},
+			{Key: "/agent-new", Description: copy.createAgentDesc, Args: []string{"agent", "create"}, Prompts: []shellPrompt{
+				{Label: copy.slugLabel, Required: true},
+				{Label: copy.nameLabel, Flag: "--name", Required: true},
+				{Label: copy.runtimeIDLabel, Flag: "--runtime", Required: true},
+			}},
+			{Key: "/runs", Description: copy.runsDesc, Args: []string{"run", "list"}},
+			{Key: "/run-propose", Description: copy.runProposeDesc, Args: []string{"run", "propose"}, Prompts: []shellPrompt{
+				{Label: copy.projectID, Flag: "--project", Required: true},
+				{Label: copy.taskIDLabel, Flag: "--task", Required: true},
+				{Label: copy.agentIDLabel, Flag: "--agent", Required: true},
+				{Label: copy.runtimeIDLabel, Flag: "--runtime", Required: true},
+				{Label: copy.promptLabel, Flag: "--prompt", Required: true},
+			}},
+			{Key: "/run-approve", Description: copy.runApproveDesc, Args: []string{"run", "approve"}, Prompts: []shellPrompt{
+				{Label: copy.runIDLabel, Required: true},
+			}},
+			{Key: "/run-logs", Description: copy.runLogsDesc, Args: []string{"run", "logs"}, Prompts: []shellPrompt{
+				{Label: copy.runIDLabel, Required: true},
+			}},
+			{Key: "/runtimes", Description: copy.runtimesDesc, Args: []string{"runtime", "list"}},
+			{Key: "/runtime-detect", Description: copy.runtimeDetectDesc, Args: []string{"runtime", "detect"}},
+			{Key: "/providers", Description: copy.providersDesc, Args: []string{"provider", "list"}},
+			{Key: "/provider-detect", Description: copy.providerDetectDesc, Args: []string{"provider", "detect"}},
+			{Key: "/cli-tools", Description: copy.cliToolsDesc, Args: []string{"cli-tool", "list"}},
 			{Key: "/language", Description: copy.languageDesc, Action: shellActionLanguage},
 			{Key: "/help", Description: copy.helpDesc, Args: []string{"--help"}},
 		}
@@ -1167,16 +1307,44 @@ func shellArgs(line string) ([]string, error) {
 			return []string{"project", "list"}, nil
 		case "memory":
 			return append([]string{"memory"}, defaultSubcommand(fields[1:], "stats")...), nil
+		case "runs":
+			if len(fields) >= 2 {
+				return []string{"run", "list", "--project", fields[1]}, nil
+			}
+			return []string{"run", "list"}, nil
+		case "run-approve":
+			return append([]string{"run", "approve"}, fields[1:]...), nil
+		case "run-logs":
+			return append([]string{"run", "logs"}, fields[1:]...), nil
+		case "runtimes":
+			return []string{"runtime", "list"}, nil
+		case "runtime-detect":
+			return []string{"runtime", "detect"}, nil
+		case "providers":
+			return []string{"provider", "list"}, nil
+		case "provider-detect":
+			return []string{"provider", "detect"}, nil
+		case "cli-tools":
+			return []string{"cli-tool", "list"}, nil
 		case "goals":
-			if len(fields) < 2 {
-				return nil, fmt.Errorf("uso: /goals <project_id>")
+			if len(fields) >= 2 {
+				return []string{"goal", "list", "--project", fields[1]}, nil
 			}
-			return []string{"goal", "list", "--project", fields[1]}, nil
+			return []string{"goal", "list"}, nil
 		case "tasks":
-			if len(fields) < 2 {
-				return nil, fmt.Errorf("uso: /tasks <project_id>")
+			if len(fields) >= 2 {
+				return []string{"task", "list", "--project", fields[1]}, nil
 			}
-			return []string{"task", "list", "--project", fields[1]}, nil
+			return []string{"task", "list"}, nil
+		case "agents":
+			return []string{"agent", "list"}, nil
+		case "agent-new":
+			return append([]string{"agent", "create"}, fields[1:]...), nil
+		case "task-board":
+			if len(fields) >= 2 {
+				return []string{"task", "board", "--project", fields[1]}, nil
+			}
+			return []string{"task", "board"}, nil
 		default:
 			return fields, nil
 		}

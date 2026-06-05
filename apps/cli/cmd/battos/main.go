@@ -68,6 +68,14 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(commands.NewProjectCmd(getClient))
 	root.AddCommand(commands.NewGoalCmd(getClient))
 	root.AddCommand(commands.NewTaskCmd(getClient))
+	root.AddCommand(commands.NewAgentCmd(getClient))
+	root.AddCommand(commands.NewKnowledgeCmd(getClient))
+	root.AddCommand(commands.NewRuntimeCmd(getClient))
+	root.AddCommand(commands.NewProviderCmd(getClient))
+	root.AddCommand(commands.NewCLIToolCmd(getClient))
+	root.AddCommand(commands.NewRunCmd(getClient))
+	root.AddCommand(commands.NewAskCmd(getClient))
+	root.AddCommand(commands.NewChatCmd(getClient))
 	root.AddCommand(commands.NewShellCmd(func() commands.ShellConfig {
 		return commands.ShellConfig{
 			APIURL:   apiURL,

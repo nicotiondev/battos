@@ -33,6 +33,7 @@ de proyecto y agente, y permite búsqueda full-text con ranking BM25.`,
 	}
 	cmd.AddCommand(newMemoryRecentCmd(getClient))
 	cmd.AddCommand(newMemorySearchCmd(getClient))
+	cmd.AddCommand(newMemoryContextCmd(getClient))
 	cmd.AddCommand(newMemorySaveCmd(getClient))
 	cmd.AddCommand(newMemoryStatsCmd(getClient))
 	return cmd
@@ -130,6 +131,78 @@ func newMemorySearchCmd(getClient func() *client.Client) *cobra.Command {
 	cmd.Flags().StringVar(&projectID, "project", "", "filtrar por project_id")
 	cmd.Flags().StringVar(&agentID, "agent", "", "filtrar por agent_id")
 	cmd.Flags().StringVar(&scope, "scope", "", "filtrar por scope (project|personal)")
+	return cmd
+}
+
+// --- context ---
+
+func newMemoryContextCmd(getClient func() *client.Client) *cobra.Command {
+	var (
+		limit     int
+		projectID string
+		agentID   string
+		scope     string
+		format    string
+	)
+	cmd := &cobra.Command{
+		Use:   "context",
+		Short: "Generar un paquete de contexto para agentes",
+		Long: `Genera un paquete de memoria por proyecto/agente para inyectarlo en un run,
+prompt o herramienta externa. Es el primer puente hacia una memoria compartida
+entre Claude Code, Codex, NovaCore y futuros agentes.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if projectID == "" && agentID == "" && scope == "" {
+				return fmt.Errorf("usa al menos --project, --agent o --scope para acotar el contexto")
+			}
+			if scope == "" {
+				scope = "project"
+			}
+			ctx, cancel := context.WithTimeout(cmd.Context(), 10*time.Second)
+			defer cancel()
+
+			body := map[string]any{
+				"query": "",
+				"limit": limit,
+				"filter": map[string]any{
+					"project_id": projectID,
+					"agent_id":   agentID,
+					"scope":      scope,
+				},
+			}
+			var resp struct {
+				Results []memoryResult `json:"results"`
+				Count   int            `json:"count"`
+				Query   string         `json:"query"`
+			}
+			c := getClient()
+			if err := postJSON(ctx, c, "/memory/search", body, &resp); err != nil {
+				return err
+			}
+			if format == "json" {
+				encoded, err := json.MarshalIndent(resp.Results, "", "  ")
+				if err != nil {
+					return fmt.Errorf("encoding context json: %w", err)
+				}
+				fmt.Println(string(encoded))
+				return nil
+			}
+			if format != "markdown" {
+				return fmt.Errorf("--format debe ser markdown o json")
+			}
+			fmt.Print(renderMemoryContext(resp.Results, memoryContextOptions{
+				ProjectID: projectID,
+				AgentID:   agentID,
+				Scope:     scope,
+				Generated: time.Now(),
+			}))
+			return nil
+		},
+	}
+	cmd.Flags().IntVarP(&limit, "limit", "n", 12, "maximo de memorias")
+	cmd.Flags().StringVar(&projectID, "project", "", "project_id para contexto")
+	cmd.Flags().StringVar(&agentID, "agent", "", "agent_id para contexto")
+	cmd.Flags().StringVar(&scope, "scope", "", "project|personal (por defecto project si usas --project o --agent)")
+	cmd.Flags().StringVar(&format, "format", "markdown", "markdown|json")
 	return cmd
 }
 
@@ -246,6 +319,54 @@ type memoryResult struct {
 	Rank float64 `json:"rank"`
 }
 
+type memoryContextOptions struct {
+	ProjectID string
+	AgentID   string
+	Scope     string
+	Generated time.Time
+}
+
+func renderMemoryContext(items []memoryResult, opts memoryContextOptions) string {
+	var b strings.Builder
+	b.WriteString("# BattOS Memory Context\n\n")
+	if opts.ProjectID != "" {
+		b.WriteString("- Project: " + opts.ProjectID + "\n")
+	}
+	if opts.AgentID != "" {
+		b.WriteString("- Agent: " + opts.AgentID + "\n")
+	}
+	if opts.Scope != "" {
+		b.WriteString("- Scope: " + opts.Scope + "\n")
+	}
+	if !opts.Generated.IsZero() {
+		b.WriteString("- Generated: " + opts.Generated.Format(time.RFC3339) + "\n")
+	}
+	b.WriteString("\n")
+	if len(items) == 0 {
+		b.WriteString("_No memory items found for this context._\n")
+		return b.String()
+	}
+	for _, item := range items {
+		b.WriteString(fmt.Sprintf("## [%s] %s\n\n", emptyDash(item.Type), item.Title))
+		if item.TopicKey != "" || item.ProjectID != "" || item.AgentID != "" {
+			var meta []string
+			if item.TopicKey != "" {
+				meta = append(meta, "topic="+item.TopicKey)
+			}
+			if item.ProjectID != "" {
+				meta = append(meta, "project="+item.ProjectID)
+			}
+			if item.AgentID != "" {
+				meta = append(meta, "agent="+item.AgentID)
+			}
+			b.WriteString("_" + strings.Join(meta, " · ") + "_\n\n")
+		}
+		b.WriteString(strings.TrimSpace(item.Content))
+		b.WriteString("\n\n")
+	}
+	return b.String()
+}
+
 func printMemoryItem(it memoryItem, rank float64) {
 	header := fmt.Sprintf("[#%d] %s", it.ID, it.Title)
 	fmt.Println(styleOK.Render("● ") + header)
@@ -309,6 +430,15 @@ func postJSON(ctx context.Context, c *client.Client, path string, body any, out 
 	return decodeOrError(resp, out)
 }
 
+func patchJSON(ctx context.Context, c *client.Client, path string, body any, out any) error {
+	resp, err := doRequest(ctx, c, http.MethodPatch, path, body)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return decodeOrError(resp, out)
+}
+
 func doRequest(ctx context.Context, c *client.Client, method, path string, body any) (*http.Response, error) {
 	var bodyReader *bytes.Reader
 	if body != nil {
@@ -339,7 +469,16 @@ func doRequest(ctx context.Context, c *client.Client, method, path string, body 
 func decodeOrError(resp *http.Response, out any) error {
 	if resp.StatusCode >= 400 {
 		b, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
+		msg := strings.TrimSpace(string(b))
+		var apiErr struct {
+			Error struct {
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		if err := json.Unmarshal(b, &apiErr); err == nil && strings.TrimSpace(apiErr.Error.Message) != "" {
+			msg = apiErr.Error.Message
+		}
+		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, msg)
 	}
 	if out == nil {
 		return nil

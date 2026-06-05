@@ -15,8 +15,17 @@ func TestShellArgsMapsSlashAliases(t *testing.T) {
 	}{
 		{name: "status", line: "/status", want: []string{"status"}},
 		{name: "projects", line: "/projects", want: []string{"project", "list"}},
+		{name: "tasks global", line: "/tasks", want: []string{"task", "list"}},
 		{name: "tasks", line: "/tasks demo", want: []string{"task", "list", "--project", "demo"}},
+		{name: "agents", line: "/agents", want: []string{"agent", "list"}},
+		{name: "agent new", line: "/agent-new builder-web --name Builder --runtime codex", want: []string{"agent", "create", "builder-web", "--name", "Builder", "--runtime", "codex"}},
+		{name: "task board global", line: "/task-board", want: []string{"task", "board"}},
+		{name: "task board filtered", line: "/task-board demo", want: []string{"task", "board", "--project", "demo"}},
 		{name: "memory default", line: "/memory", want: []string{"memory", "stats"}},
+		{name: "runs global", line: "/runs", want: []string{"run", "list"}},
+		{name: "runs filtered", line: "/runs demo", want: []string{"run", "list", "--project", "demo"}},
+		{name: "run approve", line: "/run-approve 11111111-1111-1111-1111-111111111111", want: []string{"run", "approve", "11111111-1111-1111-1111-111111111111"}},
+		{name: "run logs", line: "/run-logs 11111111-1111-1111-1111-111111111111", want: []string{"run", "logs", "11111111-1111-1111-1111-111111111111"}},
 		{name: "plain command", line: "project list", want: []string{"project", "list"}},
 	}
 
@@ -30,13 +39,6 @@ func TestShellArgsMapsSlashAliases(t *testing.T) {
 				t.Fatalf("shellArgs(%q) = %#v, want %#v", tt.line, got, tt.want)
 			}
 		})
-	}
-}
-
-func TestShellArgsRequiresProjectForTasks(t *testing.T) {
-	_, err := shellArgs("/tasks")
-	if err == nil {
-		t.Fatal("shellArgs(/tasks) error = nil, want usage error")
 	}
 }
 
