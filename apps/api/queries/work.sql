@@ -29,6 +29,20 @@ SELECT * FROM projects
 WHERE status != 'archived'
 ORDER BY created_at DESC;
 
+-- name: EnsureInboxProject :one
+INSERT INTO projects (id, slug, name, description, status, metadata)
+VALUES (
+    'inbox',
+    'inbox',
+    'Inbox',
+    'Captura temporal para tareas sin proyecto asignado',
+    'active',
+    '{"system":true,"purpose":"task_inbox"}'::jsonb
+)
+ON CONFLICT (id) DO UPDATE
+SET updated_at = projects.updated_at
+RETURNING *;
+
 -- name: GetProject :one
 SELECT * FROM projects WHERE id = $1;
 
@@ -47,6 +61,10 @@ RETURNING *;
 SELECT * FROM goals
 WHERE project_id = $1
 ORDER BY created_at DESC;
+
+-- name: ListGoals :many
+SELECT * FROM goals
+ORDER BY project_id, created_at DESC;
 
 -- name: GetGoal :one
 SELECT * FROM goals WHERE id = $1;
@@ -70,12 +88,16 @@ SELECT * FROM tasks
 WHERE project_id = $1
 ORDER BY status, board_position, created_at DESC;
 
+-- name: ListTasks :many
+SELECT * FROM tasks
+ORDER BY project_id, status, board_position, created_at DESC;
+
 -- name: GetTask :one
 SELECT * FROM tasks WHERE id = $1;
 
 -- name: UpdateTask :one
 UPDATE tasks
-SET goal_id = $2, title = $3, description = $4, assigned_agent_id = $5,
-    status = $6, board_position = $7, metadata = $8
+SET project_id = $2, goal_id = $3, title = $4, description = $5, assigned_agent_id = $6,
+    status = $7, board_position = $8, metadata = $9
 WHERE id = $1
 RETURNING *;

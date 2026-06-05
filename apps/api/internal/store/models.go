@@ -59,6 +59,17 @@ type Artifact struct {
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
+type AuditLog struct {
+	ID         pgtype.UUID        `json:"id"`
+	Action     string             `json:"action"`
+	Actor      string             `json:"actor"`
+	TargetType string             `json:"target_type"`
+	TargetID   string             `json:"target_id"`
+	Details    []byte             `json:"details"`
+	IpAddress  string             `json:"ip_address"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
 type CliTool struct {
 	ID             string             `json:"id"`
 	Name           string             `json:"name"`
@@ -226,6 +237,59 @@ type Provider struct {
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 }
 
+type Repository struct {
+	ID            string             `json:"id"`
+	ProjectID     string             `json:"project_id"`
+	Kind          string             `json:"kind"`
+	Name          string             `json:"name"`
+	RemoteUrl     pgtype.Text        `json:"remote_url"`
+	CredentialRef pgtype.Text        `json:"credential_ref"`
+	DefaultBranch string             `json:"default_branch"`
+	Metadata      []byte             `json:"metadata"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
+type Run struct {
+	ID               pgtype.UUID        `json:"id"`
+	ProjectID        string             `json:"project_id"`
+	TaskID           string             `json:"task_id"`
+	AgentID          string             `json:"agent_id"`
+	SkillID          pgtype.Text        `json:"skill_id"`
+	RuntimeAdapterID string             `json:"runtime_adapter_id"`
+	RepositoryID     pgtype.Text        `json:"repository_id"`
+	Prompt           string             `json:"prompt"`
+	RequestedNetwork bool               `json:"requested_network"`
+	NetworkEnabled   bool               `json:"network_enabled"`
+	Status           string             `json:"status"`
+	BranchName       pgtype.Text        `json:"branch_name"`
+	ResultSummary    pgtype.Text        `json:"result_summary"`
+	ErrorMessage     pgtype.Text        `json:"error_message"`
+	EstimatedCostUsd pgtype.Numeric     `json:"estimated_cost_usd"`
+	Metadata         []byte             `json:"metadata"`
+	StartedAt        pgtype.Timestamptz `json:"started_at"`
+	CompletedAt      pgtype.Timestamptz `json:"completed_at"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
+type RunApproval struct {
+	ID        pgtype.UUID        `json:"id"`
+	RunID     pgtype.UUID        `json:"run_id"`
+	Kind      string             `json:"kind"`
+	Decision  string             `json:"decision"`
+	Reason    pgtype.Text        `json:"reason"`
+	DecidedAt pgtype.Timestamptz `json:"decided_at"`
+}
+
+type RunLog struct {
+	ID        int64              `json:"id"`
+	RunID     pgtype.UUID        `json:"run_id"`
+	Stream    string             `json:"stream"`
+	Message   string             `json:"message"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type Skill struct {
 	ID                 string             `json:"id"`
 	Slug               string             `json:"slug"`
@@ -285,7 +349,7 @@ type Task struct {
 
 type UsageEvent struct {
 	ID               pgtype.UUID        `json:"id"`
-	ExecutionID      pgtype.UUID        `json:"execution_id"`
+	RunID            pgtype.UUID        `json:"run_id"`
 	ProviderID       pgtype.Text        `json:"provider_id"`
 	ModelID          pgtype.Text        `json:"model_id"`
 	ProjectID        pgtype.Text        `json:"project_id"`

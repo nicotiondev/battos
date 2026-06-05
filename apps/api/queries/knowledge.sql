@@ -47,3 +47,8 @@ UPDATE skills
 SET prompt_template = $2, lifecycle = $3, version = $4
 WHERE id = $1
 RETURNING *;
+
+-- name: GetArtifactByRunAndKind :one
+SELECT * FROM artifacts
+WHERE run_id = $1 AND kind = $2
+LIMIT 1;

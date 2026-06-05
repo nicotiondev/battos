@@ -160,6 +160,37 @@ func (q *Queries) GetArtifact(ctx context.Context, id pgtype.UUID) (Artifact, er
 	return i, err
 }
 
+const getArtifactByRunAndKind = `-- name: GetArtifactByRunAndKind :one
+SELECT id, project_id, task_id, run_id, name, kind, content, managed_path, external_url, metadata, created_at, updated_at FROM artifacts
+WHERE run_id = $1 AND kind = $2
+LIMIT 1
+`
+
+type GetArtifactByRunAndKindParams struct {
+	RunID pgtype.UUID `json:"run_id"`
+	Kind  string      `json:"kind"`
+}
+
+func (q *Queries) GetArtifactByRunAndKind(ctx context.Context, arg GetArtifactByRunAndKindParams) (Artifact, error) {
+	row := q.db.QueryRow(ctx, getArtifactByRunAndKind, arg.RunID, arg.Kind)
+	var i Artifact
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.TaskID,
+		&i.RunID,
+		&i.Name,
+		&i.Kind,
+		&i.Content,
+		&i.ManagedPath,
+		&i.ExternalUrl,
+		&i.Metadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getJournal = `-- name: GetJournal :one
 SELECT id, workspace_id, project_id, title, content, journal_date, created_at, updated_at FROM journals WHERE id = $1
 `
