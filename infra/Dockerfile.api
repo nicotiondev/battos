@@ -1,38 +1,31 @@
-# BattOS API — multi-stage build.
+# BattOS API/worker - multi-stage build.
 #
-# Stage 1: compilar el binario estático.
-# Stage 2: imagen mínima (Alpine) que solo contiene el binario + ca-certs + wget.
-#
-# Tamaño final esperado: ~30 MB (binario Go + Alpine base + ca-certs).
+# Stage 1: compile static binaries.
+# Stage 2: minimal Alpine image with API, worker, ca-certs, wget and docker-cli.
 
 # ---------- Stage 1: build ----------
 FROM golang:1.26-alpine AS builder
 
-# Deps de compilación. git por si alguna lib necesita resolver desde repo.
 RUN apk add --no-cache git
 
 WORKDIR /src
 
-# Copiamos go.work y todos los go.mod primero para cachear deps.
-# El contexto del build es la raíz del repo (../).
+# Copy module files first to cache dependency downloads.
+# Build context is the repo root.
 COPY go.work go.work.sum* ./
 COPY apps/api/go.mod apps/api/go.sum apps/api/
 COPY apps/cli/go.mod apps/cli/go.sum apps/cli/
 COPY packages/core/go.mod packages/core/go.sum* packages/core/
 
-# Pre-descargar deps. Falla rápido si hay problema de network.
 RUN cd apps/api && go mod download
 
-# Copiar todo el código y compilar.
 COPY apps/api apps/api
 COPY packages/core packages/core
 
-# Build args para inyectar versión/commit.
 ARG VERSION=v0.1.0-alpha
 ARG COMMIT=unknown
 ARG BUILD_DATE=unknown
 
-# Static binary — sin CGo (modernc.org/sqlite es puro Go).
 RUN cd apps/api && \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build \
@@ -43,23 +36,29 @@ RUN cd apps/api && \
       -o /out/battos-api \
       ./cmd/api
 
+RUN cd apps/api && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build \
+      -ldflags="-s -w" \
+      -o /out/battos-worker \
+      ./cmd/worker
+
 # ---------- Stage 2: runtime ----------
 FROM alpine:3.20
 
-# ca-certificates: para llamadas HTTPS futuras (providers).
-# wget: para el healthcheck del docker-compose.
-# tzdata: para timestamps locales en logs.
-RUN apk add --no-cache ca-certificates wget tzdata && \
+# docker-cli is used only by the optional worker DockerSandbox service. The API
+# service does not mount the Docker socket.
+RUN apk add --no-cache ca-certificates wget docker-cli tzdata && \
     addgroup -g 10001 battos && \
     adduser -u 10001 -G battos -D -h /app battos
 
 WORKDIR /app
 
-# Crear dirs persistentes con permisos correctos.
-RUN mkdir -p /app/data/memory /app/data/logs && \
+RUN mkdir -p /app/data/memory /app/data/logs /app/data/runs/workspaces && \
     chown -R battos:battos /app
 
 COPY --from=builder --chown=battos:battos /out/battos-api /app/battos-api
+COPY --from=builder --chown=battos:battos /out/battos-worker /app/battos-worker
 
 USER battos
 EXPOSE 8000

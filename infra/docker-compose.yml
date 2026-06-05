@@ -1,16 +1,15 @@
-# BattOS — Docker Compose para dev local y VPS.
+# BattOS - Docker Compose para dev local y VPS.
 #
 # Servicios:
-#   battos-db    Postgres 16 (single-user, sin replicación en v0.1)
-#   battos-api   API Go (chi + sqlc + SSE)
-#
-# El frontend (apps/web) NO está acá todavía — se suma en Fase 5.
-# Memory Core (SQLite) vive embebido dentro de battos-api, no necesita servicio.
+#   battos-db      Postgres 16 single-user
+#   battos-api     API Go
+#   battos-worker  Worker de runs, opcional con perfil worker
 #
 # Uso:
-#   cp .env.example .env  # editar POSTGRES_PASSWORD y secrets
+#   cp infra/.env.example infra/.env
 #   docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
 #   docker compose -f infra/docker-compose.yml logs -f battos-api
+#   docker compose -f infra/docker-compose.yml --env-file infra/.env --profile worker up -d battos-worker
 
 name: battos
 
@@ -26,7 +25,7 @@ services:
     volumes:
       - battos_postgres_data:/var/lib/postgresql/data
     ports:
-      # En producción NO exponer 5432 al host; en dev ayuda para conectar con TablePlus.
+      # En produccion no exponer 5432 al host; en dev ayuda para conectar tools.
       - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
@@ -43,27 +42,21 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # API
       BATTOS_ENV: ${BATTOS_ENV:-production}
       BATTOS_SECRET_KEY: ${BATTOS_SECRET_KEY}
       BATTOS_API_HOST: "0.0.0.0"
       BATTOS_AUTH_MODE: "token"
       BATTOS_API_TOKEN: ${BATTOS_API_TOKEN}
-      # DB
       DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@battos-db:5432/${POSTGRES_DB}?sslmode=disable"
-      # Providers (solo presencia se valida en v0.1, no se llaman)
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
-      # Guardrails
       ALLOW_CLI_EXECUTION: ${ALLOW_CLI_EXECUTION:-false}
       ALLOW_DOCKER_MUTATION: ${ALLOW_DOCKER_MUTATION:-false}
       REQUIRE_APPROVAL_FOR_HIGH_RISK: ${REQUIRE_APPROVAL_FOR_HIGH_RISK:-true}
     volumes:
-      # Persistir Memory Core (SQLite) y logs entre reinicios del contenedor.
       - battos_data:/app/data
-      # Config y registries son read-only desde el host.
       - ../config:/app/config:ro
       - ../agents:/app/agents:ro
       - ../skills:/app/skills:ro
@@ -76,6 +69,41 @@ services:
       timeout: 3s
       retries: 5
       start_period: 10s
+
+  battos-worker:
+    profiles: ["worker"]
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.api
+    container_name: battos-worker
+    restart: unless-stopped
+    entrypoint: ["/app/battos-worker"]
+    command: ["-once=false"]
+    environment:
+      BATTOS_ENV: ${BATTOS_ENV:-production}
+      BATTOS_SECRET_KEY: ${BATTOS_SECRET_KEY}
+      BATTOS_AUTH_MODE: "token"
+      BATTOS_API_TOKEN: ${BATTOS_API_TOKEN}
+      DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@battos-db:5432/${POSTGRES_DB}?sslmode=disable"
+      BATTOS_EXECUTION_SANDBOX_MODE: ${BATTOS_EXECUTION_SANDBOX_MODE:-dry_run}
+      BATTOS_EXECUTION_DOCKER_IMAGE: ${BATTOS_EXECUTION_DOCKER_IMAGE:-alpine:3.20}
+      BATTOS_EXECUTION_WORKSPACES_DIR: ${BATTOS_EXECUTION_WORKSPACES_DIR:-/app/data/runs/workspaces}
+      BATTOS_EXECUTION_POLL_INTERVAL_S: ${BATTOS_EXECUTION_POLL_INTERVAL_S:-2}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      ALLOW_CLI_EXECUTION: ${ALLOW_CLI_EXECUTION:-false}
+      ALLOW_DOCKER_MUTATION: ${ALLOW_DOCKER_MUTATION:-false}
+      REQUIRE_APPROVAL_FOR_HIGH_RISK: ${REQUIRE_APPROVAL_FOR_HIGH_RISK:-true}
+    volumes:
+      - battos_data:/app/data
+      - ../config:/app/config:ro
+      - ../agents:/app/agents:ro
+      - ../skills:/app/skills:ro
+    depends_on:
+      battos-db:
+        condition: service_healthy
 
 volumes:
   battos_postgres_data:

@@ -36,12 +36,18 @@ infra/.env.*
 !infra/.env.example
 
 # --- Data local ---
+data/.cache/
 data/memory/*.db
 data/memory/*.db-shm
 data/memory/*.db-wal
 data/logs/*.jsonl
+data/logs/*.log
+data/artifacts/
 data/workspaces/
 data/certs/
+data/repositories/
+data/runs/
+data/tmp/
 
 # --- Generados no versionados ---
 # El store Go generado por sqlc se versiona para que un checkout compile sin

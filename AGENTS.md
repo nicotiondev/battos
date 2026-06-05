@@ -7,10 +7,12 @@ Instrucciones para futuras sesiones de Codex que trabajen en este repo.
 BattOS es un Mission Control agentic self-hosted que organiza trabajo,
 conocimiento y agentes, y ejecuta tareas de forma supervisada.
 
-**Estado**: v0.1.0 en construccion. Fases 0-3A cerradas; Fase 3B tiene
-persistencia y Work Board API/CLI, y continua con Knowledge Center. La especificacion final vive en
-`docs/14-producto-final-y-roadmap.md`; el avance implementable en
-`docs/10-roadmap.md`.
+**Estado**: v0.1.0 en construccion. Fases 0-3A cerradas; Fase 3B, 4A, 4B,
+4C, 4D y 5A tienen base implementada. Fase 5B esta en curso con dashboard
+Next.js, usage base y SSE; quedan hardening, smokes reales con provider keys y
+release. La especificacion final vive en `docs/14-producto-final-y-roadmap.md`;
+el avance implementable en `docs/10-roadmap.md` y
+`docs/15-plan-de-objetivos.md`.
 
 **Docs vivos**: cada cambio relevante actualiza algun archivo en `docs/`. Las
 decisiones tecnicas no triviales van como ADR en
@@ -19,7 +21,7 @@ decisiones tecnicas no triviales van como ADR en
 ## Stack
 
 - **Go** (API, CLI y worker de runs)
-- **Next.js 15 + TS** (dashboard)
+- **Next.js 16 + TS** (dashboard)
 - **PostgreSQL 16** + **sqlc** (fuente operacional; no ORM)
 - **SQLite + FTS5** (Memory Core embebido en API)
 - **Docker** (contenedor efimero por run)
@@ -32,7 +34,7 @@ decisiones tecnicas no triviales van como ADR en
 ```text
 apps/api/         -> server HTTP y futuro worker Go
 apps/cli/         -> binario battos
-apps/web/         -> Next.js dashboard (pendiente)
+apps/web/         -> Next.js dashboard (base en curso)
 packages/core/    -> tipos compartidos Go
 packages/openapi/ -> openapi.yaml vigente + codigo generado posterior
 agents/           -> definiciones MD de agentes
@@ -118,12 +120,13 @@ docker compose -f infra/docker-compose.yml down
 | 1 | `battos status` funcional | Completado |
 | 2 | DB + Memory Core | Completado |
 | 3A | Contratos, ADRs finales y OpenAPI | Completado |
-| 3B | Work model y Knowledge Center | En curso: Work Board API/CLI y TUI CLI v1; Knowledge pendiente |
-| 4A | Runtime adapters Claude Code/Codex | Pending |
-| 4B | Runs aislados, approvals y logs | Pending |
-| 4C | Repositories, diff, commit y push | Pending |
-| 5A | NovaCore opcional | Pending |
-| 5B | Dashboard completo y usage | Pending |
+| 3B | Work model y Knowledge Center | Completado base: Work Board, TUI CLI v1 y Knowledge HTTP/CLI |
+| 4A | Runtime adapters Claude Code/Codex | Completado base |
+| 4B | Runs aislados, approvals y logs | Completado base; smokes reales Codex/Claude pendientes por keys |
+| 4C | Repositories, diff, commit y push | Completado base; GitHub extendido queda para v0.2 |
+| 4D | Memory Bridge | Completado base |
+| 5A | NovaCore opcional | Completado base; requiere provider key para uso real |
+| 5B | Dashboard completo y usage | En curso: apps/web, SSE y usage base |
 | 6 | Hardening, seguridad y tag v0.1.0 | Pending |
 
 ## Decisiones criticas cerradas
@@ -138,3 +141,5 @@ docker compose -f infra/docker-compose.yml down
 - Upgrades modulares con Extension Platform: `docs/adr/0012-extension-platform-modular.md`.
 - Auth single-owner y secretos por referencia: `docs/adr/0013-auth-y-secretos-v01.md`.
 - Runs y approvals auditables: `docs/adr/0014-run-lifecycle-y-approvals.md`.
+- Memory Bridge transversal: `docs/adr/0017-memory-bridge-transversal.md`.
+- Dashboard Next.js 16: `docs/adr/0018-dashboard-nextjs-16.md`.

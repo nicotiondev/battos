@@ -1,0 +1,44 @@
+# BattOS agent runtime image.
+#
+# This image is used by DockerSandbox as the ephemeral run container. It is
+# intentionally separate from the API/worker image: the worker orchestrates
+# Docker, while this image contains approved agent CLIs.
+#
+# Build:
+#   docker build -f infra/Dockerfile.runtime-agents -t battos-runtime-agents:dev .
+
+FROM node:22-bookworm-slim
+
+ARG CODEX_NPM_PACKAGE=@openai/codex
+ARG CODEX_NPM_VERSION=latest
+ARG CLAUDE_NPM_PACKAGE=@anthropic-ai/claude-code
+ARG CLAUDE_NPM_VERSION=latest
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      bash \
+      ca-certificates \
+      git \
+      openssh-client \
+      ripgrep \
+      tini && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN npm install -g \
+      "${CODEX_NPM_PACKAGE}@${CODEX_NPM_VERSION}" \
+      "${CLAUDE_NPM_PACKAGE}@${CLAUDE_NPM_VERSION}" && \
+    npm cache clean --force
+
+RUN groupadd --gid 10001 battos && \
+    useradd --uid 10001 --gid battos --create-home --home-dir /home/battos --shell /bin/bash battos && \
+    mkdir -p /workspace /home/battos/.codex /home/battos/.claude && \
+    chown -R battos:battos /workspace /home/battos
+
+WORKDIR /workspace
+USER battos
+
+ENV HOME=/home/battos
+ENV BATTOS_RUNTIME_IMAGE=agents
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["bash", "-lc", "codex --version && claude --version"]

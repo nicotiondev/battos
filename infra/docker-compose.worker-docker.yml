@@ -1,0 +1,20 @@
+# Optional override: enable DockerSandbox for the BattOS worker.
+#
+# Usage:
+#   docker compose -f infra/docker-compose.yml -f infra/docker-compose.worker-docker.yml --env-file infra/.env --profile worker up -d battos-worker
+#
+# Security note:
+#   Mounting /var/run/docker.sock gives the worker control over the host Docker
+#   daemon. Use this only on a machine/VPS dedicated to BattOS, with human
+#   approvals enabled.
+
+services:
+  battos-worker:
+    # Docker socket access is effectively host-level Docker control. Running as
+    # root here avoids platform-specific docker group IDs and keeps the risk
+    # explicit in this opt-in override.
+    user: "0:0"
+    environment:
+      BATTOS_EXECUTION_SANDBOX_MODE: docker
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock

@@ -22,6 +22,10 @@ memory:
   # Usar FTS5 (true) o LIKE (false) para search
   use_fts5: true
 
+knowledge:
+  # Raiz del filesystem gestionado para artifacts del Knowledge Center.
+  artifacts_dir: "data/artifacts"
+
 logs:
   level: "info"   # debug | info | warn | error
   format: "json"  # json | text
@@ -37,3 +41,21 @@ registries:
   # Paths donde el API lee los archivos MD al boot
   agents_dir: "agents"
   skills_dir: "skills"
+
+execution:
+  # Fase 4B: el worker real queda apagado por defecto hasta conectar sandbox
+  # con contenedor efimero. dry_run registra el plan sin ejecutar comandos.
+  # Cambia sandbox_mode a "docker" para probar contenedor efimero controlado.
+  worker_enabled: false
+  sandbox_mode: "dry_run"
+  default_timeout_s: 1800
+  poll_interval_s: 2
+  docker_image: "alpine:3.20"
+  workspaces_dir: "data/runs/workspaces"
+  repositories_dir: "data/repositories"
+
+# Asistente conversacional de BattOS
+novacore:
+  enabled: true
+  provider: "anthropic"           # anthropic | openai
+  model: "claude-3-haiku-20240307"
