@@ -104,31 +104,114 @@ POST /memory/search
 ### Work Board (Fase 3B)
 
 Estos recursos requieren PostgreSQL configurado con `DATABASE_URL`. Las
-colecciones de goals y tasks se consultan por proyecto.
+colecciones de goals y tasks pueden listarse globalmente o filtrarse por
+`project_id`; la creacion todavia exige proyecto para mantener trazabilidad.
 
 | Endpoint | Metodo | Descripcion |
 |---|---|---|
 | `/domains`, `/domains/{id}` | GET/POST/PATCH | Areas o clientes que agrupan proyectos |
 | `/projects`, `/projects/{id}` | GET/POST/PATCH | Proyectos operables por BattOS |
-| `/goals?project_id={id}`, `/goals/{id}` | GET/POST/PATCH | Objetivos del proyecto |
-| `/tasks?project_id={id}`, `/tasks/{id}` | GET/POST/PATCH | Tareas del board |
+| `/goals`, `/goals?project_id={id}`, `/goals/{id}` | GET/POST/PATCH | Objetivos globales o filtrados por proyecto |
+| `/tasks`, `/tasks?project_id={id}`, `/tasks/{id}` | GET/POST/PATCH | Tareas globales o filtradas por proyecto; crear sin `project_id` usa `inbox` |
 
 Defaults al crear: domain/project `active`, goal `planned`, task `backlog`.
+
+### Knowledge Center (Fase 3B)
+
+Estos recursos requieren PostgreSQL configurado con `DATABASE_URL`. En esta
+primera superficie operable, BattOS guarda el indice canonico de conocimiento:
+workspaces por proyecto, journals markdown y artifacts asociados a proyecto,
+tarea o futuro run.
+
+| Endpoint | Metodo | Descripcion |
+|---|---|---|
+| `/knowledge/workspaces` | GET/POST | Workspaces activos de conocimiento por proyecto |
+| `/journals?project_id={id}` | GET | Journals de un proyecto |
+| `/journals` | POST | Crea journal; puede inferir `project_id` desde `workspace_id` |
+| `/artifacts?project_id={id}` | GET | Artifacts de un proyecto |
+| `/artifacts` | POST | Crea artifact markdown, link, path gestionado, diff o build report |
+
+Defaults al crear: workspace `layout=raw_wiki_outputs`, `status=active`; journal
+usa la fecha actual si `journal_date` no viene informado. Artifacts requieren al
+menos uno de `content`, `managed_path` o `external_url`.
+
+Buckets canonicos de artifacts:
+
+| Bucket | Uso |
+|---|---|
+| `raw` | Briefs, referencias, inputs originales |
+| `wiki` | Documentos curados para lectura humana |
+| `outputs` | Entregables generados por runs o agentes |
+
+Si se crea un artifact con `content` y sin `external_url`, BattOS escribe el
+contenido bajo `knowledge.artifacts_dir` (por defecto `data/artifacts`) usando
+la forma `{project_id}/{bucket}/{timestamp}-{name}.md` y guarda esa ruta en
+`managed_path`. Si se informa `managed_path`, debe ser relativo y no puede salir
+de `artifacts_dir`.
+
+### Runtime Detection (Fase 4A base)
+
+Estos endpoints requieren PostgreSQL. Detectan inventario, no ejecutan agentes
+ni prompts, y no conceden permisos de ejecucion.
+
+| Endpoint | Metodo | Descripcion |
+|---|---|---|
+| `/runtime-adapters` | GET | Lista runtimes registrados y su estado |
+| `/runtime-adapters/detect` | POST | Detecta `claude` y `codex` en PATH y actualiza estado |
+| `/cli-tools` | GET | Lista CLIs detectadas por BattOS |
+| `/providers` | GET | Lista providers sin exponer secretos |
+| `/providers/detect` | POST | Marca providers `configured/not_configured` segun env vars |
+
+Estados runtime: `configured`, `detected`, `unavailable`, `blocked`,
+`disabled`. `configured` significa que la CLI fue detectada y la env var de su
+provider esperado existe; no implica autorizacion de ejecucion. `blocked`
+aparece cuando el binario existe pero Windows/App Control o el comando de
+version impiden una lectura segura. Todas las respuestas de deteccion reportan
+`approved_for_execution=false`; la autorizacion real se pide por run en Fase 4B.
+
+### Runs Supervisados (Fase 4B control plane)
+
+Estos endpoints requieren PostgreSQL. Proponen y auditan runs; la ejecucion la
+realiza el worker aislado cuando el run queda `queued` y el worker esta
+corriendo.
+
+| Endpoint | Metodo | Descripcion |
+|---|---|---|
+| `/runs` | GET | Lista runs; acepta `project_id` opcional |
+| `/runs` | POST | Propone un run en estado `awaiting_approval` |
+| `/runs/{id}` | GET | Detalle del run |
+| `/runs/{id}/approvals` | POST | Registra approval `execute`, `network`, `commit` o `push` |
+| `/runs/{id}/cancel` | POST | Cancela runs no terminales |
+| `/runs/{id}/logs` | GET | Lista logs persistidos del run |
+| `/events/runs/{id}` | GET | SSE sin timeout con `run.snapshot`, `run.log`, `run.done` y `run.error` |
+
+`execute/approved` mueve el run a `queued`; no ejecuta nada por si solo.
+`network/approved` solo habilita `network_enabled=true` si el run habia
+solicitado red. `commit` y `push` quedan auditados para la fase de repositorios.
+El worker puede operar en `dry_run` o `docker`; `docker` usa red `none` salvo
+approval `network`, captura stdout/stderr y limpia el workspace temporal. Los
+adapters `codex` y `claude-code` preparan comandos no interactivos que leen el
+prompt desde `BATTOS_PROMPT_FILE`; DockerSandbox solo pasa las env keys de
+provider declaradas por el adapter y redacta valores conocidos en stdout/stderr.
+La imagen recomendada para esos runs es `battos-runtime-agents:dev`, construida
+desde `infra/Dockerfile.runtime-agents`.
+
+Cuando un run en DockerSandbox produce archivos dentro de `/workspace`, BattOS
+los captura como artifacts del run, los guarda bajo `data/artifacts` y registra
+el indice en `/artifacts` con `project_id`, `task_id` y `run_id`. El prompt
+interno `BATTOS_PROMPT.md` nunca se registra como artifact.
 
 ## Superficies contratadas para completar v0.1
 
 | Endpoint | Fase | Descripción |
 |---|---|---|
 | `GET/POST /agents`, `/skills`, `/providers`, `/models` | 3B | Registries; skills versionadas |
-| `GET/POST /knowledge/workspaces`, `/journals`, `/artifacts` | 3B | Knowledge Center canonico |
-| `GET /runtime-adapters`, `POST /runtime-adapters/detect` | 4A | Adapters permitidos para Claude Code/Codex |
 | `GET/POST /repositories` | 4C | Git local gestionado o GitHub autorizado |
-| `POST /runs`, `POST /runs/{id}/approve`, `POST /runs/{id}/cancel` | 4B | Ejecucion supervisada |
-| `POST /runs/{id}/network`, `/commit`, `/push` | 4B/4C | Aprobaciones y acciones auditadas |
-| `GET /runs/{id}/logs`, `/artifacts`, `/diff` | 4B/4C | Resultado del run |
+| `POST /runs`, `POST /runs/{id}/approvals`, `POST /runs/{id}/cancel` | 4B base | Control plane de ejecucion supervisada |
+| `GET /runs/{id}/artifacts`, `/diff` | 4B/4C | Resultado del run cuando exista worker/repos |
 | `POST /novacore/chat` | 5A | Chat opcional; propone acciones/runs |
 | `GET /usage/overview`, `GET /usage/runs/{id}` | 5B | Tokens/costo exacto, estimado o no reportado |
-| `GET /events/system-metrics`, `/events/runs/{id}` (SSE) | 5B | Streams del dashboard |
+| `GET /events/system-metrics` (SSE) | 5B | Stream de metricas del dashboard |
 
 `packages/openapi/openapi.yaml` marca cada operacion futura con
 `x-battos-phase`. Los clientes generados se incorporaran al implementar la
@@ -184,14 +267,33 @@ battos memory stats
 battos memory search "FTS5"
 battos domain create clientes --name "Clientes"
 battos project create landing-acme --name "Landing Acme" --domain clientes
+battos task create --title "Idea suelta"
 battos task create --project landing-acme --title "Preparar brief"
 battos task list --project landing-acme
+battos task board --project landing-acme
+battos task position <task_id> 10
+battos agent create builder-web --name "Builder Web" --runtime codex --role web_builder
+battos agent list
+battos agent show builder-web
+battos knowledge workspace create --project landing-acme --name "Landing Acme Knowledge"
+battos knowledge workspace list
+battos knowledge journal create --workspace <uuid> --title "Brief inicial" --content "Notas..."
+battos knowledge artifact create --project landing-acme --name "Brief" --kind markdown --content "# Brief"
+battos knowledge artifact create --project landing-acme --name "Wiki" --kind markdown --bucket wiki --content "# Documento curado"
+battos knowledge artifact list --project landing-acme
+battos runtime detect
+battos runtime list
+battos provider detect
+battos cli-tool list
 
 # Dentro de battos shell:
 ↑/↓ navegar, Enter ejecutar, / command palette, Esc volver, q salir
 /status
 /projects
 /tasks landing-acme
+/task-board landing-acme
+/agents
+/agent-new
 
 # Cuando auth.mode=token:
 $env:BATTOS_API_TOKEN="<token>"; battos status

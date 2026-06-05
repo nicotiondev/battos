@@ -107,13 +107,48 @@ ejecucion continúan en fases posteriores:
 | Work model | `domains`, `goals`, `tasks` | Agregado en `0002_work_knowledge.sql` |
 | Knowledge | `knowledge_workspaces`, `journals`, `artifacts` | Agregado en `0002_work_knowledge.sql` |
 | Repositories | `repositories`, `repository_credentials` por referencia segura | Repo local gestionado o GitHub autorizado |
-| Execution | `runs`, `run_approvals`, `run_logs`, `run_artifacts` | Contenedor, red, approvals, logs, diff y resultado |
+| Execution | `runs`, `run_approvals`, `run_logs`, `artifacts.run_id` | Control plane agregado en `0003_runs.sql`; worker/contenedor quedan en 4B |
 | Extensibility | `skills.prompt_template`, `skills.lifecycle` | Agregado en `0002`; adapters llegan en Fase 4A |
 
-ADR-0014 resolvio la relacion: `runs` sera la entidad de orquestacion visible
-al usuario y `executions` conservara invocaciones tecnicas. Una migracion
-append-only posterior agregara las tablas de runs/approvals/logs/artifacts y
-la referencia nullable desde ejecuciones/usage donde aplique.
+En Work Board, `domains` funcionan como areas mayores, clientes o lineas de
+negocio. `projects` son espacios operables dentro de un domain opcional.
+`goals` describen resultados esperados de un proyecto y `tasks` son acciones
+concretas del board, opcionalmente asociadas a un goal. Las vistas API/CLI
+pueden listar goals y tasks globalmente, pero la creacion v0.1 conserva
+`project_id` obligatorio para no perder trazabilidad.
+
+ADR-0014 resolvio la relacion: `runs` es la entidad de orquestacion visible
+al usuario y `executions` conserva invocaciones tecnicas. La migracion
+append-only `0003_runs.sql` agrega `runs`, `run_approvals`, `run_logs` y la FK
+desde `artifacts.run_id`. En la base actual un run puede quedar
+`awaiting_approval`, pasar a `queued` con approval `execute`, habilitar red con
+approval `network`, cancelarse si no es terminal y asociar artifacts/logs; la
+fundacion de worker ya agrega `started_at`, `completed_at`, `error_message` y
+queries para reclamar/completar/fallar runs. La ejecucion real por adapter y
+worker aislado se completa en el siguiente bloque de Fase 4B. La frontera
+adapter/sandbox ya esta modelada en codigo: el adapter produce un plan y el
+sandbox lo ejecuta o simula, evitando que un runtime ejecute directamente en el
+host.
+
+## Knowledge Center Artifacts
+
+`artifacts` es el indice operacional en Postgres. El contenido gestionado vive
+en filesystem bajo `knowledge.artifacts_dir` (`data/artifacts` por defecto).
+La ruta guardada en `managed_path` siempre es relativa a esa raiz.
+
+Layout canonico:
+
+```text
+data/artifacts/
+  <project_id>/
+    raw/       # briefs, referencias e inputs originales
+    wiki/      # documentos curados para lectura humana
+    outputs/   # entregables generados por agentes/runs
+```
+
+Cuando el API recibe `content` sin `external_url`, escribe el archivo dentro de
+ese layout y rechaza rutas absolutas o con `..`. Esto deja el dashboard y la
+futura exportacion Markdown/Obsidian usando la misma fuente canonica.
 
 ## Convenciones
 

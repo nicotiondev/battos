@@ -42,6 +42,26 @@ mismos controles de aislamiento y aprobación.
 **Qué es**: Gemini CLI (Google).
 **Cuándo usarlo**: tareas que aprovechen context window grande (2M tokens).
 
+**Estado actual de `gemini-cli`**: runtime conocido en seed/config y proveedor
+`google` configurable por `GOOGLE_API_KEY`, pero todavia no tiene adapter
+ejecutable aprobado. Entra como siguiente candidato despues de validar smokes
+reales de `codex` y `claude-code`.
+
+### `cursor`
+**Que es**: Cursor como editor/IDE local.
+**Como conecta BattOS primero**: companion/editor connector para abrir
+workspace, rama, diff o artifact generado por BattOS.
+**Limite v0.1**: no es runtime ejecutable aprobado. Solo deberia convertirse en
+adapter si existe una CLI/API headless, no interactiva y auditable que pueda
+ejecutarse en sandbox con logs, approvals y secretos por referencia.
+
+### `antigravity`
+**Que es**: superficie de desarrollo/agente externa.
+**Como conecta BattOS primero**: igual que Cursor, como companion o connector si
+permite abrir/revisar workspaces.
+**Limite v0.1**: no esta integrado ni detectado como runtime. Requiere
+investigar si ofrece CLI/API headless segura antes de sumarlo como adapter.
+
 ### `openclaw`
 **Qué es**: agente self-hosted con gateway local, skills y memoria. Corre fuera de BattOS (en su propio proceso/contenedor).
 **Cómo conecta BattOS**: vía HTTP/MCP al gateway OpenClaw. BattOS le envía tareas y recibe resultados.
@@ -105,6 +125,22 @@ BattOS habilitado que declare comando, capabilities, captura de logs, politica
 de red y limites. Herramientas auxiliares detectadas como `docker`, `node`,
 `python` o `gh` no se vuelven agentes ejecutables automaticamente.
 
+## Smoke De Adapters Reales
+
+La validacion inicial de `codex` y `claude-code` se hace con
+`scripts/smoke-battos-real-adapter-run.ps1`. El script registra un agente de
+smoke, crea un run con `requested_network=true`, aprueba `network` y `execute`,
+procesa la cola con `DockerSandbox` usando `battos-runtime-agents:dev`, y
+valida que el adapter haya producido logs y `outputs/adapter-smoke.md`.
+
+Requisitos:
+
+- API/Postgres activos y migraciones al dia.
+- Docker Desktop/daemon corriendo.
+- Imagen runtime construida con `scripts/build-battos-runtime-agents.ps1`.
+- `OPENAI_API_KEY` para `-Adapter codex`.
+- `ANTHROPIC_API_KEY` para `-Adapter claude-code`.
+
 ## UI en el panel
 
 Cuando el usuario crea un agente:
@@ -127,7 +163,7 @@ Lo que cambia: `runtime_id` + `runtime_config`.
 | Versión | Capacidad |
 |---|---|
 | v0.1 | Detecta runtimes y ejecuta adapters aprobados `claude-code`/`codex` en contenedor por run, con HITL, logs y Git revisable. |
-| v0.2 | Extension Platform para instalar/actualizar adapters; SDD opcional y MCP inicial. |
+| v0.2 | Extension Platform para instalar/actualizar adapters; SDD opcional, MCP inicial y primer adapter adicional candidato (`gemini-cli`) si pasa smoke real. |
 | v0.3 | Adapters adicionales priorizados por uso real, connectors de delivery y Ollama/model routing. |
 | v0.4 | Suma `openclaw` y `hermes` (always-on, mensajería) bajo políticas y budgets. |
 | v0.5 | Routing dinámico: un mismo agente puede saltar de runtime según la tarea (delegado por Model Advisor). |

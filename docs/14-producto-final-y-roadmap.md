@@ -24,6 +24,8 @@ controla permisos, aísla ejecuciones y deja auditoria.
   `Raw`, `Wiki` y `Outputs`.
 - Adjuntar artifacts de tipo Markdown, imagen o enlace y ver previews.
 - Consultar y guardar memoria persistente desde panel o CLI.
+- Generar paquetes de contexto de memoria para que Claude Code, Codex,
+  NovaCore u otros agentes trabajen con el mismo historial del proyecto.
 
 ### Ejecutar agentes para producir codigo
 
@@ -83,6 +85,12 @@ de Gentle-AI la idea de guardar memoria de forma automatica por sesion/run,
 exportar/importar contexto, mantener skill registries y proteger upgrades con
 snapshots y rollback.
 
+Memory Bridge extiende esa base: BattOS sera la memoria comun entre runtimes.
+Si un proyecto se trabajo con Claude Code y luego se continua con Codex u otra
+herramienta, el agente nuevo debe poder recibir un context pack filtrado por
+proyecto/agente/scope antes de operar. La captura automatica empieza como
+sugerencia aprobable para evitar ruido y secretos.
+
 ## Seguridad
 
 - BattOS arranca vacio: no crea agentes, skills ni proyectos personales.
@@ -136,6 +144,8 @@ se aplican automaticamente; se detectan y el usuario las aprueba.
 - Repositorios Git locales gestionados o GitHub conectados.
 - Runs en contenedor efimero, red toggleada, logs SSE, cancelacion,
   approvals, diff, commit y push aprobados.
+- Memory Bridge base: context packs por proyecto/agente y memoria asociada a
+  runs, con guardado aprobable.
 - NovaCore opcional con chat para operar BattOS y proponer runs.
 - Dashboard completo: Command Center, Work Board, Control Room y Knowledge
   Center.

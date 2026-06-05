@@ -114,6 +114,9 @@ battos memory search "FTS5"
 battos memory search "FTS5" --type bugfix
 battos memory search "campaña" --project red-nbl --scope project
 
+battos memory context --project battos
+battos memory context --project battos --format json
+
 battos memory save \
   --title "Decisión: Memory Core propio" \
   --content "Embebido en Go con SQLite+FTS5" \
@@ -176,12 +179,62 @@ Comando `battos memory backup` planeado para Fase 6.
 | Judgment de duplicados | Sí | No (v0.3+ posible port) |
 | API | MCP + CLI | HTTP + CLI (HTTP también puede exponerse como MCP en v0.3+) |
 
+## Memory Bridge
+
+Memory Bridge es la capa que convierte Memory Core en memoria transversal para
+agentes y herramientas. La meta es que Claude Code, Codex, NovaCore y futuros
+runtimes puedan compartir contexto por proyecto sin depender de una sola CLI.
+
+Primera superficie:
+
+```bash
+battos memory context --project battos
+```
+
+Esto devuelve un paquete Markdown con memorias recientes filtradas por
+`project_id`, `agent_id` y `scope`, listo para pegarse en un prompt o inyectarse
+en un run. Con `--format json` devuelve las observaciones estructuradas.
+
+El worker tambien puede inyectar automaticamente memoria `scope=project` del
+`project_id` del run antes de ejecutar el sandbox. La memoria personal/global se
+deja fuera de esta primera version hasta definir politicas de privacidad y
+confirmacion mas finas.
+
+Smoke de validacion:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\smoke-battos-docker-run.ps1 `
+  -DockerImage battos-runtime-agents:dev `
+  -RequireMemoryContext
+```
+
+Este smoke crea una memoria de proyecto, propone un run con
+`sandbox-memory-smoke` y exige que el contenedor vea `BattOS Memory Context` en
+`BATTOS_PROMPT.md`.
+
+Para cerrar el loop manualmente, un run terminal puede promoverse a memoria:
+
+```bash
+battos run remember <run_id>
+```
+
+El comando guarda un resumen del run, sus logs recientes y su resultado en
+Memory Core. No incluye el prompt completo por defecto; `--include-prompt` lo
+habilita de forma explicita.
+
+Futuro:
+
+- Guardado aprobable de resumenes de run desde API/dashboard.
+- MCP server propio.
+- Export/import JSONL por proyecto.
+- Dedupe y conflict judgment inspirado en Engram.
+
 ## Roadmap
 
 | Versión | Capacidad |
 |---|---|
 | **v0.1** ✅ | Schema + FTS5 + Save/Search/Recent/Stats + CLI + HTTP |
-| **v0.2** | Soft delete + Update por ID + bulk import |
+| **v0.2** | Soft delete + Update por ID + bulk import + context packs |
 | **v0.3** | Judgment de duplicados (port de Engram) + MCP server interno |
 | **v0.4** | Backup/restore comandos + export JSONL |
 | **v0.5** | Cluster mode (Memory Core por tenant) |
