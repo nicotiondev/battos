@@ -66,10 +66,12 @@ func run() error {
 
 	// --- 4. Postgres pool (opcional — el API arranca aunque falle, en estado degraded) ---
 	var pgPool *pgxpool.Pool
+	var pgInitErr error
 	if cfg.DatabaseURL != "" {
 		pgPool, err = store.OpenPool(ctx, cfg.DatabaseURL)
 		if err != nil {
 			logger.Warn("postgres pool init failed (subsystem 'database' será DOWN)", "error", err)
+			pgInitErr = err
 			pgPool = nil
 		} else {
 			logger.Info("postgres pool ready")
@@ -91,6 +93,8 @@ func run() error {
 	var pingDB func(context.Context) error
 	if pgPool != nil {
 		pingDB = func(ctx context.Context) error { return pgPool.Ping(ctx) }
+	} else if pgInitErr != nil {
+		pingDB = func(context.Context) error { return pgInitErr }
 	}
 	pingMem := memCore.Ping
 
@@ -98,15 +102,37 @@ func run() error {
 	systemHandler := handlers.NewSystemHandler(sampler, pingDB, pingMem)
 	memoryHandler := handlers.NewMemoryHandler(memCore)
 	var workHandler *handlers.WorkHandler
+	var knowledgeHandler *handlers.KnowledgeHandler
+	var registriesHandler *handlers.RegistriesHandler
+	var runtimeHandler *handlers.RuntimeHandler
+	var runHandler *handlers.RunHandler
+	var repositoriesHandler *handlers.RepositoriesHandler
+	var novaCoreHandler *handlers.NovaCoreHandler
+	var usageHandler *handlers.UsageHandler
 	if pgPool != nil {
-		workHandler = handlers.NewWorkHandler(store.New(pgPool))
+		queries := store.New(pgPool)
+		workHandler = handlers.NewWorkHandler(queries)
+		knowledgeHandler = handlers.NewKnowledgeHandler(queries, cfg.Knowledge.ArtifactsDir)
+		registriesHandler = handlers.NewRegistriesHandler(queries)
+		runtimeHandler = handlers.NewRuntimeHandler(queries)
+		runHandler = handlers.NewRunHandler(queries, memCore)
+		repositoriesHandler = handlers.NewRepositoriesHandler(queries, cfg.Execution.RepositoriesDir)
+		novaCoreHandler = handlers.NewNovaCoreHandler(queries, memCore, cfg)
+		usageHandler = handlers.NewUsageHandler(queries)
 	}
 	router := server.NewRouter(server.Deps{
-		Config: cfg,
-		Logger: logger,
-		System: systemHandler,
-		Memory: memoryHandler,
-		Work:   workHandler,
+		Config:       cfg,
+		Logger:       logger,
+		System:       systemHandler,
+		Memory:       memoryHandler,
+		Work:         workHandler,
+		Knowledge:    knowledgeHandler,
+		Registries:   registriesHandler,
+		Runtime:      runtimeHandler,
+		Runs:         runHandler,
+		Repositories: repositoriesHandler,
+		NovaCore:     novaCoreHandler,
+		Usage:        usageHandler,
 	})
 
 	// --- 5. HTTP server ---

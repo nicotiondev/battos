@@ -152,3 +152,59 @@ func overallHealth(subs []core.SubsystemHealth) core.HealthStatus {
 	}
 	return worst
 }
+
+// StreamSystemMetrics inicia un canal SSE continuo que emite las métricas en vivo.
+//
+//	GET /events/system-metrics
+func (h *SystemHandler) StreamSystemMetrics(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"message": "SSE no disponible en este servidor", "code": 500}})
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	// Primer evento inmediato
+	h.emitMetrics(w, r.Context())
+	flusher.Flush()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+			h.emitMetrics(w, r.Context())
+			flusher.Flush()
+		}
+	}
+}
+
+func (h *SystemHandler) emitMetrics(w http.ResponseWriter, ctx context.Context) {
+	subsystems := []core.SubsystemHealth{
+		{Name: "config", Status: core.HealthOK, Detail: "battos.yaml cargado"},
+		{Name: "sysmetrics", Status: sysmetricsHealth(h.sampler)},
+		checkSubsystem(ctx, "database", h.pingDB, "Postgres conectado"),
+		checkSubsystem(ctx, "memory", h.pingMem, "SQLite + FTS5 listo"),
+	}
+
+	resp := core.StatusResponse{
+		Version: core.VersionResponse{
+			Version:   Version,
+			Commit:    Commit,
+			BuildDate: BuildDate,
+			GoVersion: runtime.Version(),
+		},
+		Overall:    overallHealth(subsystems),
+		Subsystems: subsystems,
+		Metrics:    h.sampler.Latest(),
+		Timestamp:  time.Now(),
+	}
+
+	_ = writeSSEEvent(w, "system.metrics", resp)
+}

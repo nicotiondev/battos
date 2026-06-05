@@ -23,13 +23,16 @@ type WorkStore interface {
 	UpdateDomain(context.Context, store.UpdateDomainParams) (store.Domain, error)
 	CreateProject(context.Context, store.CreateProjectParams) (store.Project, error)
 	ListProjects(context.Context) ([]store.Project, error)
+	EnsureInboxProject(context.Context) (store.Project, error)
 	GetProject(context.Context, string) (store.Project, error)
 	UpdateProject(context.Context, store.UpdateProjectParams) (store.Project, error)
 	CreateGoal(context.Context, store.CreateGoalParams) (store.Goal, error)
+	ListGoals(context.Context) ([]store.Goal, error)
 	ListGoalsByProject(context.Context, string) ([]store.Goal, error)
 	GetGoal(context.Context, string) (store.Goal, error)
 	UpdateGoal(context.Context, store.UpdateGoalParams) (store.Goal, error)
 	CreateTask(context.Context, store.CreateTaskParams) (store.Task, error)
+	ListTasks(context.Context) ([]store.Task, error)
 	ListTasksByProject(context.Context, string) ([]store.Task, error)
 	GetTask(context.Context, string) (store.Task, error)
 	UpdateTask(context.Context, store.UpdateTaskParams) (store.Task, error)
@@ -95,6 +98,7 @@ type goalPatch struct {
 }
 
 type taskPatch struct {
+	ProjectID       *string `json:"project_id"`
 	GoalID          *string `json:"goal_id"`
 	Title           *string `json:"title"`
 	Description     *string `json:"description"`
@@ -289,10 +293,15 @@ func (h *WorkHandler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 
 func (h *WorkHandler) ListGoals(w http.ResponseWriter, r *http.Request) {
 	projectID := r.URL.Query().Get("project_id")
-	if !required(w, projectID, "project_id") {
-		return
+	var (
+		items []store.Goal
+		err   error
+	)
+	if projectID == "" {
+		items, err = h.store.ListGoals(r.Context())
+	} else {
+		items, err = h.store.ListGoalsByProject(r.Context(), projectID)
 	}
-	items, err := h.store.ListGoalsByProject(r.Context(), projectID)
 	if err != nil {
 		writeWorkError(w, err)
 		return
@@ -361,10 +370,15 @@ func (h *WorkHandler) UpdateGoal(w http.ResponseWriter, r *http.Request) {
 
 func (h *WorkHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 	projectID := r.URL.Query().Get("project_id")
-	if !required(w, projectID, "project_id") {
-		return
+	var (
+		items []store.Task
+		err   error
+	)
+	if projectID == "" {
+		items, err = h.store.ListTasks(r.Context())
+	} else {
+		items, err = h.store.ListTasksByProject(r.Context(), projectID)
 	}
-	items, err := h.store.ListTasksByProject(r.Context(), projectID)
 	if err != nil {
 		writeWorkError(w, err)
 		return
@@ -378,11 +392,20 @@ func (h *WorkHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 
 func (h *WorkHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 	var in taskInput
-	if !decodeWorkInput(w, r, &in) || !required(w, in.ProjectID, "project_id") || !required(w, in.Title, "title") {
+	if !decodeWorkInput(w, r, &in) || !required(w, in.Title, "title") {
 		return
 	}
+	projectID := strings.TrimSpace(in.ProjectID)
+	if projectID == "" {
+		inbox, err := h.store.EnsureInboxProject(r.Context())
+		if err != nil {
+			writeWorkError(w, err)
+			return
+		}
+		projectID = inbox.ID
+	}
 	item, err := h.store.CreateTask(r.Context(), store.CreateTaskParams{
-		ProjectID:       in.ProjectID,
+		ProjectID:       projectID,
 		GoalID:          nullableText(in.GoalID),
 		Title:           in.Title,
 		Description:     nullableText(in.Description),
@@ -415,14 +438,31 @@ func (h *WorkHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	if in.Title != nil && !required(w, *in.Title, "title") {
 		return
 	}
+	if in.ProjectID != nil && !required(w, *in.ProjectID, "project_id") {
+		return
+	}
 	current, err := h.store.GetTask(r.Context(), chi.URLParam(r, "id"))
 	if err != nil {
 		writeWorkError(w, err)
 		return
 	}
+	projectID := patchedString(in.ProjectID, current.ProjectID)
+	goalID := patchedString(in.GoalID, textValue(current.GoalID))
+	if strings.TrimSpace(goalID) != "" {
+		goal, err := h.store.GetGoal(r.Context(), goalID)
+		if err != nil {
+			writeWorkError(w, err)
+			return
+		}
+		if goal.ProjectID != projectID {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"message": "goal_id pertenece a otro proyecto", "code": 400}})
+			return
+		}
+	}
 	item, err := h.store.UpdateTask(r.Context(), store.UpdateTaskParams{
 		ID:              chi.URLParam(r, "id"),
-		GoalID:          nullableText(patchedString(in.GoalID, textValue(current.GoalID))),
+		ProjectID:       projectID,
+		GoalID:          nullableText(goalID),
 		Title:           patchedString(in.Title, current.Title),
 		Description:     nullableText(patchedString(in.Description, textValue(current.Description))),
 		AssignedAgentID: nullableText(patchedString(in.AssignedAgentID, textValue(current.AssignedAgentID))),

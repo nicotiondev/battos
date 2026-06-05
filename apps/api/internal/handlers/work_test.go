@@ -14,6 +14,7 @@ import (
 type fakeWorkStore struct {
 	createDomainParams store.CreateDomainParams
 	createTaskParams   store.CreateTaskParams
+	ensureInboxCalled  bool
 	getTaskResult      store.Task
 	updateTaskParams   store.UpdateTaskParams
 }
@@ -43,6 +44,11 @@ func (f *fakeWorkStore) ListProjects(context.Context) ([]store.Project, error) {
 	return nil, nil
 }
 
+func (f *fakeWorkStore) EnsureInboxProject(context.Context) (store.Project, error) {
+	f.ensureInboxCalled = true
+	return store.Project{ID: "inbox", Slug: "inbox", Name: "Inbox", Status: "active"}, nil
+}
+
 func (f *fakeWorkStore) GetProject(context.Context, string) (store.Project, error) {
 	return store.Project{}, nil
 }
@@ -55,12 +61,16 @@ func (f *fakeWorkStore) CreateGoal(context.Context, store.CreateGoalParams) (sto
 	return store.Goal{}, nil
 }
 
+func (f *fakeWorkStore) ListGoals(context.Context) ([]store.Goal, error) {
+	return []store.Goal{{ID: "goal-1", ProjectID: "web", Title: "Publicar landing", Status: "planned"}}, nil
+}
+
 func (f *fakeWorkStore) ListGoalsByProject(context.Context, string) ([]store.Goal, error) {
 	return nil, nil
 }
 
 func (f *fakeWorkStore) GetGoal(context.Context, string) (store.Goal, error) {
-	return store.Goal{}, nil
+	return store.Goal{ID: "goal-1", ProjectID: "web", Title: "Publicar landing", Status: "planned"}, nil
 }
 
 func (f *fakeWorkStore) UpdateGoal(context.Context, store.UpdateGoalParams) (store.Goal, error) {
@@ -70,6 +80,10 @@ func (f *fakeWorkStore) UpdateGoal(context.Context, store.UpdateGoalParams) (sto
 func (f *fakeWorkStore) CreateTask(_ context.Context, arg store.CreateTaskParams) (store.Task, error) {
 	f.createTaskParams = arg
 	return store.Task{ID: "task-1", ProjectID: arg.ProjectID, Title: arg.Title, Status: arg.Status}, nil
+}
+
+func (f *fakeWorkStore) ListTasks(context.Context) ([]store.Task, error) {
+	return []store.Task{{ID: "task-1", ProjectID: "web", Title: "Preparar brief", Status: "backlog"}}, nil
 }
 
 func (f *fakeWorkStore) ListTasksByProject(context.Context, string) ([]store.Task, error) {
@@ -82,7 +96,7 @@ func (f *fakeWorkStore) GetTask(context.Context, string) (store.Task, error) {
 
 func (f *fakeWorkStore) UpdateTask(_ context.Context, arg store.UpdateTaskParams) (store.Task, error) {
 	f.updateTaskParams = arg
-	return store.Task{ID: arg.ID, ProjectID: f.getTaskResult.ProjectID, Title: arg.Title, Description: arg.Description, Status: arg.Status, BoardPosition: arg.BoardPosition}, nil
+	return store.Task{ID: arg.ID, ProjectID: arg.ProjectID, GoalID: arg.GoalID, Title: arg.Title, Description: arg.Description, Status: arg.Status, BoardPosition: arg.BoardPosition}, nil
 }
 
 func TestCreateDomainDefaultsToActive(t *testing.T) {
@@ -117,15 +131,34 @@ func TestCreateTaskDefaultsToBacklogAndNullableGoal(t *testing.T) {
 	}
 }
 
-func TestListTasksRequiresProjectID(t *testing.T) {
+func TestCreateTaskWithoutProjectUsesInbox(t *testing.T) {
+	q := &fakeWorkStore{}
+	h := NewWorkHandler(q)
+	req := httptest.NewRequest(http.MethodPost, "/tasks", strings.NewReader(`{"title":"Idea suelta"}`))
+	rec := httptest.NewRecorder()
+
+	h.CreateTask(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusCreated, rec.Body.String())
+	}
+	if !q.ensureInboxCalled || q.createTaskParams.ProjectID != "inbox" {
+		t.Fatalf("created task = %+v ensureInbox=%v, want inbox task", q.createTaskParams, q.ensureInboxCalled)
+	}
+}
+
+func TestListTasksWithoutProjectReturnsGlobalBoard(t *testing.T) {
 	h := NewWorkHandler(&fakeWorkStore{})
 	req := httptest.NewRequest(http.MethodGet, "/tasks", nil)
 	rec := httptest.NewRecorder()
 
 	h.ListTasks(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"project_id":"web"`) {
+		t.Fatalf("body=%s, want global tasks payload", rec.Body.String())
 	}
 }
 
@@ -149,9 +182,31 @@ func TestUpdateTaskPreservesFieldsOmittedByPatch(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
 	}
 	if q.updateTaskParams.Title != "Preparar brief" ||
+		q.updateTaskParams.ProjectID != "web" ||
 		q.updateTaskParams.Description.String != "No borrar" ||
 		q.updateTaskParams.BoardPosition != 7 ||
 		q.updateTaskParams.Status != "ready" {
 		t.Fatalf("updated task = %+v, want only status changed", q.updateTaskParams)
+	}
+}
+
+func TestUpdateTaskRejectsGoalFromAnotherProject(t *testing.T) {
+	q := &fakeWorkStore{getTaskResult: store.Task{
+		ID:        "task-1",
+		ProjectID: "other",
+		Title:     "Preparar brief",
+		Status:    "backlog",
+	}}
+	h := NewWorkHandler(q)
+	req := httptest.NewRequest(http.MethodPatch, "/tasks/task-1", strings.NewReader(`{"goal_id":"goal-1"}`))
+	rec := httptest.NewRecorder()
+
+	h.UpdateTask(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "otro proyecto") {
+		t.Fatalf("body=%s, want cross-project goal message", rec.Body.String())
 	}
 }

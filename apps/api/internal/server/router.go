@@ -21,11 +21,18 @@ import (
 // Deps agrupa las dependencias que los handlers necesitan inyectadas.
 // Se llena en cmd/api/main.go y se pasa a NewRouter.
 type Deps struct {
-	Config *config.Config
-	Logger *slog.Logger
-	System *handlers.SystemHandler
-	Memory *handlers.MemoryHandler
-	Work   *handlers.WorkHandler
+	Config       *config.Config
+	Logger       *slog.Logger
+	System       *handlers.SystemHandler
+	Memory       *handlers.MemoryHandler
+	Work         *handlers.WorkHandler
+	Knowledge    *handlers.KnowledgeHandler
+	Registries   *handlers.RegistriesHandler
+	Runtime      *handlers.RuntimeHandler
+	Runs         *handlers.RunHandler
+	Repositories *handlers.RepositoriesHandler
+	NovaCore     *handlers.NovaCoreHandler
+	Usage        *handlers.UsageHandler
 }
 
 // NewRouter construye el router chi con middleware base y todas las rutas.
@@ -45,7 +52,6 @@ func NewRouter(deps Deps) http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(corsMiddleware(deps.Config.API.CORSOrigins))
 	r.Use(structuredLogger(deps.Logger))
-	r.Use(middleware.Timeout(30 * time.Second))
 
 	// Public endpoints stay available to process healthchecks.
 	r.Get("/health", deps.System.Health)
@@ -54,41 +60,86 @@ func NewRouter(deps Deps) http.Handler {
 	r.Group(func(r chi.Router) {
 		r.Use(authMiddleware(deps.Config.Auth.Mode, deps.Config.APIToken))
 
-		// --- System endpoint (Fase 1) ---
-		r.Get("/status", deps.System.Status)
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.Timeout(30 * time.Second))
 
-		// --- Memory Core endpoints (Fase 2) ---
-		if deps.Memory != nil {
-			r.Route("/memory", func(r chi.Router) {
-				r.Get("/recent", deps.Memory.Recent)
-				r.Post("/search", deps.Memory.Search)
-				r.Post("/save", deps.Memory.Save)
-				r.Get("/stats", deps.Memory.Stats)
-				r.Get("/{id}", deps.Memory.GetByID)
-			})
-		}
+			// --- System endpoint (Fase 1) ---
+			r.Get("/status", deps.System.Status)
 
-		// --- Work Board endpoints (Fase 3B) ---
-		if deps.Work != nil {
-			r.Get("/domains", deps.Work.ListDomains)
-			r.Post("/domains", deps.Work.CreateDomain)
-			r.Get("/domains/{id}", deps.Work.GetDomain)
-			r.Patch("/domains/{id}", deps.Work.UpdateDomain)
+			// --- Memory Core endpoints (Fase 2) ---
+			if deps.Memory != nil {
+				r.Route("/memory", func(r chi.Router) {
+					r.Get("/recent", deps.Memory.Recent)
+					r.Post("/search", deps.Memory.Search)
+					r.Post("/save", deps.Memory.Save)
+					r.Get("/stats", deps.Memory.Stats)
+					r.Get("/{id}", deps.Memory.GetByID)
+				})
+			}
 
-			r.Get("/projects", deps.Work.ListProjects)
-			r.Post("/projects", deps.Work.CreateProject)
-			r.Get("/projects/{id}", deps.Work.GetProject)
-			r.Patch("/projects/{id}", deps.Work.UpdateProject)
+			// --- Work Board endpoints (Fase 3B) ---
+			if deps.Work != nil {
+				mountWorkRoutes(r, deps.Work)
+			} else {
+				mountUnavailableWorkRoutes(r)
+			}
 
-			r.Get("/goals", deps.Work.ListGoals)
-			r.Post("/goals", deps.Work.CreateGoal)
-			r.Get("/goals/{id}", deps.Work.GetGoal)
-			r.Patch("/goals/{id}", deps.Work.UpdateGoal)
+			// --- Knowledge Center endpoints (Fase 3B) ---
+			if deps.Knowledge != nil {
+				mountKnowledgeRoutes(r, deps.Knowledge)
+			} else {
+				mountUnavailableKnowledgeRoutes(r)
+			}
 
-			r.Get("/tasks", deps.Work.ListTasks)
-			r.Post("/tasks", deps.Work.CreateTask)
-			r.Get("/tasks/{id}", deps.Work.GetTask)
-			r.Patch("/tasks/{id}", deps.Work.UpdateTask)
+			// --- Runtime/provider detection endpoints (Fase 4A) ---
+			if deps.Registries != nil {
+				mountRegistryRoutes(r, deps.Registries)
+			} else {
+				mountUnavailableRegistryRoutes(r)
+			}
+
+			// --- Runtime/provider detection endpoints (Fase 4A) ---
+			if deps.Runtime != nil {
+				mountRuntimeRoutes(r, deps.Runtime)
+			} else {
+				mountUnavailableRuntimeRoutes(r)
+			}
+
+			// --- Supervised run control plane (Fase 4B base) ---
+			if deps.Runs != nil {
+				mountRunRoutes(r, deps.Runs)
+			} else {
+				mountUnavailableRunRoutes(r)
+			}
+
+			// --- Repositories endpoints (Fase 4C) ---
+			if deps.Repositories != nil {
+				mountRepositoryRoutes(r, deps.Repositories)
+			} else {
+				mountUnavailableRepositoryRoutes(r)
+			}
+
+			// --- NovaCore Assistant endpoints (Fase 5A) ---
+			if deps.NovaCore != nil {
+				mountNovaCoreRoutes(r, deps.NovaCore)
+			} else {
+				mountUnavailableNovaCoreRoutes(r)
+			}
+
+			// --- Usage/Token consumption endpoints (Fase 5B) ---
+			if deps.Usage != nil {
+				mountUsageRoutes(r, deps.Usage)
+			} else {
+				mountUnavailableUsageRoutes(r)
+			}
+		})
+
+		// --- SSE streams (sin timeout HTTP para permitir reconexion del dashboard) ---
+		r.Get("/events/system-metrics", deps.System.StreamSystemMetrics)
+		if deps.Runs != nil {
+			mountRunEventRoutes(r, deps.Runs)
+		} else {
+			mountUnavailableRunEventRoutes(r)
 		}
 	})
 
@@ -98,6 +149,155 @@ func NewRouter(deps Deps) http.Handler {
 	})
 
 	return r
+}
+
+func mountRunRoutes(r chi.Router, runs *handlers.RunHandler) {
+	r.Get("/runs", runs.ListRuns)
+	r.Post("/runs", runs.CreateRun)
+	r.Get("/runs/{id}", runs.GetRun)
+	r.Post("/runs/{id}/approvals", runs.ApproveRunAction)
+	r.Post("/runs/{id}/cancel", runs.CancelRun)
+	r.Get("/runs/{id}/logs", runs.ListRunLogs)
+	r.Get("/runs/{id}/diff", runs.GetRunDiff)
+}
+
+func mountRunEventRoutes(r chi.Router, runs *handlers.RunHandler) {
+	r.Get("/events/runs/{id}", runs.StreamRunEvents)
+}
+
+func mountUnavailableRunRoutes(r chi.Router) {
+	unavailable := func(w http.ResponseWriter, r *http.Request) {
+		WriteError(w, http.StatusServiceUnavailable, "Runs no disponible: configura DATABASE_URL y verifica Postgres")
+	}
+	r.Get("/runs", unavailable)
+	r.Post("/runs", unavailable)
+	r.Get("/runs/{id}", unavailable)
+	r.Post("/runs/{id}/approvals", unavailable)
+	r.Post("/runs/{id}/cancel", unavailable)
+	r.Get("/runs/{id}/logs", unavailable)
+	r.Get("/runs/{id}/diff", unavailable)
+}
+
+func mountUnavailableRunEventRoutes(r chi.Router) {
+	unavailable := func(w http.ResponseWriter, r *http.Request) {
+		WriteError(w, http.StatusServiceUnavailable, "Run events no disponible: configura DATABASE_URL y verifica Postgres")
+	}
+	r.Get("/events/runs/{id}", unavailable)
+}
+
+func mountRuntimeRoutes(r chi.Router, runtimeHandler *handlers.RuntimeHandler) {
+	r.Get("/runtime-adapters", runtimeHandler.ListRuntimeAdapters)
+	r.Post("/runtime-adapters/detect", runtimeHandler.DetectRuntimeAdapters)
+	r.Get("/cli-tools", runtimeHandler.ListCLITools)
+	r.Get("/providers", runtimeHandler.ListProviders)
+	r.Post("/providers/detect", runtimeHandler.DetectProviders)
+}
+
+func mountRegistryRoutes(r chi.Router, registries *handlers.RegistriesHandler) {
+	r.Get("/agents", registries.ListAgents)
+	r.Post("/agents", registries.CreateAgent)
+	r.Get("/skills", registries.ListSkills)
+}
+
+func mountUnavailableRegistryRoutes(r chi.Router) {
+	unavailable := func(w http.ResponseWriter, r *http.Request) {
+		WriteError(w, http.StatusServiceUnavailable, "Agents/skills no disponible: configura DATABASE_URL y verifica Postgres")
+	}
+	r.Get("/agents", unavailable)
+	r.Post("/agents", unavailable)
+	r.Get("/skills", unavailable)
+}
+
+func mountUnavailableRuntimeRoutes(r chi.Router) {
+	unavailable := func(w http.ResponseWriter, r *http.Request) {
+		WriteError(w, http.StatusServiceUnavailable, "Runtime detection no disponible: configura DATABASE_URL y verifica Postgres")
+	}
+	r.Get("/runtime-adapters", unavailable)
+	r.Post("/runtime-adapters/detect", unavailable)
+	r.Get("/cli-tools", unavailable)
+	r.Get("/providers", unavailable)
+	r.Post("/providers/detect", unavailable)
+}
+
+func mountWorkRoutes(r chi.Router, work *handlers.WorkHandler) {
+	r.Get("/domains", work.ListDomains)
+	r.Post("/domains", work.CreateDomain)
+	r.Get("/domains/{id}", work.GetDomain)
+	r.Patch("/domains/{id}", work.UpdateDomain)
+
+	r.Get("/projects", work.ListProjects)
+	r.Post("/projects", work.CreateProject)
+	r.Get("/projects/{id}", work.GetProject)
+	r.Patch("/projects/{id}", work.UpdateProject)
+
+	r.Get("/goals", work.ListGoals)
+	r.Post("/goals", work.CreateGoal)
+	r.Get("/goals/{id}", work.GetGoal)
+	r.Patch("/goals/{id}", work.UpdateGoal)
+
+	r.Get("/tasks", work.ListTasks)
+	r.Post("/tasks", work.CreateTask)
+	r.Get("/tasks/{id}", work.GetTask)
+	r.Patch("/tasks/{id}", work.UpdateTask)
+}
+
+func mountKnowledgeRoutes(r chi.Router, knowledge *handlers.KnowledgeHandler) {
+	r.Get("/knowledge/workspaces", knowledge.ListWorkspaces)
+	r.Post("/knowledge/workspaces", knowledge.CreateWorkspace)
+	r.Get("/journals", knowledge.ListJournals)
+	r.Post("/journals", knowledge.CreateJournal)
+	r.Get("/artifacts", knowledge.ListArtifacts)
+	r.Post("/artifacts", knowledge.CreateArtifact)
+}
+
+func mountUnavailableKnowledgeRoutes(r chi.Router) {
+	unavailable := func(w http.ResponseWriter, r *http.Request) {
+		WriteError(w, http.StatusServiceUnavailable, "Knowledge Center no disponible: configura DATABASE_URL y verifica Postgres")
+	}
+	r.Get("/knowledge/workspaces", unavailable)
+	r.Post("/knowledge/workspaces", unavailable)
+	r.Get("/journals", unavailable)
+	r.Post("/journals", unavailable)
+	r.Get("/artifacts", unavailable)
+	r.Post("/artifacts", unavailable)
+}
+
+func mountUnavailableWorkRoutes(r chi.Router) {
+	unavailable := func(w http.ResponseWriter, r *http.Request) {
+		WriteError(w, http.StatusServiceUnavailable, "Work Board no disponible: configura DATABASE_URL y verifica Postgres")
+	}
+	r.Get("/domains", unavailable)
+	r.Post("/domains", unavailable)
+	r.Get("/domains/{id}", unavailable)
+	r.Patch("/domains/{id}", unavailable)
+
+	r.Get("/projects", unavailable)
+	r.Post("/projects", unavailable)
+	r.Get("/projects/{id}", unavailable)
+	r.Patch("/projects/{id}", unavailable)
+
+	r.Get("/goals", unavailable)
+	r.Post("/goals", unavailable)
+	r.Get("/goals/{id}", unavailable)
+	r.Patch("/goals/{id}", unavailable)
+
+	r.Get("/tasks", unavailable)
+	r.Post("/tasks", unavailable)
+	r.Get("/tasks/{id}", unavailable)
+	r.Patch("/tasks/{id}", unavailable)
+}
+
+func mountRepositoryRoutes(r chi.Router, repos *handlers.RepositoriesHandler) {
+	r.Get("/repositories", repos.ListRepositories)
+	r.Post("/repositories", repos.ConnectRepository)
+}
+
+func mountUnavailableRepositoryRoutes(r chi.Router) {
+	unavailable := func(w http.ResponseWriter, r *http.Request) {
+		WriteError(w, http.StatusServiceUnavailable, "Repositories no disponible: configura DATABASE_URL y verifica Postgres")
+	}
+	r.Get("/repositories", unavailable)
+	r.Post("/repositories", unavailable)
 }
 
 func authMiddleware(mode, token string) func(http.Handler) http.Handler {
@@ -183,4 +383,32 @@ func structuredLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 			)
 		})
 	}
+}
+
+func mountNovaCoreRoutes(r chi.Router, nova *handlers.NovaCoreHandler) {
+	r.Get("/novacore/conversations", nova.ListConversations)
+	r.Get("/novacore/conversations/{id}/messages", nova.GetConversationMessages)
+	r.Post("/novacore/chat", nova.Chat)
+}
+
+func mountUnavailableNovaCoreRoutes(r chi.Router) {
+	unavailable := func(w http.ResponseWriter, r *http.Request) {
+		WriteError(w, http.StatusServiceUnavailable, "NovaCore no disponible: configura DATABASE_URL y verifica Postgres")
+	}
+	r.Get("/novacore/conversations", unavailable)
+	r.Get("/novacore/conversations/{id}/messages", unavailable)
+	r.Post("/novacore/chat", unavailable)
+}
+
+func mountUsageRoutes(r chi.Router, usage *handlers.UsageHandler) {
+	r.Get("/usage/overview", usage.Overview)
+	r.Get("/usage/runs/{id}", usage.GetUsageByRun)
+}
+
+func mountUnavailableUsageRoutes(r chi.Router) {
+	unavailable := func(w http.ResponseWriter, r *http.Request) {
+		WriteError(w, http.StatusServiceUnavailable, "Usage telemetry no disponible: configura DATABASE_URL y verifica Postgres")
+	}
+	r.Get("/usage/overview", unavailable)
+	r.Get("/usage/runs/{id}", unavailable)
 }
