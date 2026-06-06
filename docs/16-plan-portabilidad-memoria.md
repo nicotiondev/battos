@@ -51,7 +51,7 @@ cualquier máquina conectada y, a futuro, sincronizable offline.
 
 | Fase | Objetivo | Estado |
 |---|---|---|
-| 1 | Memoria accesible en red (Tailscale + API remota con token) | En curso |
+| 1 | Memoria accesible en red (Tailscale + API remota con token) | Base verificada (falta ops Tailscale del usuario) |
 | 2 | Memoria estilo Engram: MCP server + conflict judgment + sync | Pendiente |
 | 3 | Unificación en SQLite de todos los stores (ADR-0021) | Pendiente |
 | 4 | OAuth de las CLIs en runs (ADR-0020) | Pendiente |

@@ -425,6 +425,36 @@ logs y uso.
 | [docs/adr/0015-windows-dev-api-launcher.md](docs/adr/0015-windows-dev-api-launcher.md) | Launcher dev del API en Windows |
 | [docs/adr/0018-dashboard-nextjs-16.md](docs/adr/0018-dashboard-nextjs-16.md) | Dashboard Next.js 16 |
 
+## Acceso remoto (servidor + Tailscale)
+
+BattOS puede correr en un nodo central (PC o servidor en casa) y usarse desde
+otra maquina (laptop/pendrive) leyendo la **misma memoria**. Ver el plan
+completo en [docs/16-plan-portabilidad-memoria.md](docs/16-plan-portabilidad-memoria.md).
+
+En el **nodo central**, levanta el API en modo token (verificado end-to-end):
+
+```powershell
+$env:BATTOS_AUTH_MODE = "token"
+$env:BATTOS_API_TOKEN = "<token-largo-y-secreto>"
+$env:BATTOS_API_PORT  = "8000"
+go run ./apps/api/cmd/api
+```
+
+Para acceso entre maquinas usa **Tailscale** (VPN privada), nunca abras el
+puerto en el router. Instala Tailscale en el nodo y en el cliente; el nodo
+queda accesible por su hostname/IP de Tailscale.
+
+Desde el **cliente** (laptop/pendrive), apunta la CLI al nodo:
+
+```powershell
+battos --api http://<tailscale-host>:8000 --token <token> memory search "..."
+battos --api http://<tailscale-host>:8000 --token <token> memory save --title "..."
+```
+
+Guardrails: el API solo se expone con `auth.mode=token`; sin token o con token
+invalido responde `401`. El Memory Core funciona aunque Postgres no este
+configurado, asi que el acceso remoto a memoria no requiere DB.
+
 ## Licencia
 
 TBD.
