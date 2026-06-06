@@ -244,13 +244,33 @@ func (c *Client) getJSON(ctx context.Context, path string, out any) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("API respondió %d en %s", resp.StatusCode, path)
+		return httpError(resp, path)
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
 		return fmt.Errorf("decodificando respuesta JSON: %w", err)
 	}
 	return nil
+}
+
+// httpError lee el body de una respuesta de error y desempaqueta el envelope
+// {"error":{"message":...}} de BattOS para devolver un mensaje accionable.
+// Lo comparten getJSON y postJSON para que todos los endpoints reporten igual.
+func httpError(resp *http.Response, path string) error {
+	raw, _ := io.ReadAll(resp.Body)
+	msg := strings.TrimSpace(string(raw))
+	var apiErr struct {
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if jsonErr := json.Unmarshal(raw, &apiErr); jsonErr == nil && strings.TrimSpace(apiErr.Error.Message) != "" {
+		msg = apiErr.Error.Message
+	}
+	if msg == "" {
+		return fmt.Errorf("HTTP %d en %s", resp.StatusCode, path)
+	}
+	return fmt.Errorf("HTTP %d: %s", resp.StatusCode, msg)
 }
 
 // postJSON hace POST al path con body JSON y deserializa la respuesta en out.
@@ -275,17 +295,7 @@ func (c *Client) postJSON(ctx context.Context, path string, body any, out any) e
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		raw, _ := io.ReadAll(resp.Body)
-		msg := strings.TrimSpace(string(raw))
-		var apiErr struct {
-			Error struct {
-				Message string `json:"message"`
-			} `json:"error"`
-		}
-		if jsonErr := json.Unmarshal(raw, &apiErr); jsonErr == nil && strings.TrimSpace(apiErr.Error.Message) != "" {
-			msg = apiErr.Error.Message
-		}
-		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, msg)
+		return httpError(resp, path)
 	}
 
 	if out == nil {

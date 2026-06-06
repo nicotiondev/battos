@@ -40,15 +40,6 @@ var sampleItem = client.MemoryItem{
 	UpdatedAt: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
 }
 
-// mustMarshal serializa v o hace panic.
-func mustMarshal(v any) string {
-	b, err := json.Marshal(v)
-	if err != nil {
-		panic(err)
-	}
-	return string(b)
-}
-
 // --- memory_recent ---
 
 func TestMemoryRecentToolHappyPath(t *testing.T) {
