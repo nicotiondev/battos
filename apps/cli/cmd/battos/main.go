@@ -74,6 +74,7 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(commands.NewProviderCmd(getClient))
 	root.AddCommand(commands.NewCLIToolCmd(getClient))
 	root.AddCommand(commands.NewRunCmd(getClient))
+	root.AddCommand(commands.NewMCPCmd(getClient))
 	root.AddCommand(commands.NewAskCmd(getClient))
 	root.AddCommand(commands.NewChatCmd(getClient))
 	root.AddCommand(commands.NewShellCmd(func() commands.ShellConfig {
