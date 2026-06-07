@@ -239,12 +239,47 @@ func TestFindConflictCandidates_DefaultLimit(t *testing.T) {
 		Scope:     ScopeProject,
 	}
 
-	// limit=0 → debe usar default interno (5).
+	// limit=0 → debe usar default interno (5). Con 8 coincidencias disponibles,
+	// el resultado debe ser exactamente 5 (no menos), para fijar el default.
 	candidates, err := core.FindConflictCandidates(ctx, newObs, 0)
 	if err != nil {
 		t.Fatalf("FindConflictCandidates(limit=0): %v", err)
 	}
-	if len(candidates) > 5 {
-		t.Fatalf("expected at most 5 candidates (default limit), got %d", len(candidates))
+	if len(candidates) != 5 {
+		t.Fatalf("expected exactly 5 candidates (default limit), got %d", len(candidates))
+	}
+}
+
+// TestFindConflictCandidates_AllShortTokensReturnsNil verifica que un título
+// cuyos tokens son todos demasiado cortos no produce un MATCH '' inválido
+// (error de sintaxis FTS5), sino que retorna nil sin error — protegiendo a los
+// callers directos, no solo al handler de save.
+func TestFindConflictCandidates_AllShortTokensReturnsNil(t *testing.T) {
+	ctx := context.Background()
+	core := openTestCore(t)
+
+	// Una observación normal para que, sin el guard, el MATCH '' llegue a FTS5.
+	if _, err := core.Save(ctx, Observation{
+		Type:      TypeDecision,
+		Title:     "Memory Core SQLite decision",
+		Content:   "contenido",
+		ProjectID: "battos",
+		Scope:     ScopeProject,
+	}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	newObs := Observation{
+		Type:      TypeManual,
+		Title:     "a bc de", // todos los tokens <= 2 runas → expr FTS5 vacía
+		ProjectID: "battos",
+		Scope:     ScopeProject,
+	}
+	candidates, err := core.FindConflictCandidates(ctx, newObs, 5)
+	if err != nil {
+		t.Fatalf("expected no error for all-short-token title, got %v", err)
+	}
+	if candidates != nil {
+		t.Fatalf("expected nil candidates for all-short-token title, got %v", candidates)
 	}
 }

@@ -38,6 +38,14 @@ func (c *Core) FindConflictCandidates(ctx context.Context, obs Observation, limi
 	// para tratar cada token literalmente — evita que FTS5 interprete operadores.
 	// Los tokens se unen con OR para capturar cualquier superposición parcial.
 	matchExpr := buildORMatchExpr(title)
+	// Si todos los tokens del título eran demasiado cortos, no queda expresión
+	// FTS5 válida: `MATCH ''` es un error de sintaxis. Sin términos buscables no
+	// hay candidatos, así que retornamos nil igual que con título vacío. Esto
+	// protege también a callers directos (p. ej. 2.2b), no solo al handler de
+	// save que de todas formas ignora el error.
+	if matchExpr == "" {
+		return nil, nil
+	}
 
 	// Construir condiciones dinámicas para las exclusiones y scope.
 	var conditions []string
