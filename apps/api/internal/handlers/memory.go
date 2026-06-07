@@ -87,9 +87,20 @@ func (h *MemoryHandler) Search(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// saveResponse envuelve una Observation agregando conflict_candidates sin romper
+// la compatibilidad con clientes que leen los campos de Observation directamente
+// (embed en JSON produce los campos al nivel raíz).
+type saveResponse struct {
+	memory.Observation
+	ConflictCandidates []memory.SearchResult `json:"conflict_candidates,omitempty"`
+}
+
 // Save — POST /memory/save
 //
 // Body: estructura completa de Observation. Si TopicKey está presente, upsertea.
+// La respuesta devuelve los campos de la observación en la raíz (backward compat)
+// más un campo conflict_candidates opcional con observaciones que podrían
+// solaparse léxicamente con la recién guardada.
 func (h *MemoryHandler) Save(w http.ResponseWriter, r *http.Request) {
 	var obs memory.Observation
 	if err := json.NewDecoder(r.Body).Decode(&obs); err != nil {
@@ -105,7 +116,20 @@ func (h *MemoryHandler) Save(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	writeJSON(w, http.StatusCreated, saved)
+
+	resp := saveResponse{Observation: *saved}
+
+	// Detección de candidatos de conflicto — determinista, sin LLM.
+	// Si falla, no rompemos el save (el save ya tuvo éxito); simplemente
+	// omitimos conflict_candidates en la respuesta.
+	candidates, err := h.core.FindConflictCandidates(r.Context(), *saved, 5)
+	if err == nil && len(candidates) > 0 {
+		resp.ConflictCandidates = candidates
+	}
+	// err != nil: ignorado deliberadamente — el save fue exitoso y no queremos
+	// fallar la respuesta por una búsqueda de candidatos no crítica.
+
+	writeJSON(w, http.StatusCreated, resp)
 }
 
 // Stats — GET /memory/stats
