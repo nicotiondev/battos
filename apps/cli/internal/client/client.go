@@ -177,6 +177,14 @@ type MemorySaveRequest struct {
 	Scope     string `json:"scope"`
 }
 
+// MemorySaveResponse es la respuesta de POST /memory/save: la observación
+// guardada (campos embebidos al root) más, opcionalmente, los candidatos a
+// conflicto detectados al guardar (conflict_candidates).
+type MemorySaveResponse struct {
+	MemoryItem
+	ConflictCandidates []MemoryResult `json:"conflict_candidates,omitempty"`
+}
+
 // MemoryStatsResponse es la respuesta de GET /memory/stats.
 type MemoryStatsResponse struct {
 	TotalItems     int64     `json:"total_items"`
@@ -208,9 +216,10 @@ func (c *Client) MemorySearch(ctx context.Context, req MemorySearchRequest) (*Me
 	return &out, nil
 }
 
-// MemorySave llama a POST /memory/save y devuelve la observación guardada.
-func (c *Client) MemorySave(ctx context.Context, req MemorySaveRequest) (*MemoryItem, error) {
-	var out MemoryItem
+// MemorySave llama a POST /memory/save y devuelve la observación guardada junto
+// con los candidatos a conflicto que el Memory Core haya detectado.
+func (c *Client) MemorySave(ctx context.Context, req MemorySaveRequest) (*MemorySaveResponse, error) {
+	var out MemorySaveResponse
 	if err := c.postJSON(ctx, "/memory/save", req, &out); err != nil {
 		return nil, fmt.Errorf("memory save: %w", err)
 	}

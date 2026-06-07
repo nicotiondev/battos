@@ -335,9 +335,17 @@ func TestMemorySaveToolHappyPath(t *testing.T) {
 
 		saved := sampleItem
 		saved.Title = "Nueva decisión"
+		// El Memory Core puede devolver candidatos a conflicto junto al item;
+		// el tool debe surfacearlos para que el agente los vea.
+		resp := client.MemorySaveResponse{
+			MemoryItem: saved,
+			ConflictCandidates: []client.MemoryResult{
+				{MemoryItem: client.MemoryItem{ID: 9, Title: "Decisión previa en conflicto"}, Rank: -1.2},
+			},
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(saved)
+		json.NewEncoder(w).Encode(resp)
 	}))
 	defer srv.Close()
 
@@ -374,6 +382,10 @@ func TestMemorySaveToolHappyPath(t *testing.T) {
 	text := extractText(t, result.Content[0])
 	if !strings.Contains(text, "Nueva decisión") {
 		t.Fatalf("response should contain saved title, got: %s", text)
+	}
+	// El tool debe surfacear los candidatos a conflicto al agente.
+	if !strings.Contains(text, "conflict_candidates") || !strings.Contains(text, "Decisión previa en conflicto") {
+		t.Fatalf("response should surface conflict candidates, got: %s", text)
 	}
 }
 
