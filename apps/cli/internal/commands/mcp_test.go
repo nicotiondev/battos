@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/nicotion/battos/apps/cli/internal/client"
 )
 
@@ -38,6 +39,95 @@ var sampleItem = client.MemoryItem{
 	Scope:     "project",
 	CreatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 	UpdatedAt: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
+}
+
+// --- server construction ---
+
+// TestNewMCPServer verifica que el servidor MCP se construye sin panic.
+// mcp.AddTool infiere el JSON Schema de los arg structs y entra en panic si un
+// tag jsonschema es inválido; este test ejercita ese camino (que los tests de
+// handlers no tocan) para que un tag malformado no llegue a romper el arranque.
+func TestNewMCPServer(t *testing.T) {
+	srv := newMCPServer(client.New("http://127.0.0.1:0", ""))
+	if srv == nil {
+		t.Fatal("newMCPServer devolvió nil")
+	}
+}
+
+// TestMCPServerEndToEnd conecta un cliente MCP real al servidor por un transport
+// en memoria y ejercita el camino completo: handshake -> ListTools -> CallTool ->
+// client.Client -> API (httptest). Cubre lo que los tests de handlers no tocan:
+// el registro de tools y el protocolo MCP de verdad.
+func TestMCPServerEndToEnd(t *testing.T) {
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/memory/recent" {
+			http.Error(w, "unexpected path", http.StatusNotFound)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(client.MemoryRecentResponse{
+			Count: 1,
+			Items: []client.MemoryItem{sampleItem},
+		})
+	}))
+	defer api.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	srv := newMCPServer(client.New(api.URL, ""))
+	clientT, serverT := mcp.NewInMemoryTransports()
+
+	ss, err := srv.Connect(ctx, serverT, nil)
+	if err != nil {
+		t.Fatalf("server connect: %v", err)
+	}
+	defer ss.Close()
+
+	cli := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "0"}, nil)
+	cs, err := cli.Connect(ctx, clientT, nil)
+	if err != nil {
+		t.Fatalf("client connect: %v", err)
+	}
+	defer cs.Close()
+
+	// ListTools: deben estar las 4 tools registradas.
+	lt, err := cs.ListTools(ctx, nil)
+	if err != nil {
+		t.Fatalf("ListTools: %v", err)
+	}
+	got := map[string]bool{}
+	for _, tool := range lt.Tools {
+		got[tool.Name] = true
+	}
+	for _, want := range []string{"memory_search", "memory_recent", "memory_save", "memory_stats"} {
+		if !got[want] {
+			t.Errorf("falta la tool %q; tools=%v", want, got)
+		}
+	}
+	if len(lt.Tools) != 4 {
+		t.Errorf("se esperaban 4 tools, hay %d", len(lt.Tools))
+	}
+
+	// CallTool memory_recent: pasa por el server -> client.Client -> API httptest.
+	res, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "memory_recent",
+		Arguments: map[string]any{"limit": 3},
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("memory_recent devolvió IsError: %+v", res.Content)
+	}
+	var text string
+	for _, c := range res.Content {
+		if tc, ok := c.(*mcp.TextContent); ok {
+			text += tc.Text
+		}
+	}
+	if !strings.Contains(text, sampleItem.Title) {
+		t.Errorf("la respuesta de memory_recent no contiene %q; got: %s", sampleItem.Title, text)
+	}
 }
 
 // --- memory_recent ---

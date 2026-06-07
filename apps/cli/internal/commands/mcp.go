@@ -52,6 +52,14 @@ variables de entorno BATTOS_API_URL / BATTOS_API_TOKEN).`,
 // runMCPServer crea y arranca el servidor MCP sobre stdio.
 // Bloquea hasta que el peer cierra la conexión o el contexto se cancela.
 func runMCPServer(ctx context.Context, c *client.Client) error {
+	return newMCPServer(c).Run(ctx, &mcp.StdioTransport{})
+}
+
+// newMCPServer construye el servidor MCP con sus 4 tools registradas.
+// mcp.AddTool entra en panic si el JSON Schema inferido de un arg struct es
+// inválido (p. ej. un tag jsonschema malformado), así que construir el servidor
+// es la verificación temprana del arranque — cubierta por TestNewMCPServer.
+func newMCPServer(c *client.Client) *mcp.Server {
 	srv := mcp.NewServer(
 		&mcp.Implementation{
 			Name:    "battos",
@@ -88,33 +96,37 @@ func runMCPServer(ctx context.Context, c *client.Client) error {
 		return memoryStatsToolHandler(ctx, c)
 	})
 
-	return srv.Run(ctx, &mcp.StdioTransport{})
+	return srv
 }
 
 // --- tipos de argumentos para cada tool ---
 // El SDK infiere el JSON Schema de los campos del struct.
 
+// El SDK (google/jsonschema-go) toma el valor COMPLETO del tag `jsonschema`
+// como descripción del campo; no admite directivas tipo `required,` ni
+// `description=`. La obligatoriedad se deriva del tag `json`: un campo SIN
+// `omitempty` queda en `required`, con `omitempty` queda opcional.
 type memorySearchArgs struct {
-	Query     string `json:"query"      jsonschema:"required,description=Texto de búsqueda FTS5"`
-	Type      string `json:"type"       jsonschema:"description=Filtrar por type: decision|architecture|bugfix|pattern|discovery|learning|manual"`
-	ProjectID string `json:"project_id" jsonschema:"description=Filtrar por project_id"`
-	AgentID   string `json:"agent_id"   jsonschema:"description=Filtrar por agent_id"`
-	Scope     string `json:"scope"      jsonschema:"description=Filtrar por scope: project|personal"`
-	Limit     int    `json:"limit"      jsonschema:"description=Máximo de resultados (0 = 10 por defecto)"`
+	Query     string `json:"query"                jsonschema:"Texto de búsqueda FTS5"`
+	Type      string `json:"type,omitempty"       jsonschema:"Filtrar por type: decision|architecture|bugfix|pattern|discovery|learning|manual"`
+	ProjectID string `json:"project_id,omitempty" jsonschema:"Filtrar por project_id"`
+	AgentID   string `json:"agent_id,omitempty"   jsonschema:"Filtrar por agent_id"`
+	Scope     string `json:"scope,omitempty"      jsonschema:"Filtrar por scope: project|personal"`
+	Limit     int    `json:"limit,omitempty"      jsonschema:"Máximo de resultados (0 = 10 por defecto)"`
 }
 
 type memoryRecentArgs struct {
-	Limit int `json:"limit" jsonschema:"description=Número de observaciones a devolver (0 = 20 por defecto)"`
+	Limit int `json:"limit,omitempty" jsonschema:"Número de observaciones a devolver (0 = 20 por defecto)"`
 }
 
 type memorySaveArgs struct {
-	Title     string `json:"title"      jsonschema:"required,description=Título corto y searchable"`
-	Content   string `json:"content"    jsonschema:"required,description=Cuerpo markdown de la observación"`
-	Type      string `json:"type"       jsonschema:"description=Tipo: decision|architecture|bugfix|pattern|discovery|learning|manual (default: manual)"`
-	TopicKey  string `json:"topic_key"  jsonschema:"description=Clave para upsert — misma key reemplaza la observación previa"`
-	ProjectID string `json:"project_id" jsonschema:"description=project_id asociado"`
-	AgentID   string `json:"agent_id"   jsonschema:"description=agent_id asociado"`
-	Scope     string `json:"scope"      jsonschema:"description=Scope: project|personal (default: project)"`
+	Title     string `json:"title"                jsonschema:"Título corto y searchable"`
+	Content   string `json:"content"              jsonschema:"Cuerpo markdown de la observación"`
+	Type      string `json:"type,omitempty"       jsonschema:"Tipo: decision|architecture|bugfix|pattern|discovery|learning|manual (default: manual)"`
+	TopicKey  string `json:"topic_key,omitempty"  jsonschema:"Clave para upsert — misma key reemplaza la observación previa"`
+	ProjectID string `json:"project_id,omitempty" jsonschema:"project_id asociado"`
+	AgentID   string `json:"agent_id,omitempty"   jsonschema:"agent_id asociado"`
+	Scope     string `json:"scope,omitempty"      jsonschema:"Scope: project|personal (default: project)"`
 }
 
 // memoryStatsArgs es un struct vacío — memory_stats no tiene parámetros.
