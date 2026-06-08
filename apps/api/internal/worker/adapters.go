@@ -2,6 +2,9 @@ package worker
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/nicotion/battos/apps/api/internal/store"
@@ -10,11 +13,14 @@ import (
 const defaultRunTimeout = 30 * time.Minute
 
 type CommandAdapter struct {
-	RuntimeID   string
-	Command     string
-	BaseArgs    []string
-	ProviderEnv string
-	Timeout     time.Duration
+	RuntimeID               string
+	Command                 string
+	BaseArgs                []string
+	ProviderEnv             string
+	AuthMode                string
+	HostCredentialPath      string
+	ContainerCredentialPath string
+	Timeout                 time.Duration
 }
 
 func (a CommandAdapter) Plan(_ context.Context, run store.Run) (ExecutionPlan, error) {
@@ -23,23 +29,56 @@ func (a CommandAdapter) Plan(_ context.Context, run store.Run) (ExecutionPlan, e
 		timeout = defaultRunTimeout
 	}
 	args := append([]string{}, a.BaseArgs...)
+	envKeys := envKeys(a.ProviderEnv)
+	var mounts []Mount
+	if a.AuthMode == "host_session" {
+		envKeys = nil
+		source := strings.TrimSpace(a.HostCredentialPath)
+		if source == "" {
+			return ExecutionPlan{}, errMissingHostCredentialPath(a.RuntimeID)
+		}
+		target := strings.TrimSpace(a.ContainerCredentialPath)
+		if target == "" {
+			target = "/mnt/battos-codex-host"
+		}
+		mounts = append(mounts, Mount{Source: source, Target: target, ReadOnly: true})
+	}
 	return ExecutionPlan{
 		RuntimeID:      a.RuntimeID,
 		Command:        a.Command,
 		Args:           args,
-		EnvKeys:        envKeys(a.ProviderEnv),
+		EnvKeys:        envKeys,
+		Mounts:         mounts,
 		Prompt:         run.Prompt,
-		NetworkEnabled: run.NetworkEnabled,
+		NetworkEnabled: run.NetworkEnabled != 0,
 		Timeout:        timeout,
 	}, nil
 }
 
+type AdapterOptions struct {
+	HostSessionEnabled   bool
+	CodexCredentialsDir  string
+	ClaudeCredentialsDir string
+}
+
 func ApprovedDryRunAdapters() map[string]Adapter {
-	return map[string]Adapter{
+	return ApprovedAdapters(AdapterOptions{})
+}
+
+func ApprovedAdapters(options AdapterOptions) map[string]Adapter {
+	codexCredentialsDir := strings.TrimSpace(options.CodexCredentialsDir)
+	if codexCredentialsDir == "" {
+		codexCredentialsDir = defaultCodexCredentialsDir()
+	}
+	claudeCredentialsDir := strings.TrimSpace(options.ClaudeCredentialsDir)
+	if claudeCredentialsDir == "" {
+		claudeCredentialsDir = defaultClaudeCredentialsDir()
+	}
+	adapters := map[string]Adapter{
 		"codex": CommandAdapter{
 			RuntimeID:   "codex",
 			Command:     "sh",
-			BaseArgs:    []string{"-c", `codex exec --sandbox workspace-write --ask-for-approval never --skip-git-repo-check --ephemeral --json - < "$BATTOS_PROMPT_FILE"`},
+			BaseArgs:    []string{"-c", `codex exec --sandbox workspace-write --skip-git-repo-check --ephemeral --json - < "$BATTOS_PROMPT_FILE"`},
 			ProviderEnv: "OPENAI_API_KEY",
 		},
 		"claude-code": CommandAdapter{
@@ -59,6 +98,53 @@ func ApprovedDryRunAdapters() map[string]Adapter {
 			BaseArgs:  []string{"-c", "grep -q 'BattOS Memory Context' \"$BATTOS_PROMPT_FILE\" && grep -q 'memory bridge smoke marker' \"$BATTOS_PROMPT_FILE\" && mkdir -p outputs && echo '# BattOS memory smoke artifact' > outputs/smoke.md && echo battos-memory-context-ok"},
 		},
 	}
+	if options.HostSessionEnabled {
+		adapters["codex-host-session"] = CommandAdapter{
+			RuntimeID:               "codex-host-session",
+			Command:                 "sh",
+			BaseArgs:                []string{"-c", `rm -rf /home/battos/.battos-codex-home && mkdir -p /home/battos/.battos-codex-home && for f in auth.json config.toml version.json installation_id .codex-global-state.json; do if [ -f "/mnt/battos-codex-host/$f" ]; then cp "/mnt/battos-codex-host/$f" "/home/battos/.battos-codex-home/$f"; fi; done && chmod -R u+rwX /home/battos/.battos-codex-home && CODEX_HOME=/home/battos/.battos-codex-home codex exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check --ephemeral --json - < "$BATTOS_PROMPT_FILE"; status=$?; rm -rf /home/battos/.battos-codex-home; exit $status`},
+			AuthMode:                "host_session",
+			HostCredentialPath:      codexCredentialsDir,
+			ContainerCredentialPath: "/mnt/battos-codex-host",
+		}
+		adapters["claude-code-host-session"] = CommandAdapter{
+			RuntimeID:               "claude-code-host-session",
+			Command:                 "sh",
+			BaseArgs:                []string{"-c", `rm -rf /home/battos/.claude && mkdir -p /home/battos/.claude && for f in .credentials.json settings.json settings.local.json CLAUDE.md; do if [ -f "/mnt/battos-claude-host/$f" ]; then cp "/mnt/battos-claude-host/$f" "/home/battos/.claude/$f"; fi; done && claude --print --verbose --input-format text --output-format stream-json --no-session-persistence --dangerously-skip-permissions "$(cat "$BATTOS_PROMPT_FILE")"; status=$?; rm -rf /home/battos/.claude; exit $status`},
+			AuthMode:                "host_session",
+			HostCredentialPath:      claudeCredentialsDir,
+			ContainerCredentialPath: "/mnt/battos-claude-host",
+		}
+	}
+	return adapters
+}
+
+func defaultCodexCredentialsDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil || strings.TrimSpace(home) == "" {
+		return ""
+	}
+	return filepath.Join(home, ".codex")
+}
+
+func defaultClaudeCredentialsDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil || strings.TrimSpace(home) == "" {
+		return ""
+	}
+	return filepath.Join(home, ".claude")
+}
+
+func errMissingHostCredentialPath(runtimeID string) error {
+	return &missingHostCredentialPathError{RuntimeID: runtimeID}
+}
+
+type missingHostCredentialPathError struct {
+	RuntimeID string
+}
+
+func (e *missingHostCredentialPathError) Error() string {
+	return "host_session credentials path is not configured for " + e.RuntimeID
 }
 
 func envKeys(key string) []string {

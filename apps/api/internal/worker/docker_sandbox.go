@@ -79,6 +79,9 @@ func (s DockerSandbox) Execute(ctx context.Context, plan ExecutionPlan, log LogF
 			return Result{}, fmt.Errorf("write prompt file: %w", err)
 		}
 	}
+	if err := validateMounts(plan.Mounts); err != nil {
+		return Result{}, err
+	}
 
 	runCtx, cancel := context.WithTimeout(ctx, plan.Timeout)
 	defer cancel()
@@ -196,12 +199,41 @@ func dockerArgs(image, workspace string, plan ExecutionPlan) []string {
 		"-w", "/workspace",
 		"-e", "BATTOS_PROMPT_FILE=/workspace/BATTOS_PROMPT.md",
 	}
+	for _, mount := range plan.Mounts {
+		source := filepath.Clean(mount.Source)
+		target := mount.Target
+		mode := "rw"
+		if mount.ReadOnly {
+			mode = "ro"
+		}
+		args = append(args, "-v", source+":"+target+":"+mode)
+	}
 	for _, key := range plan.EnvKeys {
 		args = append(args, "-e", key)
 	}
 	args = append(args, image, plan.Command)
 	args = append(args, plan.Args...)
 	return args
+}
+
+func validateMounts(mounts []Mount) error {
+	for _, mount := range mounts {
+		source := strings.TrimSpace(mount.Source)
+		target := strings.TrimSpace(mount.Target)
+		if source == "" || target == "" {
+			return fmt.Errorf("host_session mount source and target are required")
+		}
+		if !filepath.IsAbs(source) {
+			return fmt.Errorf("host_session mount source must be absolute: %s", source)
+		}
+		if !strings.HasPrefix(target, "/") {
+			return fmt.Errorf("host_session mount target must be absolute container path: %s", target)
+		}
+		if _, err := os.Stat(source); err != nil {
+			return fmt.Errorf("host_session mount source unavailable %s: %w", source, err)
+		}
+	}
+	return nil
 }
 
 func logCommandOutput(log LogFunc, stream, value string) {

@@ -1,8 +1,8 @@
 # ADR-0020: Ejecutar las CLIs de agente con su sesion OAuth, no con API key
 
-- **Status**: Proposed
+- **Status**: Accepted
 - **Fecha**: 2026-06-05
-- **Decidido por**: Nico + Claude Code (pendiente de aprobacion)
+- **Decidido por**: Nico + Codex
 
 ## Context
 
@@ -110,10 +110,24 @@ una eleccion explicita para una maquina/VPS dedicada del propio usuario.
   (`execution.host_session_enabled=false` por defecto).
 - Nuevo approval `host_session` (o extension del de `network`) con su registro
   de auditoria.
-- Primer runtime objetivo: **Codex** (OAuth de ChatGPT ya validado en el proyecto
-  Hermes Agent). Luego `claude-code`.
+- Primeros runtimes objetivo: **Codex** y luego `claude-code`.
 - Documentar claramente que este modo es para una maquina dedicada del usuario,
   no para multi-tenant.
+
+## Implementation status
+
+- 2026-06-08: se implementa el primer corte para **Codex** como
+  `codex-host-session` y se extiende el patron a `claude-code-host-session`.
+- El modo queda apagado por defecto y solo se registra cuando
+  `execution.host_session_enabled=true`.
+- DockerSandbox monta la carpeta `.codex` del host en modo read-only dentro de
+  `/mnt/battos-codex-host`, la copia a un `CODEX_HOME` efimero writable bajo
+  `/tmp` dentro del contenedor y no inyecta `OPENAI_API_KEY`.
+- DockerSandbox monta la carpeta `.claude` del host en modo read-only dentro de
+  `/mnt/battos-claude-host`, copia una whitelist a `/home/battos/.claude`
+  efimera dentro del contenedor y no inyecta `ANTHROPIC_API_KEY`.
+- La red sigue requiriendo approval `network`. La allowlist fina por dominio
+  queda como hardening posterior porque Docker `none/bridge` no filtra dominios.
 
 ## Related
 
