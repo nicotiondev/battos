@@ -83,7 +83,7 @@ export default function Home() {
   const systemStatusDetail = !apiOnline
     ? 'No se pudo conectar con BattOS API. Revisa que localhost:8000 este corriendo.'
     : databaseSubsystem && databaseSubsystem.status !== 'ok'
-      ? `Base de datos: ${databaseSubsystem.status}. ${databaseSubsystem.detail || 'Postgres no esta disponible.'}`
+      ? `Base de datos: ${databaseSubsystem.status}. ${databaseSubsystem.detail || 'La base SQLite local no esta disponible.'}`
       : 'Todos los subsistemas principales estan respondiendo.';
 
   const fetchInitialMetrics = async () => {

@@ -202,7 +202,7 @@ export default function NovaChat({ onClose }: { onClose?: () => void }) {
               <div>
                 <p className="font-bold text-amber-200">NovaCore en pausa</p>
                 <p className="mt-1 text-amber-100/80">
-                  El chat necesita Postgres para conversaciones y puede requerir provider keys para responder. Reintenta cuando la DB este disponible.
+                  El chat necesita la base SQLite local para conversaciones y puede requerir provider keys para responder. Reintenta cuando la DB este disponible.
                 </p>
               </div>
             </div>

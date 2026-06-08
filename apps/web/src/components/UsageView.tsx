@@ -101,7 +101,7 @@ export default function UsageView() {
               <div>
                 <p className="font-bold text-amber-200">Usage no disponible</p>
                 <p className="mt-1 text-amber-100/80">
-                  {errorMsg || 'Tokens, costos y presupuestos dependen de Postgres. BattOS puede seguir mostrando telemetria y memoria local mientras se recupera la DB.'}
+                  {errorMsg || 'Tokens, costos y presupuestos dependen de la base SQLite local. BattOS puede seguir mostrando telemetria mientras se recupera la DB.'}
                 </p>
               </div>
             </div>
@@ -267,7 +267,7 @@ export default function UsageView() {
 
         {usage.length === 0 ? (
           <div className="flex h-44 items-center justify-center rounded-xl border border-gray-800/60 bg-gray-950/40 text-sm text-muted-foreground">
-            {dataUnavailable ? 'Usage queda pausado hasta recuperar Postgres.' : 'No hay eventos de consumo registrados todavia.'}
+            {dataUnavailable ? 'Usage queda pausado hasta recuperar la base SQLite local.' : 'No hay eventos de consumo registrados todavia.'}
           </div>
         ) : (
           <div className="overflow-x-auto">

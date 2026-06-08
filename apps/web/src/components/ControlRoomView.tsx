@@ -321,7 +321,7 @@ export default function ControlRoomView() {
                 <div>
                   <p className="font-bold text-amber-200">Control Room no disponible</p>
                   <p className="mt-1 text-amber-100/80">
-                    Runs, approvals, logs y diffs dependen de Postgres. Cuando la DB vuelva, esta pantalla podra proponer y supervisar ejecuciones.
+                    Runs, approvals, logs y diffs dependen de la base SQLite local. Cuando la DB vuelva, esta pantalla podra proponer y supervisar ejecuciones.
                   </p>
                 </div>
               </div>

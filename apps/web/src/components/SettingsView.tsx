@@ -59,7 +59,7 @@ export default function SettingsView({ metrics, apiOnline, onRefresh }: Settings
   const systemCards = useMemo(() => [
     { label: 'API', status: apiOnline ? 'ok' : 'down', detail: apiOnline ? 'BattOS API responde en local.' : 'No hay conexion con la API.' },
     { label: 'Config', status: config?.status || 'unknown', detail: config?.detail || 'Sin detalle de configuracion.' },
-    { label: 'Database', status: database?.status || 'unknown', detail: database?.detail || 'Postgres no reporta estado.' },
+    { label: 'Database', status: database?.status || 'unknown', detail: database?.detail || 'SQLite local no reporta estado.' },
     { label: 'Memory Core', status: memory?.status || 'unknown', detail: memory?.detail || 'SQLite/FTS5 no reporta estado.' },
     { label: 'Sysmetrics', status: sysmetrics?.status || 'unknown', detail: sysmetrics?.detail || 'Metricas de host sin detalle.' },
   ], [apiOnline, config, database, memory, sysmetrics]);
@@ -229,14 +229,14 @@ export default function SettingsView({ metrics, apiOnline, onRefresh }: Settings
           </div>
           <div className="space-y-3 text-xs text-muted-foreground">
             <p className="rounded-xl border border-gray-800 bg-black/30 p-4">
-              En desarrollo local, el dashboard puede seguir funcionando aunque Postgres este apagado. Las pantallas con datos operacionales muestran modo degradado hasta levantar Docker/Postgres.
+              En desarrollo local, el dashboard usa la base SQLite local en `data/battos.db`. Si la DB cae, las pantallas con datos operacionales muestran modo degradado hasta recuperarla.
             </p>
             {database && database.status !== 'ok' && (
               <div className="flex gap-3 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-amber-100">
                 <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-300" />
                 <div>
                   <p className="font-bold">Base de datos no disponible</p>
-                  <p className="mt-1 text-amber-100/80">{database.detail || 'Levanta Postgres para habilitar Work Board, runs, usage completo y repositorios.'}</p>
+                  <p className="mt-1 text-amber-100/80">{database.detail || 'Recupera la base SQLite local para habilitar Work Board, runs, usage completo y repositorios.'}</p>
                 </div>
               </div>
             )}

@@ -1017,7 +1017,7 @@ export interface components {
             agent_id: string;
             skill_id?: string;
             /** @enum {string} */
-            runtime_adapter_id: "claude-code" | "codex" | "sandbox-smoke" | "sandbox-memory-smoke";
+            runtime_adapter_id: "claude-code" | "claude-code-host-session" | "codex" | "codex-host-session" | "sandbox-smoke" | "sandbox-memory-smoke";
             repository_id?: string;
             prompt: string;
             /** @default false */

@@ -260,7 +260,7 @@ export default function KnowledgeView() {
               <div>
                 <p className="font-bold text-amber-200">Knowledge Center parcialmente disponible</p>
                 <p className="mt-1 text-amber-100/80">
-                  Memory Core usa SQLite y sigue funcionando. Workspaces, bitacoras y artefactos dependen de Postgres y quedan pausados hasta recuperar la DB.
+                  Memory Core, workspaces, bitacoras y artefactos viven en la base SQLite local. Esta seccion queda pausada hasta recuperar la DB.
                 </p>
               </div>
             </div>

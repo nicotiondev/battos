@@ -228,7 +228,7 @@ export default function AgentsView() {
               <div>
                 <p className="font-bold">{successMsg && !errorMsg ? 'Agents Registry actualizado' : 'Agents Registry requiere atencion'}</p>
                 <p className="mt-1 opacity-80">
-                  {errorMsg || successMsg || 'Agentes y runtimes dependen de Postgres. Recupera la DB para crear o listar agentes.'}
+                  {errorMsg || successMsg || 'Agentes y runtimes dependen de la base SQLite local. Recupera la DB para crear o listar agentes.'}
                 </p>
               </div>
             </div>
@@ -356,7 +356,7 @@ export default function AgentsView() {
           <div className="space-y-3">
             {runtimes.length === 0 ? (
               <div className="rounded-xl border border-gray-800 bg-black/30 p-4 text-xs text-muted-foreground">
-                No hay runtimes registrados. Revisa migraciones/Postgres.
+                No hay runtimes registrados. Revisa la inicializacion de la base SQLite local.
               </div>
             ) : (
               runtimes.map(runtime => {

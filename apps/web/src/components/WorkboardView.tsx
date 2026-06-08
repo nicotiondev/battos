@@ -195,7 +195,7 @@ export default function WorkboardView() {
               <div>
                 <p className="font-bold text-amber-200">Datos de Work Board no disponibles</p>
                 <p className="mt-1 text-amber-100/80">
-                  Proyectos, objetivos, tareas y agentes dependen de Postgres. BattOS sigue vivo, pero esta pantalla queda en modo diagnostico hasta recuperar la DB.
+                  Proyectos, objetivos, tareas y agentes dependen de la base SQLite local. BattOS sigue vivo, pero esta pantalla queda en modo diagnostico hasta recuperar la DB.
                 </p>
               </div>
             </div>
