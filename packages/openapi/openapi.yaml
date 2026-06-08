@@ -1434,12 +1434,13 @@ components:
         - $ref: "#/components/schemas/RunProposal"
         - $ref: "#/components/schemas/Timestamps"
         - type: object
-          required: [id, status, network_enabled]
+          required: [id, status, network_enabled, host_session_enabled]
           properties:
             id: { type: string, format: uuid }
             status:
               $ref: "#/components/schemas/RunStatus"
             network_enabled: { type: boolean }
+            host_session_enabled: { type: boolean }
             branch_name: { type: string }
             result_summary: { type: string }
             error_message: { type: string }
@@ -1456,7 +1457,7 @@ components:
       properties:
         kind:
           type: string
-          enum: [execute, network, commit, push, remember]
+          enum: [execute, network, host_session, commit, push, remember]
         decision:
           type: string
           enum: [approved, rejected]

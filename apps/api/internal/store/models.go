@@ -252,26 +252,27 @@ type Repository struct {
 }
 
 type Run struct {
-	ID               string         `json:"id"`
-	ProjectID        string         `json:"project_id"`
-	TaskID           string         `json:"task_id"`
-	AgentID          string         `json:"agent_id"`
-	SkillID          sql.NullString `json:"skill_id"`
-	RuntimeAdapterID string         `json:"runtime_adapter_id"`
-	RepositoryID     sql.NullString `json:"repository_id"`
-	Prompt           string         `json:"prompt"`
-	RequestedNetwork int64          `json:"requested_network"`
-	NetworkEnabled   int64          `json:"network_enabled"`
-	Status           string         `json:"status"`
-	BranchName       sql.NullString `json:"branch_name"`
-	ResultSummary    sql.NullString `json:"result_summary"`
-	ErrorMessage     sql.NullString `json:"error_message"`
-	EstimatedCostUsd float64        `json:"estimated_cost_usd"`
-	Metadata         string         `json:"metadata"`
-	StartedAt        sql.NullTime   `json:"started_at"`
-	CompletedAt      sql.NullTime   `json:"completed_at"`
-	CreatedAt        time.Time      `json:"created_at"`
-	UpdatedAt        time.Time      `json:"updated_at"`
+	ID                 string         `json:"id"`
+	ProjectID          string         `json:"project_id"`
+	TaskID             string         `json:"task_id"`
+	AgentID            string         `json:"agent_id"`
+	SkillID            sql.NullString `json:"skill_id"`
+	RuntimeAdapterID   string         `json:"runtime_adapter_id"`
+	RepositoryID       sql.NullString `json:"repository_id"`
+	Prompt             string         `json:"prompt"`
+	RequestedNetwork   int64          `json:"requested_network"`
+	NetworkEnabled     int64          `json:"network_enabled"`
+	HostSessionEnabled int64          `json:"host_session_enabled"`
+	Status             string         `json:"status"`
+	BranchName         sql.NullString `json:"branch_name"`
+	ResultSummary      sql.NullString `json:"result_summary"`
+	ErrorMessage       sql.NullString `json:"error_message"`
+	EstimatedCostUsd   float64        `json:"estimated_cost_usd"`
+	Metadata           string         `json:"metadata"`
+	StartedAt          sql.NullTime   `json:"started_at"`
+	CompletedAt        sql.NullTime   `json:"completed_at"`
+	CreatedAt          time.Time      `json:"created_at"`
+	UpdatedAt          time.Time      `json:"updated_at"`
 }
 
 type RunApproval struct {

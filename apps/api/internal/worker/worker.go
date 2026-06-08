@@ -423,8 +423,8 @@ func validatePlan(plan ExecutionPlan, run store.Run) error {
 			return fmt.Errorf("host_session mounts must be read-only")
 		}
 	}
-	if len(plan.Mounts) > 0 && !plan.NetworkEnabled {
-		return fmt.Errorf("host_session requires network approval")
+	if len(plan.Mounts) > 0 && run.HostSessionEnabled == 0 {
+		return fmt.Errorf("host_session mounts require host_session approval")
 	}
 	if plan.NetworkEnabled && run.NetworkEnabled == 0 {
 		return fmt.Errorf("network was not approved for this run")

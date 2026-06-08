@@ -27,6 +27,7 @@ type RunStore interface {
 	CreateRunApproval(context.Context, store.CreateRunApprovalParams) (store.RunApproval, error)
 	UpdateRunStatus(context.Context, store.UpdateRunStatusParams) (store.Run, error)
 	EnableRunNetwork(context.Context, string) (store.Run, error)
+	EnableRunHostSession(context.Context, string) (store.Run, error)
 	CancelRun(context.Context, string) (store.Run, error)
 	ListRunLogs(context.Context, string) ([]store.RunLog, error)
 	GetArtifactByRunAndKind(context.Context, store.GetArtifactByRunAndKindParams) (store.Artifact, error)
@@ -71,7 +72,8 @@ type runResponse struct {
 	RepositoryID     string    `json:"repository_id,omitempty"`
 	Prompt           string    `json:"prompt"`
 	RequestedNetwork bool      `json:"requested_network"`
-	NetworkEnabled   bool      `json:"network_enabled"`
+	NetworkEnabled      bool      `json:"network_enabled"`
+	HostSessionEnabled  bool      `json:"host_session_enabled"`
 	Status           string    `json:"status"`
 	BranchName       string    `json:"branch_name,omitempty"`
 	ResultSummary    string    `json:"result_summary,omitempty"`
@@ -211,6 +213,8 @@ func (h *RunHandler) ApproveRunAction(w http.ResponseWriter, r *http.Request) {
 			updated, err = h.store.UpdateRunStatus(r.Context(), store.UpdateRunStatusParams{ID: runID, Status: "queued"})
 		case "network":
 			updated, err = h.store.EnableRunNetwork(r.Context(), runID)
+		case "host_session":
+			updated, err = h.store.EnableRunHostSession(r.Context(), runID)
 		case "remember":
 			if !isTerminalRunStatus(current.Status) {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"message": fmt.Sprintf("solo se puede aprobar remember en runs terminales; estado actual: %s", current.Status), "code": 400}})
@@ -538,7 +542,7 @@ func runIDFromPath(w http.ResponseWriter, r *http.Request) (string, bool) {
 
 func validApprovalKind(value string) bool {
 	switch value {
-	case "execute", "network", "commit", "push", "remember":
+	case "execute", "network", "host_session", "commit", "push", "remember":
 		return true
 	default:
 		return false
@@ -595,8 +599,9 @@ func runDTO(item store.Run) runResponse {
 		RuntimeAdapterID: item.RuntimeAdapterID,
 		RepositoryID:     textValue(item.RepositoryID),
 		Prompt:           item.Prompt,
-		RequestedNetwork: item.RequestedNetwork != 0,
-		NetworkEnabled:   item.NetworkEnabled != 0,
+		RequestedNetwork:    item.RequestedNetwork != 0,
+		NetworkEnabled:      item.NetworkEnabled != 0,
+		HostSessionEnabled:  item.HostSessionEnabled != 0,
 		Status:           item.Status,
 		BranchName:       textValue(item.BranchName),
 		ResultSummary:    textValue(item.ResultSummary),

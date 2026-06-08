@@ -24,6 +24,7 @@ type fakeRunStore struct {
 	current              store.Run
 	updatedStatus        string
 	networkEnabled       bool
+	hostSessionEnabled   bool
 	repo                 *store.Repository
 }
 
@@ -78,6 +79,14 @@ func (f *fakeRunStore) EnableRunNetwork(_ context.Context, id string) (store.Run
 	item := testRun("awaiting_approval", true)
 	item.ID = id
 	item.NetworkEnabled = 1
+	return item, nil
+}
+
+func (f *fakeRunStore) EnableRunHostSession(_ context.Context, id string) (store.Run, error) {
+	f.hostSessionEnabled = true
+	item := testRun("awaiting_approval", true)
+	item.ID = id
+	item.HostSessionEnabled = 1
 	return item, nil
 }
 
@@ -156,6 +165,25 @@ func TestApproveExecuteQueuesRun(t *testing.T) {
 	}
 	if q.updatedStatus != "queued" || q.createApprovalParams.Kind != "execute" {
 		t.Fatalf("approval=%+v status=%q, want execute approval and queued", q.createApprovalParams, q.updatedStatus)
+	}
+}
+
+func TestApproveHostSessionEnablesHostSession(t *testing.T) {
+	q := &fakeRunStore{current: testRun("awaiting_approval", true)}
+	h := NewRunHandler(q, nil)
+	req := runRequest(http.MethodPost, "/runs/11111111-1111-1111-1111-111111111111/approvals", `{"kind":"host_session","decision":"approved"}`)
+	rec := httptest.NewRecorder()
+
+	h.ApproveRunAction(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if !q.hostSessionEnabled {
+		t.Fatalf("host_session approval did not enable host_session")
+	}
+	if !strings.Contains(rec.Body.String(), `"host_session_enabled":true`) {
+		t.Fatalf("response does not reflect host_session_enabled=true: %s", rec.Body.String())
 	}
 }
 

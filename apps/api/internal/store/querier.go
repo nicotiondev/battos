@@ -46,6 +46,7 @@ type Querier interface {
 	// Queries para eventos de consumo y uso (usage_events)
 	CreateUsageEvent(ctx context.Context, arg CreateUsageEventParams) (UsageEvent, error)
 	DeleteRepository(ctx context.Context, id string) (Repository, error)
+	EnableRunHostSession(ctx context.Context, id string) (Run, error)
 	EnableRunNetwork(ctx context.Context, id string) (Run, error)
 	EnsureInboxProject(ctx context.Context) (Project, error)
 	FailRun(ctx context.Context, arg FailRunParams) (Run, error)

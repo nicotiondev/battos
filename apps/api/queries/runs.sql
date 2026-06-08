@@ -3,33 +3,33 @@
 -- name: CreateRun :one
 INSERT INTO runs (
     id, project_id, task_id, agent_id, skill_id, runtime_adapter_id, repository_id,
-    prompt, requested_network, network_enabled, status, metadata
+    prompt, requested_network, network_enabled, host_session_enabled, status, metadata
 )
-VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, ?, ?, 0, 'awaiting_approval', '{}')
+VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 'awaiting_approval', '{}')
 RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
-          repository_id, prompt, requested_network, network_enabled, status,
-          branch_name, result_summary, error_message, estimated_cost_usd,
+          repository_id, prompt, requested_network, network_enabled, host_session_enabled,
+          status, branch_name, result_summary, error_message, estimated_cost_usd,
           metadata, started_at, completed_at, created_at, updated_at;
 
 -- name: ListRuns :many
 SELECT id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
-       repository_id, prompt, requested_network, network_enabled, status,
-       branch_name, result_summary, error_message, estimated_cost_usd,
+       repository_id, prompt, requested_network, network_enabled, host_session_enabled,
+       status, branch_name, result_summary, error_message, estimated_cost_usd,
        metadata, started_at, completed_at, created_at, updated_at FROM runs
 ORDER BY created_at DESC;
 
 -- name: ListRunsByProject :many
 SELECT id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
-       repository_id, prompt, requested_network, network_enabled, status,
-       branch_name, result_summary, error_message, estimated_cost_usd,
+       repository_id, prompt, requested_network, network_enabled, host_session_enabled,
+       status, branch_name, result_summary, error_message, estimated_cost_usd,
        metadata, started_at, completed_at, created_at, updated_at FROM runs
 WHERE project_id = ?
 ORDER BY created_at DESC;
 
 -- name: GetRun :one
 SELECT id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
-       repository_id, prompt, requested_network, network_enabled, status,
-       branch_name, result_summary, error_message, estimated_cost_usd,
+       repository_id, prompt, requested_network, network_enabled, host_session_enabled,
+       status, branch_name, result_summary, error_message, estimated_cost_usd,
        metadata, started_at, completed_at, created_at, updated_at FROM runs WHERE id = ?;
 
 -- name: UpdateRunStatus :one
@@ -37,8 +37,8 @@ UPDATE runs
 SET status = ?
 WHERE id = ?
 RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
-          repository_id, prompt, requested_network, network_enabled, status,
-          branch_name, result_summary, error_message, estimated_cost_usd,
+          repository_id, prompt, requested_network, network_enabled, host_session_enabled,
+          status, branch_name, result_summary, error_message, estimated_cost_usd,
           metadata, started_at, completed_at, created_at, updated_at;
 
 -- name: ClaimNextQueuedRun :one
@@ -53,8 +53,8 @@ WHERE id = (
     LIMIT 1
 )
 RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
-          repository_id, prompt, requested_network, network_enabled, status,
-          branch_name, result_summary, error_message, estimated_cost_usd,
+          repository_id, prompt, requested_network, network_enabled, host_session_enabled,
+          status, branch_name, result_summary, error_message, estimated_cost_usd,
           metadata, started_at, completed_at, created_at, updated_at;
 
 -- name: ClaimQueuedRunByID :one
@@ -64,8 +64,8 @@ SET status = 'running',
 WHERE id = ?
   AND status = 'queued'
 RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
-          repository_id, prompt, requested_network, network_enabled, status,
-          branch_name, result_summary, error_message, estimated_cost_usd,
+          repository_id, prompt, requested_network, network_enabled, host_session_enabled,
+          status, branch_name, result_summary, error_message, estimated_cost_usd,
           metadata, started_at, completed_at, created_at, updated_at;
 
 -- name: EnableRunNetwork :one
@@ -73,8 +73,17 @@ UPDATE runs
 SET network_enabled = 1
 WHERE id = ?
 RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
-          repository_id, prompt, requested_network, network_enabled, status,
-          branch_name, result_summary, error_message, estimated_cost_usd,
+          repository_id, prompt, requested_network, network_enabled, host_session_enabled,
+          status, branch_name, result_summary, error_message, estimated_cost_usd,
+          metadata, started_at, completed_at, created_at, updated_at;
+
+-- name: EnableRunHostSession :one
+UPDATE runs
+SET host_session_enabled = 1
+WHERE id = ?
+RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
+          repository_id, prompt, requested_network, network_enabled, host_session_enabled,
+          status, branch_name, result_summary, error_message, estimated_cost_usd,
           metadata, started_at, completed_at, created_at, updated_at;
 
 -- name: CancelRun :one
@@ -84,8 +93,8 @@ SET status = 'cancelled',
 WHERE id = ?
   AND status IN ('draft', 'awaiting_approval', 'queued', 'running')
 RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
-          repository_id, prompt, requested_network, network_enabled, status,
-          branch_name, result_summary, error_message, estimated_cost_usd,
+          repository_id, prompt, requested_network, network_enabled, host_session_enabled,
+          status, branch_name, result_summary, error_message, estimated_cost_usd,
           metadata, started_at, completed_at, created_at, updated_at;
 
 -- name: CompleteRun :one
@@ -96,8 +105,8 @@ SET status = 'succeeded',
     error_message = NULL
 WHERE id = ?
 RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
-          repository_id, prompt, requested_network, network_enabled, status,
-          branch_name, result_summary, error_message, estimated_cost_usd,
+          repository_id, prompt, requested_network, network_enabled, host_session_enabled,
+          status, branch_name, result_summary, error_message, estimated_cost_usd,
           metadata, started_at, completed_at, created_at, updated_at;
 
 -- name: FailRun :one
@@ -108,8 +117,8 @@ SET status = 'failed',
     completed_at = CURRENT_TIMESTAMP
 WHERE id = ?
 RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
-          repository_id, prompt, requested_network, network_enabled, status,
-          branch_name, result_summary, error_message, estimated_cost_usd,
+          repository_id, prompt, requested_network, network_enabled, host_session_enabled,
+          status, branch_name, result_summary, error_message, estimated_cost_usd,
           metadata, started_at, completed_at, created_at, updated_at;
 
 -- name: AppendRunLog :one
@@ -133,6 +142,6 @@ SET branch_name = ?,
     metadata = ?
 WHERE id = ?
 RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
-          repository_id, prompt, requested_network, network_enabled, status,
-          branch_name, result_summary, error_message, estimated_cost_usd,
+          repository_id, prompt, requested_network, network_enabled, host_session_enabled,
+          status, branch_name, result_summary, error_message, estimated_cost_usd,
           metadata, started_at, completed_at, created_at, updated_at;

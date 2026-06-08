@@ -251,6 +251,7 @@ CREATE TABLE IF NOT EXISTS runs (
     prompt TEXT NOT NULL,
     requested_network INTEGER NOT NULL DEFAULT 0,
     network_enabled INTEGER NOT NULL DEFAULT 0,
+    host_session_enabled INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'awaiting_approval' CHECK (status IN ('draft', 'awaiting_approval', 'queued', 'running', 'succeeded', 'failed', 'cancelled')),
     branch_name TEXT,
     result_summary TEXT,
@@ -266,7 +267,7 @@ CREATE TABLE IF NOT EXISTS runs (
 CREATE TABLE IF NOT EXISTS run_approvals (
     id TEXT PRIMARY KEY,
     run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
-    kind TEXT NOT NULL CHECK (kind IN ('execute', 'network', 'commit', 'push', 'remember')),
+    kind TEXT NOT NULL CHECK (kind IN ('execute', 'network', 'host_session', 'commit', 'push', 'remember')),
     decision TEXT NOT NULL CHECK (decision IN ('approved', 'rejected')),
     reason TEXT,
     decided_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP

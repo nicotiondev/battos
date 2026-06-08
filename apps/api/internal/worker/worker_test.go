@@ -482,8 +482,10 @@ func TestApprovedAdaptersDoesNotRegisterHostSessionWhenDisabled(t *testing.T) {
 	}
 }
 
-func TestProcessOneRejectsHostSessionWithoutNetworkApproval(t *testing.T) {
+func TestProcessOneRejectsHostSessionMountsWithoutHostSessionApproval(t *testing.T) {
 	run := testRun("codex-host-session")
+	// HostSessionEnabled == 0 (default), NetworkEnabled == 1
+	run.NetworkEnabled = 1
 	store := &fakeStore{run: run}
 	worker := New(store, nil, map[string]Adapter{
 		"codex-host-session": fakeAdapter{plan: ExecutionPlan{
@@ -503,8 +505,70 @@ func TestProcessOneRejectsHostSessionWithoutNetworkApproval(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ProcessOne returned error: %v", err)
 	}
-	if !processed || !store.failOK || !strings.Contains(store.failed.ErrorMessage.String, "host_session requires network approval") {
-		t.Fatalf("processed=%v failed=%+v, want host_session network approval failure", processed, store.failed)
+	if !processed || !store.failOK || !strings.Contains(store.failed.ErrorMessage.String, "host_session mounts require host_session approval") {
+		t.Fatalf("processed=%v failed=%+v, want host_session approval failure", processed, store.failed)
+	}
+}
+
+func TestProcessOneAllowsHostSessionMountsWithHostSessionApproval(t *testing.T) {
+	run := testRun("codex-host-session")
+	run.HostSessionEnabled = 1
+	run.NetworkEnabled = 1
+	sandbox := &fakeSandbox{result: Result{Summary: "done"}}
+	store := &fakeStore{run: run}
+	worker := New(store, sandbox, map[string]Adapter{
+		"codex-host-session": fakeAdapter{plan: ExecutionPlan{
+			RuntimeID:      "codex-host-session",
+			Command:        "sh",
+			NetworkEnabled: true,
+			Mounts: []Mount{{
+				Source:   t.TempDir(),
+				Target:   "/mnt/battos-codex-host",
+				ReadOnly: true,
+			}},
+			Timeout: time.Minute,
+		}},
+	})
+	worker.ArtifactsDir = t.TempDir()
+
+	processed, err := worker.ProcessOne(context.Background())
+
+	if err != nil {
+		t.Fatalf("ProcessOne returned error: %v", err)
+	}
+	if !processed || !store.completeOK {
+		t.Fatalf("processed=%v completeOK=%v, want completed run with host_session approval", processed, store.completeOK)
+	}
+}
+
+func TestProcessOneRejectsNetworkWithoutApprovalEvenWithHostSession(t *testing.T) {
+	// Both host_session and network are independent: having host_session_enabled=1
+	// does NOT bypass the network gate when the plan also requests network.
+	run := testRun("codex-host-session")
+	run.HostSessionEnabled = 1
+	// NetworkEnabled == 0
+	store := &fakeStore{run: run}
+	worker := New(store, nil, map[string]Adapter{
+		"codex-host-session": fakeAdapter{plan: ExecutionPlan{
+			RuntimeID:      "codex-host-session",
+			Command:        "sh",
+			NetworkEnabled: true,
+			Mounts: []Mount{{
+				Source:   t.TempDir(),
+				Target:   "/mnt/battos-codex-host",
+				ReadOnly: true,
+			}},
+			Timeout: time.Minute,
+		}},
+	})
+
+	processed, err := worker.ProcessOne(context.Background())
+
+	if err != nil {
+		t.Fatalf("ProcessOne returned error: %v", err)
+	}
+	if !processed || !store.failOK || !strings.Contains(store.failed.ErrorMessage.String, "network was not approved") {
+		t.Fatalf("processed=%v failed=%+v, want network approval failure", processed, store.failed)
 	}
 }
 
