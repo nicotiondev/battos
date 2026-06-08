@@ -52,6 +52,7 @@ WHERE id = (
     ORDER BY created_at ASC
     LIMIT 1
 )
+  AND status = 'queued'
 RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
           repository_id, prompt, requested_network, network_enabled, host_session_enabled,
           status, branch_name, result_summary, error_message, estimated_cost_usd,
