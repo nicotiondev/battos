@@ -22,23 +22,18 @@ import (
 )
 
 // NewMCPCmd construye el subcomando `battos mcp`.
-func NewMCPCmd(getClient func() *client.Client) *cobra.Command {
-	return &cobra.Command{
+// getAPIURL y getToken son funciones que devuelven los valores resueltos de los
+// flags persistentes --api y --token (evaluadas en tiempo de ejecución).
+func NewMCPCmd(getClient func() *client.Client, getAPIURL func() string, getToken func() string) *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "mcp",
 		Short: "Servidor MCP sobre stdio — expone el Memory Core a agentes externos",
 		Long: `Arranca un servidor MCP (Model Context Protocol) sobre stdin/stdout.
 
-Úsalo como MCP server en Claude Code, Codex u otro agente compatible:
+Úsalo como MCP server en Claude Code, Codex u otro agente compatible,
+o registra el servidor automáticamente con:
 
-  # ~/.claude/mcp.json  o  .claude/mcp.json
-  {
-    "mcpServers": {
-      "battos": {
-        "command": "battos",
-        "args": ["--api", "http://localhost:8000", "mcp"]
-      }
-    }
-  }
+  battos mcp install
 
 El servidor es un proxy al API HTTP de BattOS y requiere que éste esté
 corriendo (docker compose up -d).  Respeta --api y --token (o las
@@ -47,6 +42,9 @@ variables de entorno BATTOS_API_URL / BATTOS_API_TOKEN).`,
 			return runMCPServer(cmd.Context(), getClient())
 		},
 	}
+
+	cmd.AddCommand(newMCPInstallCmd(getAPIURL, getToken))
+	return cmd
 }
 
 // runMCPServer crea y arranca el servidor MCP sobre stdio.
