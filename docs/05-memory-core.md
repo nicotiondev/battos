@@ -241,8 +241,8 @@ Futuro:
 
 ## Criterio de cierre de Fase 2
 
-- Schema PostgreSQL inicial y store sqlc generado presentes.
-- Memory Core crea su base local en un entorno limpio y reporta health en `/status`.
+- Schema SQLite unificado y store sqlc generado presentes.
+- Memory Core crea/usa la base local compartida en un entorno limpio y reporta health en `/status`.
 - API HTTP y CLI exponen `save`, `search`, `recent` y `stats`.
 - Pruebas de `internal/memory` cubren creación inicial, upsert/FTS5, filtros sin query y stats.
 - Verificación: `go test ./apps/api/... ./apps/cli/... ./packages/core/...`.

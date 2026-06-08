@@ -24,8 +24,9 @@ Implementado actualmente:
 
 - API Go con `GET /health`, `GET /version` y `GET /status`.
 - CLI `battos status`.
-- Schema PostgreSQL inicial y queries tipadas con sqlc.
-- Memory Core propio (SQLite + FTS5) con HTTP y CLI: `recent`, `search`,
+- Persistencia operacional unificada en SQLite (`data/battos.db`) con queries
+  tipadas por sqlc.
+- Memory Core propio (SQLite + FTS5) dentro de la misma base con HTTP y CLI: `recent`, `search`,
   `save`, `stats`.
 - Contrato OpenAPI v0.1 y decisiones de autenticacion, secretos, runs y
   approvals.
@@ -95,8 +96,8 @@ general de plugins.
 
 | Necesidad | Solucion |
 |---|---|
-| Recursos, runs, approvals, usage y auditoria | PostgreSQL 16 |
-| Memoria persistente buscable | SQLite + FTS5, Memory Core propio |
+| Recursos, runs, approvals, usage, auditoria y memoria | SQLite local unificado (`data/battos.db`) |
+| Memoria persistente buscable | FTS5, Memory Core propio |
 | Repositorios, journals, artefactos y snapshots | Filesystem gestionado |
 | Historial entregable del codigo | Git/GitHub con aprobacion |
 | Lectura humana en Obsidian | Export Markdown opcional desde v0.2 |
@@ -112,8 +113,8 @@ como texto plano; commit y push requieren confirmaciones independientes.
 |---|---|
 | API, worker y CLI | Go |
 | Router / config / CLI | chi, viper, cobra |
-| DB principal / migraciones | PostgreSQL 16, sqlc, goose |
-| Memory Core | SQLite + FTS5 (`modernc.org/sqlite`) |
+| DB principal | SQLite + FTS5 (`modernc.org/sqlite`) |
+| Store tipado | sqlc sobre dialecto SQLite |
 | Knowledge artifacts | Filesystem gestionado en `data/artifacts` |
 | Streaming | SSE |
 | Contratos | OpenAPI + oapi-codegen |
@@ -123,7 +124,7 @@ como texto plano; commit y push requieren confirmaciones independientes.
 ## Quickstart actual
 
 ```powershell
-# Terminal 1: API; Memory Core funciona aunque Postgres no este configurado.
+# Terminal 1: API; crea data/battos.db si no existe.
 go run ./apps/api/cmd/api
 
 # Terminal 2: estado y memoria
@@ -206,14 +207,14 @@ Runtime detection es inventario seguro: `configured` significa CLI + provider
 presentes, pero `approved_for_execution` sigue en `false` hasta crear y aprobar
 un run.
 
-Para desarrollo local con Postgres en Docker, levanta el API con:
+Para desarrollo local, levanta el API con SQLite en `data/battos.db`:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\start-battos-api-dev.ps1 -StopExisting -Background -Wait
 ```
 
-Ese helper usa `DATABASE_URL` del entorno si existe; si no, usa el Postgres
-local de desarrollo (`battos/change-me` en `127.0.0.1:5432`).
+Ese helper usa `BATTOS_DATABASE_PATH` si existe; si no, usa
+`data/battos.db`. `DATABASE_URL` ya no es requisito para v0.1.
 En Windows este es el launcher dev oficial del API; ver
 `docs/adr/0015-windows-dev-api-launcher.md`.
 
@@ -223,14 +224,34 @@ Para validar el entorno dev:
 powershell -ExecutionPolicy Bypass -File .\scripts\smoke-battos-dev.ps1 -RequireDatabase
 ```
 
+Para correr la gate reproducible de la migracion SQLite v0.1 sobre una base
+fresca temporal:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\verify-battos-sqlite-release.ps1
+```
+
+En Windows, si `npm run build` vuelve a fallar dentro de un sandbox por
+`spawn EPERM`, puedes validar el resto de la gate con `-SkipWebBuild` y correr
+`cd apps\web; npm run build` fuera del sandbox. Para incluir DockerSandbox
+cuando Docker Desktop/daemon este disponible, agrega `-CheckDocker`; para
+validar tambien Memory Bridge en Docker, agrega `-CheckMemoryDocker`. Para la
+gate completa de release con adapters reales, Docker y provider keys, usa:
+
+```powershell
+$env:OPENAI_API_KEY = "..."
+$env:ANTHROPIC_API_KEY = "..."
+powershell -ExecutionPolicy Bypass -File .\scripts\verify-battos-sqlite-release.ps1 -CheckDocker -CheckMemoryDocker -CheckRealAdapters -RealAdapter all
+```
+
 Para validar el worker con DockerSandbox real:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\smoke-battos-docker-run.ps1
 ```
 
-Este smoke requiere API y Postgres activos, Docker Desktop/daemon corriendo y
-migraciones al dia. Crea un run `sandbox-smoke`, lo aprueba, lo procesa en un
+Este smoke requiere API con SQLite local, Docker Desktop/daemon corriendo y
+schema inicializado. Crea un run `sandbox-smoke`, lo aprueba, lo procesa en un
 contenedor sin red y valida logs, artifact y limpieza de workspace.
 Si tienes el servicio Compose `battos-worker` corriendo, detenlo antes del
 smoke local para que no reclame la cola en modo `dry_run`:
@@ -265,15 +286,13 @@ npm run check:api-types
 `check:api-types` falla si `packages/openapi/openapi.yaml` y
 `apps/web/src/lib/generated/openapi.ts` quedan desincronizados.
 
-Si Postgres/Docker no esta levantado, puedes validar el modo degradado sin
-exigir DB:
+Si Docker no esta levantado, puedes validar el dashboard/API sin smoke de runs:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\smoke-battos-web.ps1 -CheckSSE -CheckWeb
 ```
 
-En ese modo el smoke valida `/status`, Memory Core, SSE y la shell web, y salta
-los endpoints respaldados por Postgres cuando `database` esta `down`.
+En ese modo el smoke valida `/status`, Memory Core, SSE y la shell web.
 
 Para validar inyeccion de memoria en el sandbox:
 
@@ -305,7 +324,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\smoke-battos-real-adapter-run
 ```
 
 Para validar un adapter real dentro de `DockerSandbox`, con red aprobada para
-hablar con el provider, usa el smoke dedicado. Requiere API/Postgres activos,
+hablar con el provider, usa el smoke dedicado. Requiere API con SQLite local,
 Docker Desktop/daemon, la imagen `battos-runtime-agents:dev` y la key del
 provider en el entorno:
 
@@ -321,10 +340,36 @@ El script registra un agente de smoke, crea un run con `requested_network=true`,
 aprueba `network` y `execute`, procesa la cola con el worker en modo Docker y
 muestra los logs persistidos si el adapter falla.
 
+Para validar Codex usando la sesion OAuth local de la CLI en vez de
+`OPENAI_API_KEY`, primero inicia sesion en el host con `codex login`. Luego
+habilita `host_session`, que monta solo la carpeta `.codex` en modo read-only
+dentro del contenedor:
+
+```powershell
+$env:BATTOS_EXECUTION_HOST_SESSION_ENABLED = "true"
+$env:BATTOS_EXECUTION_CODEX_CREDENTIALS_DIR = "$env:USERPROFILE\.codex"
+powershell -ExecutionPolicy Bypass -File .\scripts\smoke-battos-codex-host-session-run.ps1
+```
+
+Para validar Claude Code con la sesion OAuth local, primero inicia sesion con
+`claude login` y luego ejecuta:
+
+```powershell
+$env:BATTOS_EXECUTION_HOST_SESSION_ENABLED = "true"
+$env:BATTOS_EXECUTION_CLAUDE_CREDENTIALS_DIR = "$env:USERPROFILE\.claude"
+powershell -ExecutionPolicy Bypass -File .\scripts\smoke-battos-claude-host-session-run.ps1
+```
+
+La gate SQLite completa puede incluir ambos smokes host_session con:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\verify-battos-sqlite-release.ps1 -CheckDocker -CheckMemoryDocker -CheckHostSessionAdapters
+```
+
 Para dejar el worker procesando runs en cola:
 
 ```powershell
-$env:DATABASE_URL = "postgresql://battos:change-me@127.0.0.1:5432/battos?sslmode=disable"
+$env:BATTOS_DATABASE_PATH = "data\battos.db"
 $env:BATTOS_EXECUTION_SANDBOX_MODE = "docker" # o dry_run
 $env:BATTOS_EXECUTION_DOCKER_IMAGE = "battos-runtime-agents:dev"
 go run ./apps/api/cmd/worker -once=false -poll 2s
@@ -452,8 +497,8 @@ battos --api http://<tailscale-host>:8000 --token <token> memory save --title ".
 ```
 
 Guardrails: el API solo se expone con `auth.mode=token`; sin token o con token
-invalido responde `401`. El Memory Core funciona aunque Postgres no este
-configurado, asi que el acceso remoto a memoria no requiere DB.
+invalido responde `401`. El acceso remoto lee y escribe la misma base SQLite
+local del nodo (`data/battos.db`).
 
 ## Licencia
 

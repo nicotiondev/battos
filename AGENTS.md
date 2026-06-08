@@ -22,10 +22,9 @@ decisiones tecnicas no triviales van como ADR en
 
 - **Go** (API, CLI y worker de runs)
 - **Next.js 16 + TS** (dashboard)
-- **PostgreSQL 16** + **sqlc** (fuente operacional; no ORM)
-- **SQLite + FTS5** (Memory Core embebido en API)
+- **SQLite + FTS5** + **sqlc** (fuente operacional unificada; no ORM)
 - **Docker** (contenedor efimero por run)
-- **chi**, **goose**, **cobra**, **viper**
+- **chi**, **cobra**, **viper**
 - **OpenAPI + oapi-codegen** (contratos tipados)
 - **SSE** para streaming al dashboard (no WebSockets en v0.1)
 
@@ -63,6 +62,7 @@ cd apps/cli; go run ./cmd/battos project list
 go test ./apps/api/... ./apps/cli/... ./packages/core/...
 
 cd apps/api; sqlc generate
+powershell -ExecutionPolicy Bypass -File .\scripts\verify-battos-sqlite-release.ps1 -SkipWebBuild
 docker compose -f infra/docker-compose.yml up -d
 docker compose -f infra/docker-compose.yml down
 ```
@@ -95,7 +95,8 @@ docker compose -f infra/docker-compose.yml down
 
 - `packages/openapi/openapi.yaml` sera la fuente de verdad del contrato:
   editar, regenerar y revisar diffs.
-- Las migraciones aplicadas son append-only; nunca reescribirlas.
+- El schema SQLite unificado vive en `apps/api/internal/store/sqlite_schema.sql`;
+  si cambia, regenerar sqlc y actualizar docs.
 - No editar store generado a mano.
 - Los formatos de `config/*.yaml` son contratos de boot/runtime.
 - v0.1 ejecuta solo adapters aprobados para `claude-code` y `codex`, dentro
@@ -143,3 +144,4 @@ docker compose -f infra/docker-compose.yml down
 - Runs y approvals auditables: `docs/adr/0014-run-lifecycle-y-approvals.md`.
 - Memory Bridge transversal: `docs/adr/0017-memory-bridge-transversal.md`.
 - Dashboard Next.js 16: `docs/adr/0018-dashboard-nextjs-16.md`.
+- SQLite unificado para v0.1: `docs/adr/0021-sqlite-unificado.md`.

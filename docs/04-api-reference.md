@@ -1,36 +1,25 @@
 # 04 - API Reference
 
-> Fuente de verdad contractual desde Fase 3A:
-> `packages/openapi/openapi.yaml`. Este documento explica cobertura y uso.
-> Que un endpoint este contratado no significa que ya este implementado.
+> Fuente de verdad contractual: `packages/openapi/openapi.yaml`. Este documento
+> resume el uso actual para v0.1.
 
 Base URL en dev: `http://localhost:8000`
-Base URL en prod: configurable, normalmente detrás de Traefik/Nginx.
+Base URL en prod: configurable, normalmente detras de Traefik/Nginx.
 
-## Endpoints disponibles actualmente (Fases 1-3B parcial)
-
-ADR-0013 ya esta implementado en la frontera actual: `/health` y `/version`
-son publicos; `/status` y `/memory/*` pasan por middleware Bearer cuando
-`auth.mode: token`. El modo local configurado usa `auth.mode: disabled` solo
-escuchando en `127.0.0.1`.
+## Boot Y Estado
 
 ### `GET /health`
-Latido simple. Pensado para load balancers y healthchecks de Docker.
 
-**No toca DB ni otros subsistemas** — siempre responde rápido.
+Latido simple para healthchecks. No toca DB ni otros subsistemas.
 
-Response 200:
 ```json
-{
-  "status": "ok",
-  "timestamp": "2026-05-25T17:18:37Z"
-}
+{ "status": "ok", "timestamp": "2026-06-07T12:00:00Z" }
 ```
 
 ### `GET /version`
-Versión del binario y runtime.
 
-Response 200:
+Version del binario y runtime.
+
 ```json
 {
   "version": "v0.1.0-alpha",
@@ -40,187 +29,102 @@ Response 200:
 }
 ```
 
-Los valores `version`, `commit`, `build_date` se inyectan en tiempo de build vía `-ldflags`. Ver `infra/Dockerfile.api`.
-
 ### `GET /status`
-Estado agregado del OS — el endpoint principal del Command Center.
 
-Devuelve:
-- Versión (mismo payload que `/version`).
-- `overall`: estado consolidado (`ok` | `degraded` | `down` | `unknown`).
-- `subsystems`: lista de subsistemas con su salud individual.
-- `metrics`: snapshot en vivo de CPU/MEM/NET del host.
+Estado agregado del OS. Reporta `config`, `sysmetrics`, `database`, `memory` y
+metricas host. La base operacional es SQLite local; si no puede abrirse o
+responder, el subsistema `database` aparece `down`.
 
-Response 200:
 ```json
 {
-  "version": { "version": "v0.1.0-alpha", "commit": "dev", "build_date": "unknown", "go_version": "go1.25.x" },
   "overall": "ok",
   "subsystems": [
     { "name": "config", "status": "ok", "detail": "battos.yaml cargado" },
-    { "name": "sysmetrics", "status": "ok" },
-    { "name": "database", "status": "unknown", "detail": "no inicializado" },
-    { "name": "memory", "status": "ok", "detail": "SQLite + FTS5 listo", "latency_ms": 0 }
-  ],
-  "metrics": {
-    "cpu_percent": 54.1,
-    "mem_percent": 69.0,
-    "mem_used_mb": 22397,
-    "mem_total_mb": 32015,
-    "net_upload_kbps": 72.85,
-    "net_download_kbps": 198.03
-  },
-  "timestamp": "2026-05-25T17:18:39Z"
+    { "name": "database", "status": "ok", "detail": "SQLite local conectado" },
+    { "name": "memory", "status": "ok", "detail": "SQLite + FTS5 listo" }
+  ]
 }
 ```
 
-**Regla de agregación de `overall`**:
-- Si algún subsistema está `down` → overall = `down`.
-- Si algún subsistema está `degraded` → overall = `degraded`.
-- `unknown` (subsistema no implementado todavía) se ignora.
+## Memory Core
 
-Si `DATABASE_URL` no está definido, `database` se informa como `unknown`; Memory Core funciona de forma independiente.
-
-### Memory Core (Fase 2)
-
-| Endpoint | Método | Descripción |
+| Endpoint | Metodo | Descripcion |
 |---|---|---|
-| `/memory/recent?limit=20` | GET | Últimas observaciones |
-| `/memory/search` | POST | Búsqueda FTS5 y filtros; con `query` vacío lista aplicando filtros |
-| `/memory/save` | POST | Inserta una observación o actualiza por `topic_key` |
+| `/memory/recent?limit=20` | GET | Ultimas observaciones |
+| `/memory/search` | POST | Busqueda FTS5 y filtros |
+| `/memory/save` | POST | Inserta o actualiza por `topic_key` |
 | `/memory/stats` | GET | Contadores agregados |
-| `/memory/{id}` | GET | Recupera una observación o responde 404 |
+| `/memory/{id}` | GET | Recupera una observacion o 404 |
 
-Ejemplo:
-```json
-POST /memory/search
-{
-  "query": "FTS5",
-  "filter": { "project_id": "battos", "type": "decision" },
-  "limit": 10
-}
-```
+## Work Board
 
-### Work Board (Fase 3B)
-
-Estos recursos requieren PostgreSQL configurado con `DATABASE_URL`. Las
-colecciones de goals y tasks pueden listarse globalmente o filtrarse por
-`project_id`; la creacion todavia exige proyecto para mantener trazabilidad.
+Todos estos recursos usan la base SQLite local.
 
 | Endpoint | Metodo | Descripcion |
 |---|---|---|
-| `/domains`, `/domains/{id}` | GET/POST/PATCH | Areas o clientes que agrupan proyectos |
-| `/projects`, `/projects/{id}` | GET/POST/PATCH | Proyectos operables por BattOS |
-| `/goals`, `/goals?project_id={id}`, `/goals/{id}` | GET/POST/PATCH | Objetivos globales o filtrados por proyecto |
-| `/tasks`, `/tasks?project_id={id}`, `/tasks/{id}` | GET/POST/PATCH | Tareas globales o filtradas por proyecto; crear sin `project_id` usa `inbox` |
+| `/domains`, `/domains/{id}` | GET/POST/PATCH | Areas o clientes |
+| `/projects`, `/projects/{id}` | GET/POST/PATCH | Proyectos operables |
+| `/goals`, `/goals?project_id={id}`, `/goals/{id}` | GET/POST/PATCH | Objetivos globales o filtrados |
+| `/tasks`, `/tasks?project_id={id}`, `/tasks/{id}` | GET/POST/PATCH | Tareas globales, por proyecto o inbox |
 
-Defaults al crear: domain/project `active`, goal `planned`, task `backlog`.
-
-### Knowledge Center (Fase 3B)
-
-Estos recursos requieren PostgreSQL configurado con `DATABASE_URL`. En esta
-primera superficie operable, BattOS guarda el indice canonico de conocimiento:
-workspaces por proyecto, journals markdown y artifacts asociados a proyecto,
-tarea o futuro run.
+## Registries Y Runtimes
 
 | Endpoint | Metodo | Descripcion |
 |---|---|---|
-| `/knowledge/workspaces` | GET/POST | Workspaces activos de conocimiento por proyecto |
+| `/agents`, `/agents/{id}` | GET/POST/PATCH | Agentes configurados |
+| `/skills` | GET/POST | Skills versionadas |
+| `/runtime-adapters` | GET | Runtimes registrados y estado |
+| `/runtime-adapters/detect` | POST | Detecta CLIs aprobables en PATH |
+| `/cli-tools` | GET | CLIs detectadas |
+| `/providers` | GET | Providers sin exponer secretos |
+| `/providers/detect` | POST | Marca providers segun env vars |
+
+Detectar un runtime o provider no concede ejecucion. La ejecucion requiere un
+run propuesto y approval humano.
+
+## Knowledge Center
+
+| Endpoint | Metodo | Descripcion |
+|---|---|---|
+| `/knowledge/workspaces` | GET/POST | Workspaces por proyecto |
 | `/journals?project_id={id}` | GET | Journals de un proyecto |
-| `/journals` | POST | Crea journal; puede inferir `project_id` desde `workspace_id` |
+| `/journals` | POST | Crea journal |
 | `/artifacts?project_id={id}` | GET | Artifacts de un proyecto |
 | `/artifacts` | POST | Crea artifact markdown, link, path gestionado, diff o build report |
 
-Defaults al crear: workspace `layout=raw_wiki_outputs`, `status=active`; journal
-usa la fecha actual si `journal_date` no viene informado. Artifacts requieren al
-menos uno de `content`, `managed_path` o `external_url`.
-
-Buckets canonicos de artifacts:
-
-| Bucket | Uso |
-|---|---|
-| `raw` | Briefs, referencias, inputs originales |
-| `wiki` | Documentos curados para lectura humana |
-| `outputs` | Entregables generados por runs o agentes |
-
 Si se crea un artifact con `content` y sin `external_url`, BattOS escribe el
-contenido bajo `knowledge.artifacts_dir` (por defecto `data/artifacts`) usando
-la forma `{project_id}/{bucket}/{timestamp}-{name}.md` y guarda esa ruta en
-`managed_path`. Si se informa `managed_path`, debe ser relativo y no puede salir
-de `artifacts_dir`.
+archivo bajo `knowledge.artifacts_dir` (`data/artifacts` por defecto).
 
-### Runtime Detection (Fase 4A base)
-
-Estos endpoints requieren PostgreSQL. Detectan inventario, no ejecutan agentes
-ni prompts, y no conceden permisos de ejecucion.
-
-| Endpoint | Metodo | Descripcion |
-|---|---|---|
-| `/runtime-adapters` | GET | Lista runtimes registrados y su estado |
-| `/runtime-adapters/detect` | POST | Detecta `claude` y `codex` en PATH y actualiza estado |
-| `/cli-tools` | GET | Lista CLIs detectadas por BattOS |
-| `/providers` | GET | Lista providers sin exponer secretos |
-| `/providers/detect` | POST | Marca providers `configured/not_configured` segun env vars |
-
-Estados runtime: `configured`, `detected`, `unavailable`, `blocked`,
-`disabled`. `configured` significa que la CLI fue detectada y la env var de su
-provider esperado existe; no implica autorizacion de ejecucion. `blocked`
-aparece cuando el binario existe pero Windows/App Control o el comando de
-version impiden una lectura segura. Todas las respuestas de deteccion reportan
-`approved_for_execution=false`; la autorizacion real se pide por run en Fase 4B.
-
-### Runs Supervisados (Fase 4B control plane)
-
-Estos endpoints requieren PostgreSQL. Proponen y auditan runs; la ejecucion la
-realiza el worker aislado cuando el run queda `queued` y el worker esta
-corriendo.
+## Runs Supervisados
 
 | Endpoint | Metodo | Descripcion |
 |---|---|---|
 | `/runs` | GET | Lista runs; acepta `project_id` opcional |
-| `/runs` | POST | Propone un run en estado `awaiting_approval` |
+| `/runs` | POST | Propone un run en `awaiting_approval` |
 | `/runs/{id}` | GET | Detalle del run |
-| `/runs/{id}/approvals` | POST | Registra approval `execute`, `network`, `commit` o `push` |
+| `/runs/{id}/approvals` | POST | Registra approval `execute`, `network`, `commit`, `push` o `remember` |
 | `/runs/{id}/cancel` | POST | Cancela runs no terminales |
-| `/runs/{id}/logs` | GET | Lista logs persistidos del run |
-| `/events/runs/{id}` | GET | SSE sin timeout con `run.snapshot`, `run.log`, `run.done` y `run.error` |
+| `/runs/{id}/logs` | GET | Lista logs persistidos |
+| `/runs/{id}/artifacts` | GET | Lista artifacts asociados al run |
+| `/events/runs/{id}` | GET | SSE con snapshots, logs y estado terminal |
 
-`execute/approved` mueve el run a `queued`; no ejecuta nada por si solo.
-`network/approved` solo habilita `network_enabled=true` si el run habia
-solicitado red. `commit` y `push` quedan auditados para la fase de repositorios.
-El worker puede operar en `dry_run` o `docker`; `docker` usa red `none` salvo
-approval `network`, captura stdout/stderr y limpia el workspace temporal. Los
-adapters `codex` y `claude-code` preparan comandos no interactivos que leen el
-prompt desde `BATTOS_PROMPT_FILE`; DockerSandbox solo pasa las env keys de
-provider declaradas por el adapter y redacta valores conocidos en stdout/stderr.
-La imagen recomendada para esos runs es `battos-runtime-agents:dev`, construida
-desde `infra/Dockerfile.runtime-agents`.
+`execute/approved` mueve el run a `queued`; el worker procesa la cola. El worker
+puede operar en `dry_run` o DockerSandbox. DockerSandbox usa red `none` salvo
+approval `network`, captura stdout/stderr y limpia el workspace temporal.
 
-Cuando un run en DockerSandbox produce archivos dentro de `/workspace`, BattOS
-los captura como artifacts del run, los guarda bajo `data/artifacts` y registra
-el indice en `/artifacts` con `project_id`, `task_id` y `run_id`. El prompt
-interno `BATTOS_PROMPT.md` nunca se registra como artifact.
+## Repositories, NovaCore Y Usage
 
-## Superficies contratadas para completar v0.1
-
-| Endpoint | Fase | Descripción |
+| Endpoint | Metodo | Descripcion |
 |---|---|---|
-| `GET/POST /agents`, `/skills`, `/providers`, `/models` | 3B | Registries; skills versionadas |
-| `GET/POST /repositories` | 4C | Git local gestionado o GitHub autorizado |
-| `POST /runs`, `POST /runs/{id}/approvals`, `POST /runs/{id}/cancel` | 4B base | Control plane de ejecucion supervisada |
-| `GET /runs/{id}/artifacts`, `/diff` | 4B/4C | Resultado del run cuando exista worker/repos |
-| `POST /novacore/chat` | 5A | Chat opcional; propone acciones/runs |
-| `GET /usage/overview`, `GET /usage/runs/{id}` | 5B | Tokens/costo exacto, estimado o no reportado |
-| `GET /events/system-metrics` (SSE) | 5B | Stream de metricas del dashboard |
-
-`packages/openapi/openapi.yaml` marca cada operacion futura con
-`x-battos-phase`. Los clientes generados se incorporaran al implementar la
-primera superficie CRUD de Fase 3B.
+| `/repositories` | GET/POST | Repos Git locales gestionados o remotos autorizados |
+| `/novacore/chat` | POST | Chat opcional que propone acciones/runs |
+| `/usage/overview` | GET | Tokens/costo por proyecto, agente, provider o modelo |
+| `/usage/runs/{id}` | GET | Uso asociado a un run |
+| `/events/system-metrics` | GET | SSE de metricas del dashboard |
 
 ## Convenciones
 
-### Formato de errores
-Todos los errores devuelven JSON con esta forma:
+### Errores
 
 ```json
 {
@@ -231,77 +135,24 @@ Todos los errores devuelven JSON con esta forma:
 }
 ```
 
-### Headers comunes
-- `X-Request-Id`: aceptado o generado durante el request y registrado en los logs estructurados del API.
-- `Content-Type: application/json; charset=utf-8` en respuestas exitosas.
+### Headers
 
-### CORS
-Orígenes permitidos vienen de `config/battos.yaml` (`api.cors_origins`). En dev por defecto es `http://localhost:3000` (el frontend Next.js).
+- `X-Request-Id`: aceptado o generado durante el request.
+- `Content-Type: application/json; charset=utf-8`.
 
-## Middleware aplicado
+### Auth
 
-Orden de ejecución (de afuera hacia adentro):
+`/health` y `/version` son publicos. Las demas rutas pasan por middleware
+Bearer cuando `auth.mode: token`. En desarrollo local se usa
+`auth.mode: disabled` escuchando en `127.0.0.1`.
 
-1. **RequestID** → genera `X-Request-Id`.
-2. **RealIP** → respeta `X-Forwarded-For` si viene de proxy confiable.
-3. **Recoverer** → convierte panics en 500 sin matar el proceso.
-4. **CORS** → orígenes según config.
-5. **StructuredLogger** → un JSON log por request con method/path/status/duration_ms/request_id.
-6. **Timeout** → 30s (no aplica a sub-routers de SSE).
+## Ejemplos CLI
 
-## Ejemplos de uso
-
-### Con `curl`
-```bash
-curl http://localhost:8000/health
-curl http://localhost:8000/version
-curl http://localhost:8000/status | jq
-curl http://localhost:8000/memory/stats | jq
-```
-
-### Con el CLI
 ```powershell
 battos status
-battos shell
-battos memory stats
-battos memory search "FTS5"
-battos domain create clientes --name "Clientes"
-battos project create landing-acme --name "Landing Acme" --domain clientes
+battos project list
 battos task create --title "Idea suelta"
-battos task create --project landing-acme --title "Preparar brief"
-battos task list --project landing-acme
-battos task board --project landing-acme
-battos task position <task_id> 10
-battos agent create builder-web --name "Builder Web" --runtime codex --role web_builder
-battos agent list
-battos agent show builder-web
-battos knowledge workspace create --project landing-acme --name "Landing Acme Knowledge"
-battos knowledge workspace list
-battos knowledge journal create --workspace <uuid> --title "Brief inicial" --content "Notas..."
-battos knowledge artifact create --project landing-acme --name "Brief" --kind markdown --content "# Brief"
-battos knowledge artifact create --project landing-acme --name "Wiki" --kind markdown --bucket wiki --content "# Documento curado"
-battos knowledge artifact list --project landing-acme
-battos runtime detect
+battos memory stats
 battos runtime list
-battos provider detect
-battos cli-tool list
-
-# Dentro de battos shell:
-↑/↓ navegar, Enter ejecutar, / command palette, Esc volver, q salir
-/status
-/projects
-/tasks landing-acme
-/task-board landing-acme
-/agents
-/agent-new
-
-# Cuando auth.mode=token:
-$env:BATTOS_API_TOKEN="<token>"; battos status
-```
-
-### Desde el frontend (Fase 5)
-```typescript
-// apps/web/lib/api-client.ts (generado por oapi-codegen en Fase 3)
-import { getStatus } from "@/lib/api-client";
-const status = await getStatus();
+battos run list
 ```

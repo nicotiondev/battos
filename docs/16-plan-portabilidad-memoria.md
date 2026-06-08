@@ -53,7 +53,7 @@ cualquier máquina conectada y, a futuro, sincronizable offline.
 |---|---|---|
 | 1 | Memoria accesible en red (Tailscale + API remota con token) | Base verificada (falta ops Tailscale del usuario) |
 | 2 | Memoria estilo Engram: MCP server + conflict judgment + sync | Pendiente |
-| 3 | Unificación en SQLite de todos los stores (ADR-0021) | Pendiente |
+| 3 | Unificación en SQLite de todos los stores (ADR-0021) | Implementada base |
 | 4 | OAuth de las CLIs en runs (ADR-0020) | Pendiente |
 | 5 | Sync offline del pendrive (réplica + merge estilo Engram git) | Pendiente |
 
@@ -97,10 +97,10 @@ Portar al Memory Core las capacidades que hoy no tiene (ver comparativa en
 
 ### Fase 3 - Unificacion en SQLite
 
-Migrar los stores hoy respaldados por PostgreSQL (work board, runs, usage,
-novacore, repositories, audit) a SQLite, retargeteando `sqlc` al engine SQLite y
-reescribiendo el dialecto de las queries. Resultado: un unico archivo de datos,
-sin servidor de DB, portable. Detalle y trade-offs en ADR-0021.
+Implementado como base de v0.1: los stores de work board, knowledge,
+registries, runs, repositories, usage, NovaCore, audit y Memory Core viven en
+`data/battos.db`. `sqlc` usa `engine: sqlite` y `database/sql`; Postgres queda
+como opcion futura multiusuario/import historico, no como backend dual.
 
 ### Fase 4 - OAuth de las CLIs
 
@@ -120,9 +120,8 @@ estabilizar Fases 1-3.
 1. Tailscale + memoria remota   -> usar BattOS desde el pendrive con conexion
 2. MCP de memoria               -> codex/claude consumen la memoria directo
 3. Conflict judgment            -> memoria que se cura sola (Engram)
-4. SQLite unificado             -> pendrive 100% portable
-5. OAuth (ADR-0020)             -> suscripcion en vez de API key
-6. Sync offline                 -> trabajar sin internet
+4. OAuth (ADR-0020)             -> suscripcion en vez de API key
+5. Sync offline                 -> trabajar sin internet
 ```
 
 La Fase 1 entrega el grueso del objetivo ("usar BattOS desde el pendrive con

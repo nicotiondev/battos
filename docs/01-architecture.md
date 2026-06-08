@@ -6,9 +6,9 @@ BattOS v0.1 sera un control plane self-hosted con dashboard y CLI capaz de
 modelar trabajo, conservar conocimiento y ejecutar de manera supervisada dos
 runtimes iniciales: Claude Code y Codex.
 
-Al cierre de Fase 2 ya existen API system/memory, CLI status/memory, config,
-PostgreSQL base y Memory Core SQLite + FTS5. El modelo de producto, motor de
-runs, repositorios, NovaCore y frontend aun deben implementarse.
+El camino de cierre de v0.1 usa una sola base SQLite local (`data/battos.db`)
+para recursos operacionales y Memory Core FTS5. API, CLI, worker y dashboard
+deben arrancar sin `DATABASE_URL` ni servicio Postgres.
 
 ## Capas
 
@@ -24,11 +24,11 @@ runs, repositorios, NovaCore y frontend aun deben implementarse.
 | adapters (claude-code/codex) | NovaCore opcional | audit | config  |
 +---------+--------------------+----------------------+---------------+
           |                    |                      |
-+---------v----------+ +-------v-----------+ +--------v--------------+
-| PostgreSQL         | | SQLite + FTS5     | | Filesystem gestionado |
-| recursos, runs,    | | Memory Core       | | repos, journals,      |
-| approvals, usage   | |                  | | artifacts, snapshots  |
-+--------------------+ +-------------------+ +-----------------------+
++-------------------------------------------+ +--------v--------------+
+| SQLite + FTS5 (`data/battos.db`)          | | Filesystem gestionado |
+| recursos, runs, approvals, usage, memory  | | repos, journals,      |
+| audit, NovaCore y registries              | | artifacts, snapshots  |
++-------------------------------------------+ +-----------------------+
                                 |
 +-------------------------------v-------------------------------------+
 | Worker Go: crea contenedor efimero, ejecuta adapter, captura logs   |
@@ -46,9 +46,9 @@ CLI `battos` -> misma API; no accede directamente a las bases.
 
 - **API**: unica autoridad de lectura/escritura, contratos REST/SSE,
   autenticacion, autorizacion, auditoria y orquestacion de recursos.
-- **Worker**: reclama runs persistidos en PostgreSQL y los ejecuta en
-  contenedores efimeros. Para v0.1 no requiere Redis: PostgreSQL mantiene
-  estado, lock y recuperacion del run.
+- **Worker**: reclama runs persistidos en SQLite y los ejecuta en contenedores
+  efimeros. Para v0.1 no requiere Redis: SQLite mantiene estado, lock y
+  recuperacion del run.
 - **Dashboard**: el producto principal para operar trabajo, ejecuciones,
   conocimiento y extensiones.
 - **CLI**: cliente para operar las mismas capacidades desde terminal.
@@ -61,8 +61,7 @@ CLI `battos` -> misma API; no accede directamente a las bases.
 
 | Capa | Responsabilidad |
 |---|---|
-| PostgreSQL 16 | projects, domains, goals, tasks, agents, skills, repositories, runs, approvals, usage, audit |
-| SQLite + FTS5 | memorias operativas buscables por proyecto/agente/scope |
+| SQLite + FTS5 | projects, domains, goals, tasks, agents, skills, repositories, runs, approvals, usage, audit y memorias operativas |
 | Filesystem gestionado | clones Git, journals, artefactos, previews y snapshots |
 | Git/GitHub | historial entregable del codigo, solo mediante aprobaciones |
 | Markdown/Obsidian opcional | export humano en v0.2; nunca fuente canonica temprana |
@@ -89,10 +88,11 @@ CLI `battos` -> misma API; no accede directamente a las bases.
 
 ## Despliegue
 
-- **Desarrollo**: API y CLI Go, PostgreSQL y Docker local; web Next.js cuando
-  la fase de interfaz comience.
-- **VPS/self-hosted**: API, web, PostgreSQL y worker con Docker Engine para los
-  contenedores de runs; proxy TLS delante. Obsidian no se instala en el VPS.
+- **Desarrollo**: API y CLI Go, SQLite local, Docker local para runs y web
+  Next.js.
+- **VPS/self-hosted**: API, web y worker con SQLite compartido y Docker Engine
+  para los contenedores de runs; proxy TLS delante. Obsidian no se instala en el
+  VPS.
 
 Ver `docs/10-roadmap.md`, `docs/14-producto-final-y-roadmap.md`,
 `docs/adr/0010-knowledge-workspace-opcional.md` y

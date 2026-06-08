@@ -59,11 +59,13 @@ Idea o tarea del usuario
 
 ## Persistencia y conocimiento
 
-- PostgreSQL es la fuente de verdad operacional para recursos, runs y
-  aprobaciones.
-- SQLite + FTS5 es el Memory Core propio, inspirado en Engram pero integrado a
-  BattOS.
+- SQLite unificado (`data/battos.db`) es la fuente de verdad operacional para
+  recursos, runs, aprobaciones, uso, auditoria y Memory Core.
+- Memory Core usa FTS5 dentro de la misma base, inspirado en Engram pero
+  integrado a BattOS.
 - El filesystem administrado guarda repositorios, artefactos y journals.
+- Postgres queda fuera del camino normal de v0.1; solo se conserva como
+  referencia historica/futura para escenarios multiusuario o importacion.
 - Desde v0.2, un export Markdown opcional permite abrir Knowledge Workspace en
   Obsidian sin convertirlo en dependencia ni base principal.
 

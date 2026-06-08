@@ -17,7 +17,7 @@ Por qué cada elección. Los detalles "estilo ADR" están en `adr/`. Este doc es
 
 ADR: `adr/0001-go-stack.md`.
 
-## Frontend: Next.js 15 + TypeScript
+## Frontend: Next.js 16 + TypeScript
 
 **Decisión**: Next.js 15 (App Router) + Tailwind + shadcn/ui + Tremor.
 
@@ -27,7 +27,7 @@ ADR: `adr/0001-go-stack.md`.
 3. **App Router** + Server Components hace que la mayoría de páginas sean rápidas sin estado de cliente innecesario.
 4. **TanStack Query** + `EventSource` cubre fetching y streaming sin librerías exóticas.
 
-ADR previsto: `adr/0007-frontend-stack.md` (se crea al implementar Fase 5).
+ADR: `adr/0018-dashboard-nextjs-16.md`.
 
 ## DB layer: sqlc (no ORM)
 
@@ -71,12 +71,12 @@ Engram queda como **referencia de diseño** (estructura de observaciones, FTS, j
 
 ADR: `adr/0004-memory-core-propio.md` (Fase 2).
 
-## Ejecucion supervisada: contenedores y PostgreSQL
+## Ejecucion supervisada: contenedores y SQLite
 
 **Decision**: v0.1 ejecuta Claude Code y Codex mediante adapters aprobados,
 siempre en un contenedor efimero por run y con aprobacion humana. El estado de
-runs y sus aprobaciones vive en PostgreSQL; para la primera version el worker
-Go reclama trabajo desde esa base sin introducir Redis.
+runs y sus aprobaciones vive en SQLite (`data/battos.db`); para la primera
+version el worker Go reclama trabajo desde esa base sin introducir Redis.
 
 **Razones**:
 1. Aisla el filesystem y limita el radio de una ejecucion.
@@ -106,7 +106,7 @@ ADR: `adr/0011-v01-ejecucion-supervisada.md`.
 | **Python + FastAPI** | El mockup exige streaming pesado y footprint chico. Python sufre. |
 | **Node + NestJS** | Ecosistema AI más débil que Python; performance peor que Go. Peor de dos mundos. |
 | **GORM / ent** | ORM mágico esconde el SQL. sqlc enseña mejor y es más simple. |
-| **Celery / RabbitMQ / Redis temprano** | v0.1 persiste y reclama runs desde PostgreSQL; una cola extra solo entra si la carga real lo justifica. |
+| **Celery / RabbitMQ / Redis temprano** | v0.1 persiste y reclama runs desde SQLite; una cola extra solo entra si la carga real lo justifica. |
 | **GraphQL** | OpenAPI auto-generado da los mismos beneficios con menos overhead conceptual. |
 | **tRPC** | Encierra todo en TypeScript. Backend en Go ya descarta esto. |
 | **Monorepo con Turborepo/Nx** | Complejidad innecesaria. `go.work` + carpetas planas alcanzan. |

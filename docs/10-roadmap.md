@@ -11,7 +11,7 @@
 |---|---|---|
 | 0 | Bootstrap, stack y docs iniciales | Completada |
 | 1 | API `/health`, `/version`, `/status` y CLI `status` | Completada |
-| 2 | PostgreSQL base + Memory Core SQLite/FTS5 + CLI/HTTP memory | Completada |
+| 2 | SQLite unificado + Memory Core FTS5 + CLI/HTTP memory | Completada |
 | 3A | OpenAPI, autenticacion/secretos y lifecycle de runs/approvals | Completada |
 | 3B | Work model y Knowledge Center | Completada |
 | 4A | Runtimes y adapters (Claude Code/Codex) | Completada |
@@ -26,6 +26,39 @@ Validacion disponible:
 ```powershell
 go test ./apps/api/... ./apps/cli/... ./packages/core/...
 ```
+
+Actualizacion SQLite unificado:
+
+- BattOS v0.1 usa un unico archivo `data/battos.db` como fuente operacional.
+- `apps/api/sqlc.yaml` esta retargeteado a `engine: sqlite` con
+  `database/sql`.
+- API, worker, CLI, dashboard y smokes dev ya no requieren `DATABASE_URL` ni
+  servicio Postgres.
+- Postgres queda fuera del camino normal de v0.1; las migraciones antiguas se
+  conservan como referencia historica append-only.
+- Revalidacion del 7 de junio de 2026:
+  - `smoke-battos-dev.ps1 -RequireDatabase -UseGoRun` paso contra SQLite fresca.
+  - `smoke-battos-web.ps1 -RequireDatabase -CheckSSE` paso contra SQLite fresca.
+  - Lifecycle dry-run `queued -> succeeded` paso con worker sobre la misma DB.
+  - `go test ./apps/api/... ./apps/cli/... ./packages/core/...`, builds Go,
+    `npm run lint`, `npm run check:api-types` y `npm run build` pasaron.
+  - Se agrego y ejecuto `scripts/verify-battos-sqlite-release.ps1
+    -SkipWebBuild`; la gate levanta API con SQLite fresca, corre smokes dev/web
+    y valida lifecycle dry-run.
+  - La gate ahora soporta `-CheckRealAdapters -RealAdapter all` para cerrar
+    `codex` y `claude-code` reales en el mismo flujo cuando existan Docker y
+    provider keys.
+  - Se inicio el modo `host_session` para Codex: `codex-host-session` queda
+    registrado solo cuando `execution.host_session_enabled=true`, monta
+    `.codex` read-only dentro del runtime image y tiene smoke dedicado.
+  - Smoke real `scripts/smoke-battos-codex-host-session-run.ps1` paso el 8 de
+    junio de 2026 con DockerSandbox, red aprobada, sesion local `.codex`, marker
+    `battos-codex-host-session-ok` y artifact registrado.
+  - Se agrego `claude-code-host-session` y smoke dedicado para validar la sesion
+    local `.claude` sin `ANTHROPIC_API_KEY`.
+  - DockerSandbox y Memory Bridge Docker se revalidaron el 7 de junio de 2026
+    con `verify-battos-sqlite-release.ps1 -SkipWebBuild -CheckDocker
+    -CheckMemoryDocker`; ambos pasaron contra SQLite fresca.
 
 En Windows con Application Control, algunos binarios temporales de `go test`
 pueden bloquearse; para paquetes afectados se usa binario de test estable bajo
@@ -101,7 +134,7 @@ ni conceder permisos. La interfaz comun de ejecucion queda para Fase 4B, junto
 al Execution Engine.
 
 **Fase 4B** comenzo con el control plane de runs: `runs`, `run_approvals` y
-`run_logs` ya existen en PostgreSQL; API/CLI/TUI permiten proponer un run,
+`run_logs` viven ahora en SQLite; API/CLI/TUI permiten proponer un run,
 listar/ver detalle, aprobar `execute/network/commit/push`, cancelar estados no
 terminales y consultar logs persistidos. En esta base, aprobar `execute` mueve
 el run a `queued`; todavia no hay worker ni contenedor, por lo que no ejecuta
@@ -148,7 +181,7 @@ temporales de `go run`.
 El 1 de junio de 2026 se revalido el mismo flujo usando la imagen runtime
 `battos-runtime-agents:dev`: run
 `752a9bb2-53ca-4d02-8166-803080f90553` paso con artifact y workspace limpio.
-El 4 de junio de 2026 se volvio a consolidar DockerSandbox con Postgres/API
+El 4 de junio de 2026 se volvio a consolidar DockerSandbox con API/DB
 reales: runs `69e1ac6f-e581-42a0-bf2a-c4682c0cb01e` y
 `3190f1f0-95ff-449f-9438-15bfd3c68676` pasaron en `sandbox=docker`,
 registrando `outputs/smoke.md`, logs y limpieza de workspace. En la
@@ -182,7 +215,7 @@ temporal. Decisión documentada en `docs/adr/0019-github-push-auth.md`.
 
 **Fase 4D** queda completada. Consolidamos el **Memory Bridge** como capa transversal de memoria entre agentes y herramientas de BattOS.
 Por un lado, la inyección automática de contexto en los prompts del worker ahora busca y combina observaciones en el Memory Core de SQLite mediante políticas ordenadas por relevancia para memorias de proyecto (scope=project), personales del proyecto (scope=personal), del agente específico y memorias globales, deduplicándolas por id de observación en caliente.
-Por otro lado, convertimos el guardado de resumen de run en propuesta aprobable (acción `"remember"` HITL). Se agregó el soporte en la tabla `run_approvals` de Postgres (migración `0005_add_remember_approval.sql`), se actualizaron validaciones de tipo en la API, y se integró en el handler HTTP para que al aprobarse con `decision: "approved"`, obtenga los logs del run, renderice el resumen Markdown del run y lo guarde en el core SQLite de manera automatizada. Todo fue validado con pruebas unitarias en `memory_context_test.go` y `runs_test.go`.
+Por otro lado, convertimos el guardado de resumen de run en propuesta aprobable (acción `"remember"` HITL). El soporte vive en `run_approvals`, se actualizaron validaciones de tipo en la API, y se integró en el handler HTTP para que al aprobarse con `decision: "approved"`, obtenga los logs del run, renderice el resumen Markdown del run y lo guarde en Memory Core de manera automatizada. Todo fue validado con pruebas unitarias en `memory_context_test.go` y `runs_test.go`.
 El MCP server propio y el judgment de conflictos quedan como evolución posterior para v0.2.
 El 1 de junio de 2026 se revalido la inyeccion de memoria con imagen runtime:
 run `47485730-a770-4bc4-b8e5-a5b7351ec605` paso con memoria de proyecto
@@ -205,11 +238,11 @@ para mantener componentes React consistentes con los DTOs Go. El helper SSE del
 dashboard ahora reintenta con backoff y conserva `Last-Event-ID`/`after` para
 retomar streams sin duplicar logs. El smoke tambien
 tiene modo degradado sin `-RequireDatabase`: valida `/status`, Memory Core, SSE
-y web shell, saltando endpoints Postgres si `database` esta `down`. Usage &
+y web shell, saltando endpoints operacionales si `database` esta `down`. Usage &
 Limits ya muestra budgets por proyecto, umbrales de alerta y precision de costo
 `estimated/not_reported`, con contrato OpenAPI alineado al array real de
 `UsageOverviewItem`. El 4 de junio de 2026 el smoke web completo paso con
-Postgres OK, SSE `system.metrics`, shell web y, con `-CheckRunSSE`, el stream
+DB OK, SSE `system.metrics`, shell web y, con `-CheckRunSSE`, el stream
 `/events/runs/{id}` de Control Room sobre el run
 `3190f1f0-95ff-449f-9438-15bfd3c68676`. Settings ya permite guardar,
 reemplazar y limpiar `BATTOS_API_TOKEN` local sin exponer el valor. Tambien

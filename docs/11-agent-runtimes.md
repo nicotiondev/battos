@@ -34,6 +34,24 @@ contenedor efímero y con aprobación por run.
 **v0.1**: adapter ejecutable inicial junto a `claude-code`, sujeto a los
 mismos controles de aislamiento y aprobación.
 
+### `codex-host-session`
+**Que es**: Codex CLI usando la sesion OAuth local creada con `codex login`,
+no `OPENAI_API_KEY`.
+**Como conecta BattOS**: al activar `execution.host_session_enabled=true`, el
+worker registra este adapter y DockerSandbox monta la carpeta `.codex` del host
+en modo read-only dentro del contenedor.
+**Limite v0.1**: requiere maquina dedicada, red aprobada por run y smoke
+dedicado; la allowlist fina por dominio queda como hardening posterior.
+
+### `claude-code-host-session`
+**Que es**: Claude Code CLI usando la sesion OAuth local creada con
+`claude login`, no `ANTHROPIC_API_KEY`.
+**Como conecta BattOS**: al activar `execution.host_session_enabled=true`, el
+worker registra este adapter y DockerSandbox monta la carpeta `.claude` del host
+en modo read-only dentro del contenedor.
+**Limite v0.1**: requiere maquina dedicada, red aprobada por run y smoke
+dedicado; la allowlist fina por dominio queda como hardening posterior.
+
 ### `opencode`
 **Qué es**: OpenCode (agente local/self-hosted) como subprocess.
 **Cuándo usarlo**: workflows locales sin enviar código a APIs externas.
@@ -135,7 +153,7 @@ valida que el adapter haya producido logs y `outputs/adapter-smoke.md`.
 
 Requisitos:
 
-- API/Postgres activos y migraciones al dia.
+- API activo con SQLite local (`BATTOS_DATABASE_PATH` o `data/battos.db`).
 - Docker Desktop/daemon corriendo.
 - Imagen runtime construida con `scripts/build-battos-runtime-agents.ps1`.
 - `OPENAI_API_KEY` para `-Adapter codex`.

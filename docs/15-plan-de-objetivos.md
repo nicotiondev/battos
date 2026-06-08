@@ -40,6 +40,55 @@ Cada objetivo se considera cerrado solo si cumple:
 | 10 | Usage y budgets | En curso base consolidada | Usage events por run; budgets/alertas base; falta configuracion avanzada |
 | 11 | Hardening/release | Pendiente | Backups, instalacion, smoke tests y tag v0.1.0 |
 
+## SQLite Unificado
+
+Estado: implementado base antes del cierre de v0.1.
+
+- BattOS crea/usa `data/battos.db` por defecto y acepta override con
+  `BATTOS_DATABASE_PATH` / `database.path`.
+- API, worker y Memory Core comparten SQLite; no hay backend dual ni importador
+  Postgres en esta fase.
+- `sqlc` fue retargeteado a SQLite y los handlers usan tipos portables
+  (`string`, `sql.NullString`, `time.Time`, `sql.ErrNoRows`).
+- Los mensajes normales del dashboard, router y scripts ya no piden configurar
+  Postgres.
+- Revalidado el 7 de junio de 2026 con DB fresca en
+  `data/.cache/release-smoke/battos.db`: `smoke-battos-dev.ps1
+  -RequireDatabase -UseGoRun`, `smoke-battos-web.ps1 -RequireDatabase
+  -CheckSSE`, lifecycle dry-run `queued -> succeeded`, `go test
+  ./apps/api/... ./apps/cli/... ./packages/core/...`, builds Go y checks web.
+- Gate reproducible agregada: `scripts/verify-battos-sqlite-release.ps1`
+  crea una SQLite fresca temporal, ejecuta tests/builds/checks, levanta API,
+  corre smokes dev/web y valida lifecycle dry-run. Paso con `-SkipWebBuild` el
+  7 de junio de 2026; el build web completo fue validado fuera del sandbox.
+- La misma gate ahora acepta `-CheckDocker`, `-CheckMemoryDocker` y
+  `-CheckRealAdapters -RealAdapter all` para convertir el cierre pendiente en
+  un comando unico cuando Docker Desktop/daemon y `OPENAI_API_KEY` /
+  `ANTHROPIC_API_KEY` esten disponibles.
+- Se agrego el camino recomendado para Codex con suscripcion/OAuth:
+  `codex-host-session`, habilitado solo con
+  `execution.host_session_enabled=true`, monta la carpeta `.codex` del host en
+  modo read-only y se valida con
+  `scripts/smoke-battos-codex-host-session-run.ps1` o
+  `verify-battos-sqlite-release.ps1 -CheckHostSessionAdapters`.
+- Smoke `codex-host-session` paso el 8 de junio de 2026 contra API SQLite local:
+  DockerSandbox ejecuto Codex con `CODEX_HOME` efimero, red aprobada, artifact
+  `outputs/host-session-smoke.md` y marker `battos-codex-host-session-ok`.
+- Se agrego `claude-code-host-session` con montaje `.claude` read-only, copia
+  efimera dentro del contenedor y smoke
+  `scripts/smoke-battos-claude-host-session-run.ps1`.
+- Se corrigio un bug release-critical de sqlc: un comentario no ASCII en
+  `apps/api/queries/registries.sql` truncaba queries generadas (`ORDER BY i`,
+  `WHERE id =`). Ahora `apps/api/internal/store/pool_test.go` ejecuta queries
+  reales de registries contra SQLite limpia.
+- Revalidado despues de habilitar Docker Desktop:
+  `verify-battos-sqlite-release.ps1 -SkipWebBuild -CheckDocker
+  -CheckMemoryDocker` paso el 7 de junio de 2026, incluyendo DockerSandbox y
+  Memory Bridge Docker contra SQLite fresca.
+- Pendiente fuera de esta fase: importador Postgres -> SQLite,
+  allowlist fina de egress, smokes reales con
+  provider keys y polish/E2E final.
+
 ## 0. Consolidacion Dev Actual
 
 Pendientes:
@@ -64,8 +113,7 @@ Testing/debug:
 - Smoke dev:
   `powershell -ExecutionPolicy Bypass -File .\scripts\smoke-battos-dev.ps1 -RequireDatabase`.
 - API apagada: CLI/TUI muestra mensaje accionable, no crash.
-- API sin `DATABASE_URL`: `/status` degraded y Work Board no rompe la TUI.
-- API con Postgres: Work Board responde y listas globales no piden
+- API con `data/battos.db`: Work Board responde y listas globales no piden
   `project_id`.
 - Windows: `docs/adr/0015-windows-dev-api-launcher.md` define `go run` via
   launcher como flujo dev oficial; `battos-api.exe` queda para release/instalador.
@@ -76,13 +124,12 @@ Evidencia actual:
   respondiendo con `database: ok`.
 - `smoke-battos-dev.ps1 -RequireDatabase` valida `status`, `project list`,
   `goal list`, `task list` y `memory stats`.
-- `start-battos-api-dev.ps1 -Port 8001 -Background -Wait -NoDatabase` permite
-  probar API degradada sin Postgres.
+- `start-battos-api-dev.ps1 -Port 8001 -Background -Wait` permite probar otro
+  API local con su SQLite configurada por `BATTOS_DATABASE_PATH`.
 - `battos --api http://127.0.0.1:8999 status` falla con mensaje accionable
   cuando el API esta apagada.
-- API sin `DATABASE_URL` queda viva con `database: unknown`; Work Board devuelve
-  `HTTP 503: Work Board no disponible: configura DATABASE_URL y verifica
-  Postgres`, sin JSON crudo en CLI.
+- API sin `DATABASE_URL` arranca igual; `DATABASE_URL` ya no participa en el
+  flujo normal de v0.1.
 - Tests firmados ejecutados: `apps/api/internal/server` y
   `apps/cli/internal/commands`.
 - Decision Windows documentada en ADR-0015: no confiar el certificado local en
@@ -112,7 +159,7 @@ Testing/debug:
 - Crear journal y artifact Markdown/link.
 - Listar artifacts por proyecto.
 - Bloquear path traversal y rutas fuera de `data/`. Implementado.
-- Probar API sin DB y DB con migraciones incompletas.
+- Probar API con SQLite local inicializada y errores de DB manejados.
 
 Evidencia actual:
 
@@ -129,8 +176,7 @@ Evidencia actual:
   creados y listados por CLI.
 - Smoke manual de storage: artifact markdown creado en bucket `wiki`, archivo
   verificado en `data/artifacts` y traversal rechazado.
-- API sin DB responde `HTTP 503: Knowledge Center no disponible: configura
-  DATABASE_URL y verifica Postgres`.
+- API con DB caída responde errores limpios sin pedir configurar Postgres.
 - Tests unitarios: `apps/api/internal/handlers`, `apps/api/internal/server` y
   `apps/cli/internal/commands`.
 
@@ -217,9 +263,9 @@ Testing/debug:
 - Crear agente con `runtime_id=codex`.
 - Crear agente con `runtime_id=claude-code`.
 - Rechazar runtime inexistente por FK con mensaje claro.
-- API sin Postgres responde 503 limpio.
+- API con DB caída responde 503 limpio.
 - Dashboard debe mostrar empty state cuando no hay agentes y CTA para crear.
-  Implementado base; falta smoke visual con API/Postgres en navegador.
+  Implementado base; falta smoke visual final con API local en navegador.
 
 ## 4. Runtime Detection
 
@@ -336,7 +382,7 @@ Concretado:
   temporal al terminar, ignora `BATTOS_PROMPT.md`, detecta artifacts Markdown,
   diff e imagenes, y devuelve los outputs al worker.
 - Worker registra artifacts producidos por runs: escribe archivo gestionado en
-  `data/artifacts/<project>/outputs/...`, guarda indice en PostgreSQL con
+  `data/artifacts/<project>/outputs/...`, guarda indice en SQLite con
   `run_id`, `task_id` y `project_id`, y loguea el resultado. Si falla la
   escritura fisica, no registra un `managed_path` roto.
 - Smoke `sandbox-smoke` ahora produce `outputs/smoke.md` para validar el flujo
@@ -452,7 +498,7 @@ Concretado:
   resumen del run y la memoria previa del proyecto.
 
 - Ampliar inyección automática de contexto en los prompts de worker para combinar observaciones del Memory Core de SQLite mediante políticas ordenadas por relevancia para memorias de proyecto (scope=project), personales del proyecto (scope=personal), del agente específico y memorias globales, deduplicándolas por id de observación en Go.
-- Convertir el guardado de resumen de run (`remember`) en propuesta aprobable a través del flujo de approvals HITL, alterando la base de datos Postgres (migración `0005_add_remember_approval.sql`), validando tipos de aprobación, e integrando en el handler HTTP para que al aprobarse con `decision: "approved"`, obtenga logs del run, renderice el resumen Markdown del run y lo guarde en SQLite de manera automatizada.
+- Convertir el guardado de resumen de run (`remember`) en propuesta aprobable a través del flujo de approvals HITL, validando tipos de aprobación, e integrando en el handler HTTP para que al aprobarse con `decision: "approved"`, obtenga logs del run, renderice el resumen Markdown del run y lo guarde en Memory Core de manera automatizada.
 - Validado con pruebas unitarias en `memory_context_test.go` y `runs_test.go`.
 
 Pendientes (v0.2+):
@@ -566,23 +612,18 @@ Concretado:
   `snake_case` a `camelCase`, incluyendo SSE, para evitar filtros vacios o
   detalles rotos cuando Go responde con campos como `project_id`, `goal_id` o
   `runtime_adapter_id`.
-- Healthcheck de base de datos corregido: si `DATABASE_URL` existe pero
-  Postgres no responde, `/status` reporta `database: down` y `overall: down`;
-  solo queda `unknown` cuando la DB no fue configurada.
-- Smoke web tiene modo degradado: sin `-RequireDatabase` valida `/status`,
-  Memory Core, SSE y shell web, saltando endpoints respaldados por Postgres
-  cuando `database` esta `down`. Con `-RequireDatabase` sigue exigiendo DB OK
-  y valida todos los endpoints del dashboard.
+- Healthcheck de base de datos corregido: si SQLite no responde, `/status`
+  reporta `database: down` y `overall: down`.
+- Smoke web valida `/status`, Memory Core, SSE, shell web y endpoints del
+  dashboard contra la base SQLite local.
 - Estados degradados visibles iniciados: el shell del dashboard muestra un
   banner transversal cuando `/status` reporta `overall != ok` u ocurre offline,
   con detalle del subsistema `database`; Work Board muestra un panel especifico
-  si los datos respaldados por Postgres no estan disponibles y bloquea acciones
-  de creacion hasta recuperar DB.
+  si SQLite no esta disponible y bloquea acciones de creacion hasta recuperar DB.
 - Estados degradados extendidos: Control Room muestra que runs/approvals/logs
-  dependen de Postgres y bloquea proponer runs si la DB cae; Knowledge Center
-  mantiene Memory Core usable y pausa workspaces/journals/artifacts cuando
-  Postgres no esta disponible; NovaCore muestra pausa del chat cuando no puede
-  cargar conversaciones o responder por DB/provider.
+  dependen de la base SQLite local y bloquea proponer runs si la DB cae;
+  Knowledge Center y NovaCore pausan operaciones cuando no pueden cargar datos
+  o responder por DB/provider.
 - SSE del dashboard endurecido: `connectSSE` usa `fetch` con Bearer opcional,
   reintenta con backoff, conserva el ultimo `id:` recibido y reabre streams con
   `Last-Event-ID`/`after` para evitar duplicar logs tras cortes breves.
@@ -593,7 +634,7 @@ Concretado:
   sandbox sigue apareciendo `spawn EPERM` por politica de procesos de Windows.
 - Usage & Limits ahora tiene vista propia en el dashboard: muestra costo
   mensual, tokens input/output/cache, requests y distribucion por
-  proyecto/agente/proveedor/modelo usando `/usage/overview`; si Postgres esta
+  proyecto/agente/proveedor/modelo usando `/usage/overview`; si SQLite esta
   caido muestra un estado degradado especifico y conserva el shell operativo.
 - Usage & Limits queda consolidado como base de presupuestos: `/usage/overview`
   ahora devuelve nombre de proyecto, `project_monthly_budget_usd` y
@@ -611,26 +652,27 @@ Concretado:
   para que OpenAPI represente los smokes reales de DockerSandbox/Memory Bridge.
 - Settings base implementado: muestra URL de API, estado del token local sin
   revelar secretos, salud de API/config/database/memory/sysmetrics, modo
-  degradado de Postgres y guardrails v0.1 para ejecucion supervisada.
+  degradado de SQLite/database y guardrails v0.1 para ejecucion supervisada.
 - Settings auth/token local mejorado: permite guardar o reemplazar
   `BATTOS_API_TOKEN` en `localStorage`, limpiar el token y refrescar el estado
   sin revelar el valor. Verificado con `npm run lint`, `npm run build` y
   navegador local sin errores de consola.
-- Smoke dashboard completo revalidado el 4 de junio de 2026:
-  `scripts/smoke-battos-web.ps1 -RequireDatabase -CheckSSE -CheckWeb` paso con
-  API, Postgres, Memory Core, endpoints del dashboard, SSE `system.metrics` y
-  web shell en `localhost:3000`.
+- Smoke dashboard completo revalidado el 4 de junio de 2026 con la DB anterior; el
+  7 de junio de 2026 fue revalidado contra SQLite local con
+  `scripts/smoke-battos-web.ps1 -RequireDatabase -CheckSSE`, cubriendo API,
+  Memory Core, endpoints del dashboard y SSE `system.metrics`.
 - Smoke de Control Room SSE agregado y verificado: `scripts/smoke-battos-web.ps1
   -RequireDatabase -CheckSSE -CheckRunSSE -CheckWeb` valida tambien
   `/events/runs/{id}` sobre un run real. El 4 de junio de 2026 paso contra
   run `3190f1f0-95ff-449f-9438-15bfd3c68676`, confirmando evento
   `run.snapshot`.
-- Consolidacion OpenAPI/dashboard revalidada el 4 de junio de 2026:
+- Consolidacion OpenAPI/dashboard revalidada el 4 de junio de 2026 y de nuevo
+  el 7 de junio de 2026:
   `npm run generate:api-types`, `npm run check:api-types`, `npm run lint` y
   `npm run build` pasan; el build debe ejecutarse fuera del sandbox de Codex en
   Windows por `spawn EPERM`. El smoke completo
-  `scripts/smoke-battos-web.ps1 -RequireDatabase -CheckSSE -CheckRunSSE -CheckWeb`
-  paso contra `localhost:8000` y `localhost:3000`.
+  `scripts/smoke-battos-web.ps1 -RequireDatabase -CheckSSE` paso contra SQLite
+  local en `localhost:8020`.
 - Mutaciones tipadas revalidadas el 4 de junio de 2026: `npm run lint`,
   `npm run check:api-types`, `npm run build` y smoke completo del dashboard
   volvieron a pasar tras migrar POST/PATCH principales a `apiClient`.
@@ -668,7 +710,7 @@ Pendientes:
   `exact` cuando el provider entregue costos verificados.
 - Settings: token local implementado; faltan edicion controlada de
   preferencias, providers por referencia y configuracion modular persistente.
-- SSE: reconexion base implementada; smoke con Postgres y run real valida
+- SSE: reconexion base implementada; smoke con DB local y run real valida
   `run.snapshot`; falta probar reconexion durante logs en ejecucion.
 - Estados offline/degraded consistentes por pantalla: falta pulir el lenguaje
   visual final y agregar error boundaries.
@@ -720,7 +762,7 @@ Pendientes:
 - Auth single-owner estable.
 - Secrets por referencia.
 - Audit log.
-- Backups de Postgres, SQLite y filesystem gestionado.
+- Backups de SQLite y filesystem gestionado.
 - `battos doctor`.
 - Guia de instalacion local/VPS.
 - Smoke test final.

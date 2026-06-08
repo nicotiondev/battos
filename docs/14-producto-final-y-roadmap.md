@@ -74,8 +74,7 @@ precision.
 
 | Almacen | Responsabilidad | Backup |
 |---|---|---|
-| PostgreSQL | Projects, domains, goals, tasks, agentes, skills, runtimes, runs, approvals, usage, chats, extensions y auditoria | Dump/restore operativo |
-| SQLite + FTS5 Memory Core | Decisiones, patrones, aprendizajes, resumenes de runs y busqueda de contexto | Backup SQLite; export/import posterior |
+| SQLite + FTS5 (`data/battos.db`) | Projects, domains, goals, tasks, agentes, skills, runtimes, runs, approvals, usage, chats, extensions, auditoria y Memory Core | Backup/copia SQLite; export/import posterior |
 | Filesystem gestionado | Artifacts, journals, repos locales y workspaces temporales/retenciones | Snapshot del directorio gestionado |
 | Git/GitHub | Codigo versionado y ramas aprobadas | Historial Git/remoto |
 | Vault Markdown opcional | Exportacion legible para Obsidian | Complementario, nunca fuente operacional primaria |
@@ -131,8 +130,8 @@ se aplican automaticamente; se detectan y el usuario las aprueba.
 ### Estado Ya Implementado - Foundation (Fases 0-2)
 
 - API de health/version/status y CLI `battos status`.
-- PostgreSQL schema base y store sqlc.
-- Memory Core SQLite+FTS5 con HTTP/CLI: `save`, `search`, `recent`, `stats`.
+- SQLite unificado como persistencia operacional y store sqlc.
+- Memory Core SQLite+FTS5 en la misma base con HTTP/CLI: `save`, `search`, `recent`, `stats`.
 
 ### v0.1.0 - Mission Control Ejecutor Supervisado
 
