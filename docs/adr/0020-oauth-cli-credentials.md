@@ -116,18 +116,53 @@ una eleccion explicita para una maquina/VPS dedicada del propio usuario.
 
 ## Implementation status
 
-- 2026-06-08: se implementa el primer corte para **Codex** como
-  `codex-host-session` y se extiende el patron a `claude-code-host-session`.
-- El modo queda apagado por defecto y solo se registra cuando
-  `execution.host_session_enabled=true`.
-- DockerSandbox monta la carpeta `.codex` del host en modo read-only dentro de
-  `/mnt/battos-codex-host`, la copia a un `CODEX_HOME` efimero writable bajo
-  `/tmp` dentro del contenedor y no inyecta `OPENAI_API_KEY`.
-- DockerSandbox monta la carpeta `.claude` del host en modo read-only dentro de
-  `/mnt/battos-claude-host`, copia una whitelist a `/home/battos/.claude`
-  efimera dentro del contenedor y no inyecta `ANTHROPIC_API_KEY`.
-- La red sigue requiriendo approval `network`. La allowlist fina por dominio
-  queda como hardening posterior porque Docker `none/bridge` no filtra dominios.
+> **Estado real (revisado 2026-06-08 por code-review de seguridad):
+> implementacion PARCIAL.** Estan los guardrails mecanicos (read-only, montaje
+> minimo, sin API key, default-off), pero **faltan los DOS guardrails que
+> contienen el riesgo de exfiltracion** (allowlist de red y approval dedicado).
+> Por eso este modo es seguro **solo** en una maquina dedicada single-user con
+> prompts confiables. Ver "Guardrails pendientes" abajo.
+
+### Implementado
+
+- 2026-06-08: primer corte para **Codex** (`codex-host-session`) y
+  **Claude Code** (`claude-code-host-session`).
+- Modo apagado por defecto; los adapters solo se registran cuando
+  `execution.host_session_enabled=true` (verificado por test).
+- Montaje **read-only** del dir de credenciales del host, **minimo** (solo
+  `~/.codex` / `~/.claude`, nunca el home), validado en tres capas
+  (`adapters.go`, `validatePlan`, `dockerArgs`).
+- Copia una whitelist de archivos a un home **efimero writable** dentro del
+  contenedor (Codex: `/home/battos/.battos-codex-home` — **no** `/tmp` como
+  decia una version previa de este doc; Claude: `/home/battos/.claude`). El
+  contenedor corre `--rm`, asi que la copia muere con el run.
+- Los adapters host_session **no** inyectan `OPENAI_API_KEY`/`ANTHROPIC_API_KEY`
+  (verificado por test).
+
+### Guardrails PENDIENTES (criticos — del ADR original, aun NO implementados)
+
+- **Allowlist de red por dominio (ADR §3):** NO implementada. Cuando se aprueba
+  `network` el contenedor sale a internet completo (`bridge`). Con la sesion
+  montada y el CLI corriendo en modo bypass
+  (`--dangerously-bypass-approvals-and-sandbox` / `--dangerously-skip-permissions`),
+  un prompt malicioso puede **leer el token de sesion y exfiltrarlo**. Esta es la
+  mitigacion central y falta por completo.
+- **Approval dedicado `host_session` (ADR §5):** NO implementado. Hoy el modo
+  reusa el approval `network`; no hay un consentimiento separado ni auditoria
+  propia para exponer la sesion del host. `validApprovalKind` no conoce
+  `host_session`.
+- **Redaccion del token:** `redactKnownSecrets` solo cubre secretos leidos del
+  env del proceso; el token de sesion vive en un archivo, asi que si el agente
+  lo imprime **no se redacta** en logs/SSE.
+- **Path del dir de credenciales:** viene de config y se monta verbatim (solo se
+  valida absoluto + existe); sin allowlist de que ruta del host puede montarse.
+
+<callout>
+NO habilitar `host_session_enabled` en un host multi-tenant, compartido o
+expuesto a internet, ni con prompts de terceros, hasta implementar la allowlist
+de red y el approval dedicado. En ese escenario, un solo prompt malicioso
+exfiltra el token de la suscripcion.
+</callout>
 
 ## Related
 
