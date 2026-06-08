@@ -63,26 +63,26 @@ type runApprovalInput struct {
 }
 
 type runResponse struct {
-	ID               string    `json:"id"`
-	ProjectID        string    `json:"project_id"`
-	TaskID           string    `json:"task_id"`
-	AgentID          string    `json:"agent_id"`
-	SkillID          string    `json:"skill_id,omitempty"`
-	RuntimeAdapterID string    `json:"runtime_adapter_id"`
-	RepositoryID     string    `json:"repository_id,omitempty"`
-	Prompt           string    `json:"prompt"`
-	RequestedNetwork bool      `json:"requested_network"`
-	NetworkEnabled      bool      `json:"network_enabled"`
-	HostSessionEnabled  bool      `json:"host_session_enabled"`
-	Status           string    `json:"status"`
-	BranchName       string    `json:"branch_name,omitempty"`
-	ResultSummary    string    `json:"result_summary,omitempty"`
-	ErrorMessage     string    `json:"error_message,omitempty"`
-	EstimatedCostUSD float64   `json:"estimated_cost_usd"`
-	StartedAt        time.Time `json:"started_at,omitempty"`
-	CompletedAt      time.Time `json:"completed_at,omitempty"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	ID                 string    `json:"id"`
+	ProjectID          string    `json:"project_id"`
+	TaskID             string    `json:"task_id"`
+	AgentID            string    `json:"agent_id"`
+	SkillID            string    `json:"skill_id,omitempty"`
+	RuntimeAdapterID   string    `json:"runtime_adapter_id"`
+	RepositoryID       string    `json:"repository_id,omitempty"`
+	Prompt             string    `json:"prompt"`
+	RequestedNetwork   bool      `json:"requested_network"`
+	NetworkEnabled     bool      `json:"network_enabled"`
+	HostSessionEnabled bool      `json:"host_session_enabled"`
+	Status             string    `json:"status"`
+	BranchName         string    `json:"branch_name,omitempty"`
+	ResultSummary      string    `json:"result_summary,omitempty"`
+	ErrorMessage       string    `json:"error_message,omitempty"`
+	EstimatedCostUSD   float64   `json:"estimated_cost_usd"`
+	StartedAt          time.Time `json:"started_at,omitempty"`
+	CompletedAt        time.Time `json:"completed_at,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
 }
 
 type runApprovalResponse struct {
@@ -591,26 +591,26 @@ func writeSSEEvent(w http.ResponseWriter, event string, payload any) error {
 
 func runDTO(item store.Run) runResponse {
 	return runResponse{
-		ID:               item.ID,
-		ProjectID:        item.ProjectID,
-		TaskID:           item.TaskID,
-		AgentID:          item.AgentID,
-		SkillID:          textValue(item.SkillID),
-		RuntimeAdapterID: item.RuntimeAdapterID,
-		RepositoryID:     textValue(item.RepositoryID),
-		Prompt:           item.Prompt,
-		RequestedNetwork:    item.RequestedNetwork != 0,
-		NetworkEnabled:      item.NetworkEnabled != 0,
-		HostSessionEnabled:  item.HostSessionEnabled != 0,
-		Status:           item.Status,
-		BranchName:       textValue(item.BranchName),
-		ResultSummary:    textValue(item.ResultSummary),
-		ErrorMessage:     textValue(item.ErrorMessage),
-		EstimatedCostUSD: item.EstimatedCostUsd,
-		StartedAt:        item.StartedAt.Time,
-		CompletedAt:      item.CompletedAt.Time,
-		CreatedAt:        item.CreatedAt,
-		UpdatedAt:        item.UpdatedAt,
+		ID:                 item.ID,
+		ProjectID:          item.ProjectID,
+		TaskID:             item.TaskID,
+		AgentID:            item.AgentID,
+		SkillID:            textValue(item.SkillID),
+		RuntimeAdapterID:   item.RuntimeAdapterID,
+		RepositoryID:       textValue(item.RepositoryID),
+		Prompt:             item.Prompt,
+		RequestedNetwork:   item.RequestedNetwork != 0,
+		NetworkEnabled:     item.NetworkEnabled != 0,
+		HostSessionEnabled: item.HostSessionEnabled != 0,
+		Status:             item.Status,
+		BranchName:         textValue(item.BranchName),
+		ResultSummary:      textValue(item.ResultSummary),
+		ErrorMessage:       textValue(item.ErrorMessage),
+		EstimatedCostUSD:   item.EstimatedCostUsd,
+		StartedAt:          item.StartedAt.Time,
+		CompletedAt:        item.CompletedAt.Time,
+		CreatedAt:          item.CreatedAt,
+		UpdatedAt:          item.UpdatedAt,
 	}
 }
 
