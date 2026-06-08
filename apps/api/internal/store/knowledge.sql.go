@@ -7,33 +7,34 @@ package store
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
+	"database/sql"
+	"time"
 )
 
 const createArtifact = `-- name: CreateArtifact :one
 INSERT INTO artifacts (
-    project_id, task_id, run_id, name, kind, content, managed_path,
+    id, project_id, task_id, run_id, name, kind, content, managed_path,
     external_url, metadata
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, project_id, task_id, run_id, name, kind, content, managed_path, external_url, metadata, created_at, updated_at
+VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING id, project_id, task_id, run_id, name, kind, content, managed_path,
+          external_url, metadata, created_at, updated_at
 `
 
 type CreateArtifactParams struct {
-	ProjectID   string      `json:"project_id"`
-	TaskID      pgtype.Text `json:"task_id"`
-	RunID       pgtype.UUID `json:"run_id"`
-	Name        string      `json:"name"`
-	Kind        string      `json:"kind"`
-	Content     pgtype.Text `json:"content"`
-	ManagedPath pgtype.Text `json:"managed_path"`
-	ExternalUrl pgtype.Text `json:"external_url"`
-	Metadata    []byte      `json:"metadata"`
+	ProjectID   string         `json:"project_id"`
+	TaskID      sql.NullString `json:"task_id"`
+	RunID       sql.NullString `json:"run_id"`
+	Name        string         `json:"name"`
+	Kind        string         `json:"kind"`
+	Content     sql.NullString `json:"content"`
+	ManagedPath sql.NullString `json:"managed_path"`
+	ExternalUrl sql.NullString `json:"external_url"`
+	Metadata    string         `json:"metadata"`
 }
 
 func (q *Queries) CreateArtifact(ctx context.Context, arg CreateArtifactParams) (Artifact, error) {
-	row := q.db.QueryRow(ctx, createArtifact,
+	row := q.db.QueryRowContext(ctx, createArtifact,
 		arg.ProjectID,
 		arg.TaskID,
 		arg.RunID,
@@ -63,21 +64,21 @@ func (q *Queries) CreateArtifact(ctx context.Context, arg CreateArtifactParams) 
 }
 
 const createJournal = `-- name: CreateJournal :one
-INSERT INTO journals (workspace_id, project_id, title, content, journal_date)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO journals (id, workspace_id, project_id, title, content, journal_date)
+VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?)
 RETURNING id, workspace_id, project_id, title, content, journal_date, created_at, updated_at
 `
 
 type CreateJournalParams struct {
-	WorkspaceID pgtype.UUID `json:"workspace_id"`
-	ProjectID   string      `json:"project_id"`
-	Title       string      `json:"title"`
-	Content     string      `json:"content"`
-	JournalDate pgtype.Date `json:"journal_date"`
+	WorkspaceID string    `json:"workspace_id"`
+	ProjectID   string    `json:"project_id"`
+	Title       string    `json:"title"`
+	Content     string    `json:"content"`
+	JournalDate time.Time `json:"journal_date"`
 }
 
 func (q *Queries) CreateJournal(ctx context.Context, arg CreateJournalParams) (Journal, error) {
-	row := q.db.QueryRow(ctx, createJournal,
+	row := q.db.QueryRowContext(ctx, createJournal,
 		arg.WorkspaceID,
 		arg.ProjectID,
 		arg.Title,
@@ -100,8 +101,8 @@ func (q *Queries) CreateJournal(ctx context.Context, arg CreateJournalParams) (J
 
 const createKnowledgeWorkspace = `-- name: CreateKnowledgeWorkspace :one
 
-INSERT INTO knowledge_workspaces (project_id, name, layout, status, metadata)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO knowledge_workspaces (id, project_id, name, layout, status, metadata)
+VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?)
 RETURNING id, project_id, name, layout, status, metadata, created_at, updated_at
 `
 
@@ -110,12 +111,12 @@ type CreateKnowledgeWorkspaceParams struct {
 	Name      string `json:"name"`
 	Layout    string `json:"layout"`
 	Status    string `json:"status"`
-	Metadata  []byte `json:"metadata"`
+	Metadata  string `json:"metadata"`
 }
 
 // Knowledge Center CRUD: workspaces, journals and managed artifacts.
 func (q *Queries) CreateKnowledgeWorkspace(ctx context.Context, arg CreateKnowledgeWorkspaceParams) (KnowledgeWorkspace, error) {
-	row := q.db.QueryRow(ctx, createKnowledgeWorkspace,
+	row := q.db.QueryRowContext(ctx, createKnowledgeWorkspace,
 		arg.ProjectID,
 		arg.Name,
 		arg.Layout,
@@ -137,11 +138,12 @@ func (q *Queries) CreateKnowledgeWorkspace(ctx context.Context, arg CreateKnowle
 }
 
 const getArtifact = `-- name: GetArtifact :one
-SELECT id, project_id, task_id, run_id, name, kind, content, managed_path, external_url, metadata, created_at, updated_at FROM artifacts WHERE id = $1
+SELECT id, project_id, task_id, run_id, name, kind, content, managed_path,
+       external_url, metadata, created_at, updated_at FROM artifacts WHERE id = ?
 `
 
-func (q *Queries) GetArtifact(ctx context.Context, id pgtype.UUID) (Artifact, error) {
-	row := q.db.QueryRow(ctx, getArtifact, id)
+func (q *Queries) GetArtifact(ctx context.Context, id string) (Artifact, error) {
+	row := q.db.QueryRowContext(ctx, getArtifact, id)
 	var i Artifact
 	err := row.Scan(
 		&i.ID,
@@ -161,18 +163,19 @@ func (q *Queries) GetArtifact(ctx context.Context, id pgtype.UUID) (Artifact, er
 }
 
 const getArtifactByRunAndKind = `-- name: GetArtifactByRunAndKind :one
-SELECT id, project_id, task_id, run_id, name, kind, content, managed_path, external_url, metadata, created_at, updated_at FROM artifacts
-WHERE run_id = $1 AND kind = $2
+SELECT id, project_id, task_id, run_id, name, kind, content, managed_path,
+       external_url, metadata, created_at, updated_at FROM artifacts
+WHERE run_id = ? AND kind = ?
 LIMIT 1
 `
 
 type GetArtifactByRunAndKindParams struct {
-	RunID pgtype.UUID `json:"run_id"`
-	Kind  string      `json:"kind"`
+	RunID sql.NullString `json:"run_id"`
+	Kind  string         `json:"kind"`
 }
 
 func (q *Queries) GetArtifactByRunAndKind(ctx context.Context, arg GetArtifactByRunAndKindParams) (Artifact, error) {
-	row := q.db.QueryRow(ctx, getArtifactByRunAndKind, arg.RunID, arg.Kind)
+	row := q.db.QueryRowContext(ctx, getArtifactByRunAndKind, arg.RunID, arg.Kind)
 	var i Artifact
 	err := row.Scan(
 		&i.ID,
@@ -192,11 +195,12 @@ func (q *Queries) GetArtifactByRunAndKind(ctx context.Context, arg GetArtifactBy
 }
 
 const getJournal = `-- name: GetJournal :one
-SELECT id, workspace_id, project_id, title, content, journal_date, created_at, updated_at FROM journals WHERE id = $1
+SELECT id, workspace_id, project_id, title, content, journal_date, created_at, updated_at
+FROM journals WHERE id = ?
 `
 
-func (q *Queries) GetJournal(ctx context.Context, id pgtype.UUID) (Journal, error) {
-	row := q.db.QueryRow(ctx, getJournal, id)
+func (q *Queries) GetJournal(ctx context.Context, id string) (Journal, error) {
+	row := q.db.QueryRowContext(ctx, getJournal, id)
 	var i Journal
 	err := row.Scan(
 		&i.ID,
@@ -212,11 +216,12 @@ func (q *Queries) GetJournal(ctx context.Context, id pgtype.UUID) (Journal, erro
 }
 
 const getKnowledgeWorkspace = `-- name: GetKnowledgeWorkspace :one
-SELECT id, project_id, name, layout, status, metadata, created_at, updated_at FROM knowledge_workspaces WHERE id = $1
+SELECT id, project_id, name, layout, status, metadata, created_at, updated_at
+FROM knowledge_workspaces WHERE id = ?
 `
 
-func (q *Queries) GetKnowledgeWorkspace(ctx context.Context, id pgtype.UUID) (KnowledgeWorkspace, error) {
-	row := q.db.QueryRow(ctx, getKnowledgeWorkspace, id)
+func (q *Queries) GetKnowledgeWorkspace(ctx context.Context, id string) (KnowledgeWorkspace, error) {
+	row := q.db.QueryRowContext(ctx, getKnowledgeWorkspace, id)
 	var i KnowledgeWorkspace
 	err := row.Scan(
 		&i.ID,
@@ -232,13 +237,14 @@ func (q *Queries) GetKnowledgeWorkspace(ctx context.Context, id pgtype.UUID) (Kn
 }
 
 const listArtifactsByProject = `-- name: ListArtifactsByProject :many
-SELECT id, project_id, task_id, run_id, name, kind, content, managed_path, external_url, metadata, created_at, updated_at FROM artifacts
-WHERE project_id = $1
+SELECT id, project_id, task_id, run_id, name, kind, content, managed_path,
+       external_url, metadata, created_at, updated_at FROM artifacts
+WHERE project_id = ?
 ORDER BY created_at DESC
 `
 
 func (q *Queries) ListArtifactsByProject(ctx context.Context, projectID string) ([]Artifact, error) {
-	rows, err := q.db.Query(ctx, listArtifactsByProject, projectID)
+	rows, err := q.db.QueryContext(ctx, listArtifactsByProject, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -264,6 +270,52 @@ func (q *Queries) ListArtifactsByProject(ctx context.Context, projectID string) 
 		}
 		items = append(items, i)
 	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listArtifactsByRun = `-- name: ListArtifactsByRun :many
+SELECT id, project_id, task_id, run_id, name, kind, content, managed_path,
+       external_url, metadata, created_at, updated_at FROM artifacts
+WHERE run_id = ?
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListArtifactsByRun(ctx context.Context, runID sql.NullString) ([]Artifact, error) {
+	rows, err := q.db.QueryContext(ctx, listArtifactsByRun, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Artifact{}
+	for rows.Next() {
+		var i Artifact
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.TaskID,
+			&i.RunID,
+			&i.Name,
+			&i.Kind,
+			&i.Content,
+			&i.ManagedPath,
+			&i.ExternalUrl,
+			&i.Metadata,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -271,13 +323,14 @@ func (q *Queries) ListArtifactsByProject(ctx context.Context, projectID string) 
 }
 
 const listJournalsByProject = `-- name: ListJournalsByProject :many
-SELECT id, workspace_id, project_id, title, content, journal_date, created_at, updated_at FROM journals
-WHERE project_id = $1
+SELECT id, workspace_id, project_id, title, content, journal_date, created_at, updated_at
+FROM journals
+WHERE project_id = ?
 ORDER BY journal_date DESC, created_at DESC
 `
 
 func (q *Queries) ListJournalsByProject(ctx context.Context, projectID string) ([]Journal, error) {
-	rows, err := q.db.Query(ctx, listJournalsByProject, projectID)
+	rows, err := q.db.QueryContext(ctx, listJournalsByProject, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -299,6 +352,9 @@ func (q *Queries) ListJournalsByProject(ctx context.Context, projectID string) (
 		}
 		items = append(items, i)
 	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -306,13 +362,14 @@ func (q *Queries) ListJournalsByProject(ctx context.Context, projectID string) (
 }
 
 const listKnowledgeWorkspaces = `-- name: ListKnowledgeWorkspaces :many
-SELECT id, project_id, name, layout, status, metadata, created_at, updated_at FROM knowledge_workspaces
+SELECT id, project_id, name, layout, status, metadata, created_at, updated_at
+FROM knowledge_workspaces
 WHERE status = 'active'
 ORDER BY created_at DESC
 `
 
 func (q *Queries) ListKnowledgeWorkspaces(ctx context.Context) ([]KnowledgeWorkspace, error) {
-	rows, err := q.db.Query(ctx, listKnowledgeWorkspaces)
+	rows, err := q.db.QueryContext(ctx, listKnowledgeWorkspaces)
 	if err != nil {
 		return nil, err
 	}
@@ -334,6 +391,9 @@ func (q *Queries) ListKnowledgeWorkspaces(ctx context.Context) ([]KnowledgeWorks
 		}
 		items = append(items, i)
 	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -342,24 +402,26 @@ func (q *Queries) ListKnowledgeWorkspaces(ctx context.Context) ([]KnowledgeWorks
 
 const updateSkillDefinition = `-- name: UpdateSkillDefinition :one
 UPDATE skills
-SET prompt_template = $2, lifecycle = $3, version = $4
-WHERE id = $1
-RETURNING id, slug, name, description, category, risk_level, inputs, outputs, steps, compatible_agents, compatible_runtimes, source, source_id, source_ref, version, status, created_at, updated_at, prompt_template, lifecycle
+SET prompt_template = ?, lifecycle = ?, version = ?
+WHERE id = ?
+RETURNING id, slug, name, description, category, risk_level, inputs, outputs, steps,
+          compatible_agents, compatible_runtimes, source, source_id, source_ref, version,
+          status, prompt_template, lifecycle, created_at, updated_at
 `
 
 type UpdateSkillDefinitionParams struct {
-	ID             string      `json:"id"`
-	PromptTemplate pgtype.Text `json:"prompt_template"`
-	Lifecycle      string      `json:"lifecycle"`
-	Version        pgtype.Text `json:"version"`
+	PromptTemplate sql.NullString `json:"prompt_template"`
+	Lifecycle      string         `json:"lifecycle"`
+	Version        sql.NullString `json:"version"`
+	ID             string         `json:"id"`
 }
 
 func (q *Queries) UpdateSkillDefinition(ctx context.Context, arg UpdateSkillDefinitionParams) (Skill, error) {
-	row := q.db.QueryRow(ctx, updateSkillDefinition,
-		arg.ID,
+	row := q.db.QueryRowContext(ctx, updateSkillDefinition,
 		arg.PromptTemplate,
 		arg.Lifecycle,
 		arg.Version,
+		arg.ID,
 	)
 	var i Skill
 	err := row.Scan(
@@ -379,10 +441,10 @@ func (q *Queries) UpdateSkillDefinition(ctx context.Context, arg UpdateSkillDefi
 		&i.SourceRef,
 		&i.Version,
 		&i.Status,
-		&i.CreatedAt,
-		&i.UpdatedAt,
 		&i.PromptTemplate,
 		&i.Lifecycle,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }

@@ -88,7 +88,8 @@ type SearchFilter struct {
 // Concurrencia: SQLite con WAL mode soporta múltiples lectores + 1 escritor.
 // Es seguro compartir un *Core entre handlers HTTP.
 type Core struct {
-	db *sql.DB
+	db    *sql.DB
+	owned bool
 }
 
 // Open abre (o crea) el archivo SQLite y aplica el schema.
@@ -123,7 +124,7 @@ func Open(dbPath string) (*Core, error) {
 		return nil, fmt.Errorf("ping SQLite: %w", err)
 	}
 
-	c := &Core{db: db}
+	c := &Core{db: db, owned: true}
 	if err := c.applySchema(context.Background()); err != nil {
 		db.Close()
 		return nil, err
@@ -131,8 +132,20 @@ func Open(dbPath string) (*Core, error) {
 	return c, nil
 }
 
+// OpenWithDB reutiliza la base SQLite unificada de BattOS. El caller mantiene
+// la propiedad del handle y debe cerrarlo.
+func OpenWithDB(db *sql.DB) (*Core, error) {
+	if db == nil {
+		return nil, errors.New("memory: db nil")
+	}
+	return &Core{db: db}, nil
+}
+
 // Close cierra el handle de DB.
 func (c *Core) Close() error {
+	if !c.owned {
+		return nil
+	}
 	return c.db.Close()
 }
 

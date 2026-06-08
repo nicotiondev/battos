@@ -18,6 +18,7 @@ import (
 type Config struct {
 	API        APIConfig        `mapstructure:"api"`
 	Auth       AuthConfig       `mapstructure:"auth"`
+	Database   DatabaseConfig   `mapstructure:"database"`
 	Memory     MemoryConfig     `mapstructure:"memory"`
 	Knowledge  KnowledgeConfig  `mapstructure:"knowledge"`
 	Logs       LogsConfig       `mapstructure:"logs"`
@@ -26,9 +27,7 @@ type Config struct {
 	Execution  ExecutionConfig  `mapstructure:"execution"`
 	NovaCore   NovaCoreConfig   `mapstructure:"novacore"`
 
-	// Database — viene del env (DATABASE_URL), no de battos.yaml.
-	DatabaseURL string `mapstructure:"-"`
-	APIToken    string `mapstructure:"-"`
+	APIToken string `mapstructure:"-"`
 }
 
 type APIConfig struct {
@@ -39,6 +38,10 @@ type APIConfig struct {
 
 type AuthConfig struct {
 	Mode string `mapstructure:"mode"`
+}
+
+type DatabaseConfig struct {
+	Path string `mapstructure:"path"`
 }
 
 type MemoryConfig struct {
@@ -67,13 +70,16 @@ type RegistriesConfig struct {
 }
 
 type ExecutionConfig struct {
-	WorkerEnabled   bool   `mapstructure:"worker_enabled"`
-	SandboxMode     string `mapstructure:"sandbox_mode"`
-	DefaultTimeoutS int    `mapstructure:"default_timeout_s"`
-	PollIntervalS   int    `mapstructure:"poll_interval_s"`
-	DockerImage     string `mapstructure:"docker_image"`
-	WorkspacesDir   string `mapstructure:"workspaces_dir"`
-	RepositoriesDir string `mapstructure:"repositories_dir"`
+	WorkerEnabled        bool   `mapstructure:"worker_enabled"`
+	SandboxMode          string `mapstructure:"sandbox_mode"`
+	DefaultTimeoutS      int    `mapstructure:"default_timeout_s"`
+	PollIntervalS        int    `mapstructure:"poll_interval_s"`
+	DockerImage          string `mapstructure:"docker_image"`
+	WorkspacesDir        string `mapstructure:"workspaces_dir"`
+	RepositoriesDir      string `mapstructure:"repositories_dir"`
+	HostSessionEnabled   bool   `mapstructure:"host_session_enabled"`
+	CodexCredentialsDir  string `mapstructure:"codex_credentials_dir"`
+	ClaudeCredentialsDir string `mapstructure:"claude_credentials_dir"`
 }
 
 type NovaCoreConfig struct {
@@ -108,6 +114,7 @@ func Load() (*Config, error) {
 		"api.host",
 		"api.port",
 		"auth.mode",
+		"database.path",
 		"logs.level",
 		"logs.format",
 		"logs.dir",
@@ -125,6 +132,9 @@ func Load() (*Config, error) {
 		"execution.docker_image",
 		"execution.workspaces_dir",
 		"execution.repositories_dir",
+		"execution.host_session_enabled",
+		"execution.codex_credentials_dir",
+		"execution.claude_credentials_dir",
 		"novacore.enabled",
 		"novacore.provider",
 		"novacore.model",
@@ -143,8 +153,6 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("parseando config: %w", err)
 	}
 
-	// DATABASE_URL viene del entorno (.env o shell), no del YAML.
-	cfg.DatabaseURL = os.Getenv("DATABASE_URL")
 	cfg.APIToken = os.Getenv("BATTOS_API_TOKEN")
 
 	switch cfg.Auth.Mode {
@@ -162,6 +170,9 @@ func Load() (*Config, error) {
 	}
 	if strings.TrimSpace(cfg.Knowledge.ArtifactsDir) == "" {
 		cfg.Knowledge.ArtifactsDir = "data/artifacts"
+	}
+	if strings.TrimSpace(cfg.Database.Path) == "" {
+		cfg.Database.Path = "data/battos.db"
 	}
 	if strings.TrimSpace(cfg.Execution.SandboxMode) == "" {
 		cfg.Execution.SandboxMode = "dry_run"

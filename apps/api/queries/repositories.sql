@@ -2,21 +2,26 @@
 
 -- name: CreateRepository :one
 INSERT INTO repositories (id, project_id, kind, name, remote_url, credential_ref, default_branch, metadata)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING *;
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING id, project_id, kind, name, remote_url, credential_ref, default_branch,
+          metadata, created_at, updated_at;
 
 -- name: ListRepositoriesByProject :many
-SELECT * FROM repositories
-WHERE project_id = $1
+SELECT id, project_id, kind, name, remote_url, credential_ref, default_branch,
+       metadata, created_at, updated_at FROM repositories
+WHERE project_id = ?
 ORDER BY created_at DESC;
 
 -- name: ListRepositories :many
-SELECT * FROM repositories
+SELECT id, project_id, kind, name, remote_url, credential_ref, default_branch,
+       metadata, created_at, updated_at FROM repositories
 ORDER BY created_at DESC;
 
 -- name: GetRepository :one
-SELECT * FROM repositories WHERE id = $1;
+SELECT id, project_id, kind, name, remote_url, credential_ref, default_branch,
+       metadata, created_at, updated_at FROM repositories WHERE id = ?;
 
 -- name: DeleteRepository :one
-DELETE FROM repositories WHERE id = $1
-RETURNING *;
+DELETE FROM repositories WHERE id = ?
+RETURNING id, project_id, kind, name, remote_url, credential_ref, default_branch,
+          metadata, created_at, updated_at;

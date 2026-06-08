@@ -16,9 +16,13 @@ api:
 auth:
   mode: "disabled"  # disabled | token
 
+database:
+  # SQLite unificado: work/runs/usage/repos/novacore/audit + Memory Core.
+  path: "data/battos.db"
+
 memory:
-  # Path relativo al cwd del API
-  db_path: "data/memory/battos.db"
+  # Legacy alias; el API usa database.path para la DB unificada.
+  db_path: "data/battos.db"
   # Usar FTS5 (true) o LIKE (false) para search
   use_fts5: true
 
@@ -53,6 +57,11 @@ execution:
   docker_image: "alpine:3.20"
   workspaces_dir: "data/runs/workspaces"
   repositories_dir: "data/repositories"
+  # host_session monta credenciales OAuth de CLIs oficiales dentro del
+  # contenedor. Apagado por defecto; usar solo en maquina dedicada.
+  host_session_enabled: false
+  codex_credentials_dir: ""
+  claude_credentials_dir: ""
 
 # Asistente conversacional de BattOS
 novacore:

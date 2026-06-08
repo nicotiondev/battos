@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"os"
@@ -10,21 +11,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/nicotion/battos/apps/api/internal/store"
 )
 
 type KnowledgeStore interface {
 	CreateKnowledgeWorkspace(context.Context, store.CreateKnowledgeWorkspaceParams) (store.KnowledgeWorkspace, error)
 	ListKnowledgeWorkspaces(context.Context) ([]store.KnowledgeWorkspace, error)
-	GetKnowledgeWorkspace(context.Context, pgtype.UUID) (store.KnowledgeWorkspace, error)
+	GetKnowledgeWorkspace(context.Context, string) (store.KnowledgeWorkspace, error)
 	CreateJournal(context.Context, store.CreateJournalParams) (store.Journal, error)
 	ListJournalsByProject(context.Context, string) ([]store.Journal, error)
-	GetJournal(context.Context, pgtype.UUID) (store.Journal, error)
+	GetJournal(context.Context, string) (store.Journal, error)
 	CreateArtifact(context.Context, store.CreateArtifactParams) (store.Artifact, error)
 	ListArtifactsByProject(context.Context, string) ([]store.Artifact, error)
-	GetArtifact(context.Context, pgtype.UUID) (store.Artifact, error)
+	GetArtifact(context.Context, string) (store.Artifact, error)
 }
 
 type KnowledgeHandler struct {
@@ -121,7 +120,7 @@ func (h *KnowledgeHandler) CreateWorkspace(w http.ResponseWriter, r *http.Reques
 		Name:      in.Name,
 		Layout:    defaultString(in.Layout, "raw_wiki_outputs"),
 		Status:    defaultString(in.Status, "active"),
-		Metadata:  []byte("{}"),
+		Metadata:  "{}",
 	})
 	if err != nil {
 		writeWorkError(w, err)
@@ -152,7 +151,7 @@ func (h *KnowledgeHandler) CreateJournal(w http.ResponseWriter, r *http.Request)
 	if !decodeWorkInput(w, r, &in) || !required(w, in.WorkspaceID, "workspace_id") || !required(w, in.Title, "title") || !required(w, in.Content, "content") {
 		return
 	}
-	workspaceID, ok := parseUUIDInput(w, in.WorkspaceID, "workspace_id")
+	workspaceID, ok := parseIDInput(w, in.WorkspaceID, "workspace_id")
 	if !ok {
 		return
 	}
@@ -216,13 +215,13 @@ func (h *KnowledgeHandler) CreateArtifact(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	runID := pgtype.UUID{}
+	runID := sql.NullString{}
 	if strings.TrimSpace(in.RunID) != "" {
-		parsed, ok := parseUUIDInput(w, in.RunID, "run_id")
+		parsed, ok := parseIDInput(w, in.RunID, "run_id")
 		if !ok {
 			return
 		}
-		runID = parsed
+		runID = sql.NullString{String: parsed, Valid: true}
 	}
 	item, err := h.store.CreateArtifact(r.Context(), store.CreateArtifactParams{
 		ProjectID:   in.ProjectID,
@@ -233,7 +232,7 @@ func (h *KnowledgeHandler) CreateArtifact(w http.ResponseWriter, r *http.Request
 		Content:     nullableText(contentForArtifact(in, managedPath)),
 		ManagedPath: nullableText(managedPath),
 		ExternalUrl: nullableText(in.ExternalURL),
-		Metadata:    []byte("{}"),
+		Metadata:    "{}",
 	})
 	if err != nil {
 		writeWorkError(w, err)
@@ -361,62 +360,52 @@ func pathWithin(root, target string) bool {
 	return relative == "." || (!strings.HasPrefix(relative, ".."+string(filepath.Separator)) && relative != "..")
 }
 
-func parseUUIDInput(w http.ResponseWriter, value, field string) (pgtype.UUID, bool) {
-	parsed, err := uuid.Parse(strings.TrimSpace(value))
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"message": field + " debe ser UUID valido", "code": 400}})
-		return pgtype.UUID{}, false
-	}
-	return pgtype.UUID{Bytes: parsed, Valid: true}, true
-}
-
-func parseDateInput(w http.ResponseWriter, value string) (pgtype.Date, bool) {
+func parseIDInput(w http.ResponseWriter, value, field string) (string, bool) {
 	value = strings.TrimSpace(value)
 	if value == "" {
-		return pgtype.Date{Time: time.Now(), Valid: true}, true
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"message": field + " es obligatorio", "code": 400}})
+		return "", false
+	}
+	return value, true
+}
+
+func parseDateInput(w http.ResponseWriter, value string) (time.Time, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Now(), true
 	}
 	parsed, err := time.Parse("2006-01-02", value)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"message": "journal_date debe usar formato YYYY-MM-DD", "code": 400}})
-		return pgtype.Date{}, false
+		return time.Time{}, false
 	}
-	return pgtype.Date{Time: parsed, Valid: true}, true
+	return parsed, true
 }
 
-func uuidValue(value pgtype.UUID) string {
-	if !value.Valid {
-		return ""
-	}
-	return uuid.UUID(value.Bytes).String()
-}
-
-func dateValue(value pgtype.Date) string {
-	if !value.Valid {
-		return ""
-	}
-	return value.Time.Format("2006-01-02")
+func dateValue(value time.Time) string {
+	return value.Format("2006-01-02")
 }
 
 func knowledgeWorkspaceDTO(item store.KnowledgeWorkspace) knowledgeWorkspaceResponse {
-	return knowledgeWorkspaceResponse{uuidValue(item.ID), item.ProjectID, item.Name, item.Layout, item.Status, item.CreatedAt.Time, item.UpdatedAt.Time}
+	return knowledgeWorkspaceResponse{item.ID, item.ProjectID, item.Name, item.Layout, item.Status, item.CreatedAt, item.UpdatedAt}
 }
 
 func journalDTO(item store.Journal) journalResponse {
-	return journalResponse{uuidValue(item.ID), uuidValue(item.WorkspaceID), item.ProjectID, item.Title, item.Content, dateValue(item.JournalDate), item.CreatedAt.Time, item.UpdatedAt.Time}
+	return journalResponse{item.ID, item.WorkspaceID, item.ProjectID, item.Title, item.Content, dateValue(item.JournalDate), item.CreatedAt, item.UpdatedAt}
 }
 
 func artifactDTO(item store.Artifact) artifactResponse {
 	return artifactResponse{
-		ID:          uuidValue(item.ID),
+		ID:          item.ID,
 		ProjectID:   item.ProjectID,
 		TaskID:      textValue(item.TaskID),
-		RunID:       uuidValue(item.RunID),
+		RunID:       textValue(item.RunID),
 		Name:        item.Name,
 		Kind:        item.Kind,
 		Content:     textValue(item.Content),
 		ManagedPath: textValue(item.ManagedPath),
 		ExternalURL: textValue(item.ExternalUrl),
-		CreatedAt:   item.CreatedAt.Time,
-		UpdatedAt:   item.UpdatedAt.Time,
+		CreatedAt:   item.CreatedAt,
+		UpdatedAt:   item.UpdatedAt,
 	}
 }

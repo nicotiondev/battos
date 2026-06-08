@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,9 +14,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/nicotion/battos/apps/api/internal/memory"
 	"github.com/nicotion/battos/apps/api/internal/store"
 )
@@ -38,7 +36,7 @@ func (f *fakeRunStore) GetRepository(_ context.Context, id string) (store.Reposi
 
 func (f *fakeRunStore) CreateRun(_ context.Context, arg store.CreateRunParams) (store.Run, error) {
 	f.createRunParams = arg
-	return testRun("awaiting_approval", arg.RequestedNetwork), nil
+	return testRun("awaiting_approval", arg.RequestedNetwork != 0), nil
 }
 
 func (f *fakeRunStore) ListRuns(context.Context) ([]store.Run, error) {
@@ -49,8 +47,8 @@ func (f *fakeRunStore) ListRunsByProject(context.Context, string) ([]store.Run, 
 	return []store.Run{testRun("queued", false)}, nil
 }
 
-func (f *fakeRunStore) GetRun(context.Context, pgtype.UUID) (store.Run, error) {
-	if !f.current.ID.Valid {
+func (f *fakeRunStore) GetRun(context.Context, string) (store.Run, error) {
+	if f.current.ID == "" {
 		return testRun("awaiting_approval", true), nil
 	}
 	return f.current, nil
@@ -59,12 +57,12 @@ func (f *fakeRunStore) GetRun(context.Context, pgtype.UUID) (store.Run, error) {
 func (f *fakeRunStore) CreateRunApproval(_ context.Context, arg store.CreateRunApprovalParams) (store.RunApproval, error) {
 	f.createApprovalParams = arg
 	return store.RunApproval{
-		ID:        testUUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+		ID:        "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
 		RunID:     arg.RunID,
 		Kind:      arg.Kind,
 		Decision:  arg.Decision,
 		Reason:    arg.Reason,
-		DecidedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		DecidedAt: time.Now(),
 	}, nil
 }
 
@@ -75,36 +73,47 @@ func (f *fakeRunStore) UpdateRunStatus(_ context.Context, arg store.UpdateRunSta
 	return item, nil
 }
 
-func (f *fakeRunStore) EnableRunNetwork(_ context.Context, id pgtype.UUID) (store.Run, error) {
+func (f *fakeRunStore) EnableRunNetwork(_ context.Context, id string) (store.Run, error) {
 	f.networkEnabled = true
 	item := testRun("awaiting_approval", true)
 	item.ID = id
-	item.NetworkEnabled = true
+	item.NetworkEnabled = 1
 	return item, nil
 }
 
-func (f *fakeRunStore) CancelRun(_ context.Context, id pgtype.UUID) (store.Run, error) {
+func (f *fakeRunStore) CancelRun(_ context.Context, id string) (store.Run, error) {
 	if f.current.Status == "succeeded" {
-		return store.Run{}, pgx.ErrNoRows
+		return store.Run{}, sql.ErrNoRows
 	}
 	item := testRun("cancelled", false)
 	item.ID = id
 	return item, nil
 }
 
-func (f *fakeRunStore) ListRunLogs(context.Context, pgtype.UUID) ([]store.RunLog, error) {
-	return []store.RunLog{{ID: 1, RunID: testUUID("11111111-1111-1111-1111-111111111111"), Stream: "system", Message: "queued", CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}}}, nil
+func (f *fakeRunStore) ListRunLogs(context.Context, string) ([]store.RunLog, error) {
+	return []store.RunLog{{ID: 1, RunID: "11111111-1111-1111-1111-111111111111", Stream: "system", Message: "queued", CreatedAt: time.Now()}}, nil
 }
 
 func (f *fakeRunStore) GetArtifactByRunAndKind(_ context.Context, arg store.GetArtifactByRunAndKindParams) (store.Artifact, error) {
 	return store.Artifact{
-		ID:        testUUID("22222222-2222-2222-2222-222222222222"),
+		ID:        "22222222-2222-2222-2222-222222222222",
 		ProjectID: "web",
 		RunID:     arg.RunID,
 		Name:      "run-diff",
 		Kind:      "diff",
-		Content:   pgtype.Text{String: "some diff", Valid: true},
+		Content:   sql.NullString{String: "some diff", Valid: true},
 	}, nil
+}
+
+func (f *fakeRunStore) ListArtifactsByRun(_ context.Context, runID sql.NullString) ([]store.Artifact, error) {
+	return []store.Artifact{{
+		ID:        "22222222-2222-2222-2222-222222222222",
+		ProjectID: "web",
+		RunID:     runID,
+		Name:      "run-diff",
+		Kind:      "diff",
+		Content:   sql.NullString{String: "some diff", Valid: true},
+	}}, nil
 }
 
 func (f *fakeRunStore) UpdateRunBranchAndMetadata(_ context.Context, arg store.UpdateRunBranchAndMetadataParams) (store.Run, error) {
@@ -126,7 +135,7 @@ func TestCreateRunStartsAwaitingApproval(t *testing.T) {
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusCreated, rec.Body.String())
 	}
-	if q.createRunParams.ProjectID != "web" || q.createRunParams.RuntimeAdapterID != "codex" || !q.createRunParams.RequestedNetwork {
+	if q.createRunParams.ProjectID != "web" || q.createRunParams.RuntimeAdapterID != "codex" || q.createRunParams.RequestedNetwork == 0 {
 		t.Fatalf("create params = %+v, want proposed run params", q.createRunParams)
 	}
 	if !strings.Contains(rec.Body.String(), `"status":"awaiting_approval"`) {
@@ -225,24 +234,19 @@ func runRequest(method, target, body string) *http.Request {
 }
 
 func testRun(status string, requestedNetwork bool) store.Run {
-	now := pgtype.Timestamptz{Time: time.Now(), Valid: true}
+	now := time.Now()
 	return store.Run{
-		ID:               testUUID("11111111-1111-1111-1111-111111111111"),
+		ID:               "11111111-1111-1111-1111-111111111111",
 		ProjectID:        "web",
 		TaskID:           "task-1",
 		AgentID:          "agent-1",
 		RuntimeAdapterID: "codex",
 		Prompt:           "build it",
-		RequestedNetwork: requestedNetwork,
+		RequestedNetwork: boolInt(requestedNetwork),
 		Status:           status,
 		CreatedAt:        now,
 		UpdatedAt:        now,
 	}
-}
-
-func testUUID(value string) pgtype.UUID {
-	parsed := uuid.MustParse(value)
-	return pgtype.UUID{Bytes: parsed, Valid: true}
 }
 
 func TestApproveCommitSuccess(t *testing.T) {
@@ -257,8 +261,8 @@ func TestApproveCommitSuccess(t *testing.T) {
 	}
 
 	runItem := testRun("succeeded", false)
-	runItem.RepositoryID = pgtype.Text{String: "repo-1", Valid: true}
-	runItem.Metadata = []byte(`{"work_dir":"` + filepath.ToSlash(workDir) + `"}`)
+	runItem.RepositoryID = sql.NullString{String: "repo-1", Valid: true}
+	runItem.Metadata = `{"work_dir":"` + filepath.ToSlash(workDir) + `"}`
 
 	q := &fakeRunStore{current: runItem}
 	h := NewRunHandler(q, nil)
@@ -338,9 +342,9 @@ func TestApprovePushSuccess(t *testing.T) {
 	}
 
 	runItem := testRun("succeeded", false)
-	runItem.RepositoryID = pgtype.Text{String: "repo-1", Valid: true}
-	runItem.BranchName = pgtype.Text{String: branchName, Valid: true}
-	runItem.Metadata = []byte(`{"work_dir":"` + filepath.ToSlash(workDir) + `"}`)
+	runItem.RepositoryID = sql.NullString{String: "repo-1", Valid: true}
+	runItem.BranchName = sql.NullString{String: branchName, Valid: true}
+	runItem.Metadata = `{"work_dir":"` + filepath.ToSlash(workDir) + `"}`
 
 	q := &fakeRunStore{current: runItem}
 	h := NewRunHandler(q, nil)
@@ -377,17 +381,17 @@ func TestApprovePushGithubMissingCredentialRejected(t *testing.T) {
 	setupTestGitRepo(t, workDir)
 
 	runItem := testRun("succeeded", false)
-	runItem.RepositoryID = pgtype.Text{String: "repo-1", Valid: true}
-	runItem.BranchName = pgtype.Text{String: "battos-run-11111111-1111-1111-1111-111111111111", Valid: true}
-	runItem.Metadata = []byte(`{"work_dir":"` + filepath.ToSlash(workDir) + `"}`)
+	runItem.RepositoryID = sql.NullString{String: "repo-1", Valid: true}
+	runItem.BranchName = sql.NullString{String: "battos-run-11111111-1111-1111-1111-111111111111", Valid: true}
+	runItem.Metadata = `{"work_dir":"` + filepath.ToSlash(workDir) + `"}`
 
 	q := &fakeRunStore{
 		current: runItem,
 		repo: &store.Repository{
 			ID:            "repo-1",
 			Kind:          "github",
-			RemoteUrl:     pgtype.Text{String: "https://github.com/acme/web.git", Valid: true},
-			CredentialRef: pgtype.Text{String: "BATTOS_CREDENTIAL_ABSENT_FOR_TEST", Valid: true},
+			RemoteUrl:     sql.NullString{String: "https://github.com/acme/web.git", Valid: true},
+			CredentialRef: sql.NullString{String: "BATTOS_CREDENTIAL_ABSENT_FOR_TEST", Valid: true},
 		},
 	}
 	h := NewRunHandler(q, nil)

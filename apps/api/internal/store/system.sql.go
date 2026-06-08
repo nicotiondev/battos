@@ -10,19 +10,19 @@ import (
 )
 
 const insertSystemLog = `-- name: InsertSystemLog :exec
-INSERT INTO system_logs (level, source, message, context)
-VALUES ($1, $2, $3, $4)
+INSERT INTO system_logs (id, level, source, message, context)
+VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?)
 `
 
 type InsertSystemLogParams struct {
 	Level   string `json:"level"`
 	Source  string `json:"source"`
 	Message string `json:"message"`
-	Context []byte `json:"context"`
+	Context string `json:"context"`
 }
 
 func (q *Queries) InsertSystemLog(ctx context.Context, arg InsertSystemLogParams) error {
-	_, err := q.db.Exec(ctx, insertSystemLog,
+	_, err := q.db.ExecContext(ctx, insertSystemLog,
 		arg.Level,
 		arg.Source,
 		arg.Message,
@@ -33,13 +33,13 @@ func (q *Queries) InsertSystemLog(ctx context.Context, arg InsertSystemLogParams
 
 const pingDB = `-- name: PingDB :one
 
-SELECT 1::int AS ok
+SELECT 1 AS ok
 `
 
 // Queries de sistema: healthchecks, logs.
-func (q *Queries) PingDB(ctx context.Context) (int32, error) {
-	row := q.db.QueryRow(ctx, pingDB)
-	var ok int32
+func (q *Queries) PingDB(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, pingDB)
+	var ok int64
 	err := row.Scan(&ok)
 	return ok, err
 }
@@ -47,11 +47,11 @@ func (q *Queries) PingDB(ctx context.Context) (int32, error) {
 const recentSystemLogs = `-- name: RecentSystemLogs :many
 SELECT id, level, source, message, context, created_at FROM system_logs
 ORDER BY created_at DESC
-LIMIT $1
+LIMIT ?
 `
 
-func (q *Queries) RecentSystemLogs(ctx context.Context, limit int32) ([]SystemLog, error) {
-	rows, err := q.db.Query(ctx, recentSystemLogs, limit)
+func (q *Queries) RecentSystemLogs(ctx context.Context, limit int64) ([]SystemLog, error) {
+	rows, err := q.db.QueryContext(ctx, recentSystemLogs, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -70,6 +70,9 @@ func (q *Queries) RecentSystemLogs(ctx context.Context, limit int32) ([]SystemLo
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

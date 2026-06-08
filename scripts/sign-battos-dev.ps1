@@ -69,5 +69,10 @@ Write-Host "Exportado:" (Resolve-Path -LiteralPath $CertificatePath)
 Write-Host "TrustedPublisher:" $TrustPublisher
 Write-Host "TrustedRoot:" $TrustRoot
 
-Get-AuthenticodeSignature -LiteralPath $ExePath |
-    Format-List Status,StatusMessage,Path,SignerCertificate
+$verification = Get-AuthenticodeSignature -LiteralPath $ExePath
+Write-Host "SignatureStatus:" $verification.Status
+if ($verification.Status -eq "UnknownError" -and -not $TrustRoot) {
+    Write-Host "SignatureNote: certificado dev confiado como publisher; root no confiada por defecto."
+} elseif ($verification.StatusMessage) {
+    Write-Host "SignatureMessage:" $verification.StatusMessage
+}

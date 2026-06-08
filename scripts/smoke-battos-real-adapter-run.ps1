@@ -2,7 +2,6 @@ param(
     [ValidateSet("codex", "claude-code", "all")]
     [string]$Adapter = "codex",
     [string]$ApiUrl = $(if ($env:BATTOS_API_URL) { $env:BATTOS_API_URL } else { "http://127.0.0.1:8000" }),
-    [string]$DatabaseUrl = $(if ($env:DATABASE_URL) { $env:DATABASE_URL } else { "postgresql://battos:change-me@127.0.0.1:5432/battos?sslmode=disable" }),
     [string]$DockerImage = $(if ($env:BATTOS_EXECUTION_DOCKER_IMAGE) { $env:BATTOS_EXECUTION_DOCKER_IMAGE } else { "battos-runtime-agents:dev" }),
     [switch]$SkipImageCheck,
     [switch]$NoArtifactCheck,
@@ -90,13 +89,23 @@ function Assert-ProviderKey {
 
 function Register-SmokeAgent {
     param([hashtable]$Spec)
-    $runtimeId = $Spec.Adapter
-    $agentId = $Spec.AgentId
-    $agentName = $Spec.AgentName.Replace("'", "''")
-    $sql1 = "UPDATE agent_runtimes SET status = 'configured' WHERE id = '$runtimeId';"
-    $sql2 = "INSERT INTO agents (id, slug, name, role, runtime_id, risk_level, status) VALUES ('$agentId', '$agentId', '$agentName', 'real adapter smoke test', '$runtimeId', 'high', 'active') ON CONFLICT (id) DO UPDATE SET runtime_id = EXCLUDED.runtime_id, status = EXCLUDED.status;"
-    docker exec battos-db psql -U battos -d battos -v ON_ERROR_STOP=1 -c $sql1 | Write-Host
-    docker exec battos-db psql -U battos -d battos -v ON_ERROR_STOP=1 -c $sql2 | Write-Host
+    try {
+        Invoke-BattOSPost -Path "/runtime-adapters/detect" -Body @{} | Out-Null
+    } catch {
+        Write-Host "Runtime detect skipped or failed: $($_.Exception.Message)"
+    }
+    try {
+        Invoke-BattOSPost -Path "/agents" -Body @{
+            slug = $Spec.AgentId
+            name = $Spec.AgentName
+            role = "real adapter smoke test"
+            runtime_id = $Spec.Adapter
+            risk_level = "high"
+            status = "active"
+        } | Out-Null
+    } catch {
+        Write-Host "Smoke agent may already exist: $($_.Exception.Message)"
+    }
 }
 
 function Invoke-RealAdapterSmoke {
@@ -170,7 +179,6 @@ Keep the run short. Do not inspect host files. Do not install dependencies.
         }
 
         Write-Step "Processing run with worker Docker sandbox"
-        $env:DATABASE_URL = $DatabaseUrl
         $env:BATTOS_EXECUTION_SANDBOX_MODE = "docker"
         $env:BATTOS_EXECUTION_DOCKER_IMAGE = $DockerImage
         $goCachePath = "data\.cache\go-build"
@@ -235,7 +243,6 @@ Keep the run short. Do not inspect host files. Do not install dependencies.
 
 Write-Host "BattOS real adapter smoke"
 Write-Host "API: $ApiUrl"
-Write-Host "DB: $DatabaseUrl"
 Write-Host "Docker image: $DockerImage"
 Write-Host "Adapter: $Adapter"
 
@@ -250,11 +257,16 @@ if ($null -eq $db -or $db.status -ne "ok") {
 }
 Write-Host "API and DB are OK"
 
-Write-Step "Checking migrations"
-goose -dir apps/api/migrations postgres $DatabaseUrl up | Write-Host
-
 Write-Step "Checking Docker"
-docker info --format "{{.ServerVersion}}" | Write-Host
+$previousErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+$dockerVersion = docker info --format "{{.ServerVersion}}" 2>&1
+$dockerExitCode = $LASTEXITCODE
+$ErrorActionPreference = $previousErrorActionPreference
+if ($dockerExitCode -ne 0) {
+    throw "Docker is not available. Start Docker Desktop/daemon and retry. Details: $dockerVersion"
+}
+Write-Host $dockerVersion
 if (Test-Path "infra\.env") {
     $runningComposeServices = @(docker compose -f infra/docker-compose.yml --env-file infra/.env ps --status running --services 2>$null)
     if ($LASTEXITCODE -eq 0 -and $runningComposeServices -contains "battos-worker") {

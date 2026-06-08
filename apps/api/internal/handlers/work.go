@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -9,9 +10,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/nicotion/battos/apps/api/internal/store"
 )
 
@@ -75,7 +73,7 @@ type taskInput struct {
 	Description     string `json:"description"`
 	AssignedAgentID string `json:"assigned_agent_id"`
 	Status          string `json:"status"`
-	BoardPosition   int32  `json:"board_position"`
+	BoardPosition   int64  `json:"board_position"`
 }
 
 type domainPatch struct {
@@ -104,7 +102,7 @@ type taskPatch struct {
 	Description     *string `json:"description"`
 	AssignedAgentID *string `json:"assigned_agent_id"`
 	Status          *string `json:"status"`
-	BoardPosition   *int32  `json:"board_position"`
+	BoardPosition   *int64  `json:"board_position"`
 }
 
 type domainResponse struct {
@@ -146,7 +144,7 @@ type taskResponse struct {
 	Description     string    `json:"description,omitempty"`
 	AssignedAgentID string    `json:"assigned_agent_id,omitempty"`
 	Status          string    `json:"status"`
-	BoardPosition   int32     `json:"board_position"`
+	BoardPosition   int64     `json:"board_position"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 }
@@ -175,7 +173,7 @@ func (h *WorkHandler) CreateDomain(w http.ResponseWriter, r *http.Request) {
 		Name:        in.Name,
 		Description: nullableText(in.Description),
 		Status:      defaultString(in.Status, "active"),
-		Metadata:    []byte("{}"),
+		Metadata:    "{}",
 	})
 	if err != nil {
 		writeWorkError(w, err)
@@ -211,7 +209,7 @@ func (h *WorkHandler) UpdateDomain(w http.ResponseWriter, r *http.Request) {
 		Name:        patchedString(in.Name, current.Name),
 		Description: nullableText(patchedString(in.Description, textValue(current.Description))),
 		Status:      patchedString(in.Status, current.Status),
-		Metadata:    []byte("{}"),
+		Metadata:    "{}",
 	})
 	if err != nil {
 		writeWorkError(w, err)
@@ -245,7 +243,7 @@ func (h *WorkHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		Description: nullableText(in.Description),
 		DomainID:    nullableText(in.DomainID),
 		Status:      defaultString(in.Status, "active"),
-		Metadata:    []byte("{}"),
+		Metadata:    "{}",
 	})
 	if err != nil {
 		writeWorkError(w, err)
@@ -282,7 +280,7 @@ func (h *WorkHandler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 		Description: nullableText(patchedString(in.Description, textValue(current.Description))),
 		DomainID:    nullableText(patchedString(in.DomainID, textValue(current.DomainID))),
 		Status:      patchedString(in.Status, current.Status),
-		Metadata:    []byte("{}"),
+		Metadata:    "{}",
 	})
 	if err != nil {
 		writeWorkError(w, err)
@@ -323,7 +321,7 @@ func (h *WorkHandler) CreateGoal(w http.ResponseWriter, r *http.Request) {
 		Title:       in.Title,
 		Description: nullableText(in.Description),
 		Status:      defaultString(in.Status, "planned"),
-		Metadata:    []byte("{}"),
+		Metadata:    "{}",
 	})
 	if err != nil {
 		writeWorkError(w, err)
@@ -359,7 +357,7 @@ func (h *WorkHandler) UpdateGoal(w http.ResponseWriter, r *http.Request) {
 		Title:       patchedString(in.Title, current.Title),
 		Description: nullableText(patchedString(in.Description, textValue(current.Description))),
 		Status:      patchedString(in.Status, current.Status),
-		Metadata:    []byte("{}"),
+		Metadata:    "{}",
 	})
 	if err != nil {
 		writeWorkError(w, err)
@@ -412,7 +410,7 @@ func (h *WorkHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 		AssignedAgentID: nullableText(in.AssignedAgentID),
 		Status:          defaultString(in.Status, "backlog"),
 		BoardPosition:   in.BoardPosition,
-		Metadata:        []byte("{}"),
+		Metadata:        "{}",
 	})
 	if err != nil {
 		writeWorkError(w, err)
@@ -467,8 +465,8 @@ func (h *WorkHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 		Description:     nullableText(patchedString(in.Description, textValue(current.Description))),
 		AssignedAgentID: nullableText(patchedString(in.AssignedAgentID, textValue(current.AssignedAgentID))),
 		Status:          patchedString(in.Status, current.Status),
-		BoardPosition:   patchedInt32(in.BoardPosition, current.BoardPosition),
-		Metadata:        []byte("{}"),
+		BoardPosition:   patchedInt64(in.BoardPosition, current.BoardPosition),
+		Metadata:        "{}",
 	})
 	if err != nil {
 		writeWorkError(w, err)
@@ -493,9 +491,9 @@ func required(w http.ResponseWriter, value, field string) bool {
 	return false
 }
 
-func nullableText(value string) pgtype.Text {
+func nullableText(value string) sql.NullString {
 	value = strings.TrimSpace(value)
-	return pgtype.Text{String: value, Valid: value != ""}
+	return sql.NullString{String: value, Valid: value != ""}
 }
 
 func defaultString(value, fallback string) string {
@@ -512,7 +510,7 @@ func patchedString(value *string, current string) string {
 	return current
 }
 
-func patchedInt32(value *int32, current int32) int32 {
+func patchedInt64(value *int64, current int64) int64 {
 	if value != nil {
 		return *value
 	}
@@ -520,25 +518,23 @@ func patchedInt32(value *int32, current int32) int32 {
 }
 
 func writeWorkError(w http.ResponseWriter, err error) {
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		writeJSON(w, http.StatusNotFound, map[string]any{"error": map[string]any{"message": "recurso no encontrado", "code": 404}})
 		return
 	}
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		switch pgErr.Code {
-		case "23505":
-			writeJSON(w, http.StatusConflict, map[string]any{"error": map[string]any{"message": "el recurso ya existe", "code": 409}})
-			return
-		case "23503", "23514":
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"message": "referencia o estado invalido", "code": 400}})
-			return
-		}
+	msg := err.Error()
+	if strings.Contains(msg, "UNIQUE constraint failed") {
+		writeJSON(w, http.StatusConflict, map[string]any{"error": map[string]any{"message": "el recurso ya existe", "code": 409}})
+		return
+	}
+	if strings.Contains(msg, "FOREIGN KEY constraint failed") || strings.Contains(msg, "CHECK constraint failed") {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"message": "referencia o estado invalido", "code": 400}})
+		return
 	}
 	writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"message": "error persistiendo work board", "code": 500}})
 }
 
-func textValue(value pgtype.Text) string {
+func textValue(value sql.NullString) string {
 	if value.Valid {
 		return value.String
 	}
@@ -546,17 +542,17 @@ func textValue(value pgtype.Text) string {
 }
 
 func domainDTO(item store.Domain) domainResponse {
-	return domainResponse{item.ID, item.Slug, item.Name, textValue(item.Description), item.Status, item.CreatedAt.Time, item.UpdatedAt.Time}
+	return domainResponse{item.ID, item.Slug, item.Name, textValue(item.Description), item.Status, item.CreatedAt, item.UpdatedAt}
 }
 
 func projectDTO(item store.Project) projectResponse {
-	return projectResponse{item.ID, item.Slug, item.Name, textValue(item.Description), textValue(item.DomainID), item.Status, item.CreatedAt.Time, item.UpdatedAt.Time}
+	return projectResponse{item.ID, item.Slug, item.Name, textValue(item.Description), textValue(item.DomainID), item.Status, item.CreatedAt, item.UpdatedAt}
 }
 
 func goalDTO(item store.Goal) goalResponse {
-	return goalResponse{item.ID, item.ProjectID, item.Title, textValue(item.Description), item.Status, item.CreatedAt.Time, item.UpdatedAt.Time}
+	return goalResponse{item.ID, item.ProjectID, item.Title, textValue(item.Description), item.Status, item.CreatedAt, item.UpdatedAt}
 }
 
 func taskDTO(item store.Task) taskResponse {
-	return taskResponse{item.ID, item.ProjectID, textValue(item.GoalID), item.Title, textValue(item.Description), textValue(item.AssignedAgentID), item.Status, item.BoardPosition, item.CreatedAt.Time, item.UpdatedAt.Time}
+	return taskResponse{item.ID, item.ProjectID, textValue(item.GoalID), item.Title, textValue(item.Description), textValue(item.AssignedAgentID), item.Status, item.BoardPosition, item.CreatedAt, item.UpdatedAt}
 }

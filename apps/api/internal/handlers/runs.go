@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,8 +14,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/nicotion/battos/apps/api/internal/gitauth"
 	"github.com/nicotion/battos/apps/api/internal/memory"
 	"github.com/nicotion/battos/apps/api/internal/store"
@@ -24,13 +23,14 @@ type RunStore interface {
 	CreateRun(context.Context, store.CreateRunParams) (store.Run, error)
 	ListRuns(context.Context) ([]store.Run, error)
 	ListRunsByProject(context.Context, string) ([]store.Run, error)
-	GetRun(context.Context, pgtype.UUID) (store.Run, error)
+	GetRun(context.Context, string) (store.Run, error)
 	CreateRunApproval(context.Context, store.CreateRunApprovalParams) (store.RunApproval, error)
 	UpdateRunStatus(context.Context, store.UpdateRunStatusParams) (store.Run, error)
-	EnableRunNetwork(context.Context, pgtype.UUID) (store.Run, error)
-	CancelRun(context.Context, pgtype.UUID) (store.Run, error)
-	ListRunLogs(context.Context, pgtype.UUID) ([]store.RunLog, error)
+	EnableRunNetwork(context.Context, string) (store.Run, error)
+	CancelRun(context.Context, string) (store.Run, error)
+	ListRunLogs(context.Context, string) ([]store.RunLog, error)
 	GetArtifactByRunAndKind(context.Context, store.GetArtifactByRunAndKindParams) (store.Artifact, error)
+	ListArtifactsByRun(context.Context, sql.NullString) ([]store.Artifact, error)
 	UpdateRunBranchAndMetadata(context.Context, store.UpdateRunBranchAndMetadataParams) (store.Run, error)
 	GetRepository(context.Context, string) (store.Repository, error)
 }
@@ -140,7 +140,7 @@ func (h *RunHandler) CreateRun(w http.ResponseWriter, r *http.Request) {
 		RuntimeAdapterID: strings.TrimSpace(in.RuntimeAdapterID),
 		RepositoryID:     nullableText(in.RepositoryID),
 		Prompt:           strings.TrimSpace(in.Prompt),
-		RequestedNetwork: in.RequestedNetwork,
+		RequestedNetwork: boolInt(in.RequestedNetwork),
 	})
 	if err != nil {
 		writeWorkError(w, err)
@@ -189,7 +189,7 @@ func (h *RunHandler) ApproveRunAction(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"message": "solo se puede aprobar execute desde draft o awaiting_approval", "code": 400}})
 			return
 		}
-		if kind == "network" && !current.RequestedNetwork {
+		if kind == "network" && current.RequestedNetwork == 0 {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"message": "este run no solicito red", "code": 400}})
 			return
 		}
@@ -228,7 +228,7 @@ func (h *RunHandler) ApproveRunAction(w http.ResponseWriter, r *http.Request) {
 
 			// Renderizar resumen Markdown
 			content := renderRunMemorySummaryBackend(current, runLogs, true, false, 20)
-			runUUIDStr := uuidValue(current.ID)
+			runUUIDStr := current.ID
 
 			_, errSave := h.memory.Save(r.Context(), memory.Observation{
 				Type:      memory.TypeLearning,
@@ -254,7 +254,7 @@ func (h *RunHandler) ApproveRunAction(w http.ResponseWriter, r *http.Request) {
 			}
 			var meta map[string]any
 			if len(current.Metadata) > 0 {
-				_ = json.Unmarshal(current.Metadata, &meta)
+				_ = json.Unmarshal([]byte(current.Metadata), &meta)
 			}
 			if meta == nil {
 				meta = make(map[string]any)
@@ -274,7 +274,7 @@ func (h *RunHandler) ApproveRunAction(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// git commit -m "battos run <id>"
-			runUUIDStr := uuidValue(current.ID)
+			runUUIDStr := current.ID
 			cmdCommit := exec.Command("git",
 				"-c", "user.name=BattOS",
 				"-c", "user.email=battos@local",
@@ -300,7 +300,7 @@ func (h *RunHandler) ApproveRunAction(w http.ResponseWriter, r *http.Request) {
 			}
 			var meta map[string]any
 			if len(current.Metadata) > 0 {
-				_ = json.Unmarshal(current.Metadata, &meta)
+				_ = json.Unmarshal([]byte(current.Metadata), &meta)
 			}
 			if meta == nil {
 				meta = make(map[string]any)
@@ -313,7 +313,7 @@ func (h *RunHandler) ApproveRunAction(w http.ResponseWriter, r *http.Request) {
 
 			branchName := current.BranchName.String
 			if branchName == "" {
-				branchName = fmt.Sprintf("battos-run-%s", uuidValue(current.ID))
+				branchName = fmt.Sprintf("battos-run-%s", current.ID)
 			}
 
 			// Destino del push: por defecto el remoto `origin` del workspace
@@ -359,7 +359,7 @@ func (h *RunHandler) ApproveRunAction(w http.ResponseWriter, r *http.Request) {
 				updated, err = h.store.UpdateRunBranchAndMetadata(r.Context(), store.UpdateRunBranchAndMetadataParams{
 					ID:         current.ID,
 					BranchName: current.BranchName,
-					Metadata:   newMetaBytes,
+					Metadata:   string(newMetaBytes),
 				})
 				if err != nil {
 					writeWorkError(w, err)
@@ -391,7 +391,7 @@ func (h *RunHandler) CancelRun(w http.ResponseWriter, r *http.Request) {
 	}
 	item, err := h.store.CancelRun(r.Context(), runID)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"message": "run no cancelable", "code": 400}})
 			return
 		}
@@ -424,11 +424,11 @@ func (h *RunHandler) GetRunDiff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	art, err := h.store.GetArtifactByRunAndKind(r.Context(), store.GetArtifactByRunAndKindParams{
-		RunID: runID,
+		RunID: sql.NullString{String: runID, Valid: true},
 		Kind:  "diff",
 	})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("(sin cambios de codigo o diff no registrado)"))
@@ -445,6 +445,23 @@ func (h *RunHandler) GetRunDiff(w http.ResponseWriter, r *http.Request) {
 	} else {
 		w.Write([]byte("(diff vacio o formato invalido)"))
 	}
+}
+
+func (h *RunHandler) ListRunArtifacts(w http.ResponseWriter, r *http.Request) {
+	runID, ok := runIDFromPath(w, r)
+	if !ok {
+		return
+	}
+	items, err := h.store.ListArtifactsByRun(r.Context(), sql.NullString{String: runID, Valid: true})
+	if err != nil {
+		writeWorkError(w, err)
+		return
+	}
+	out := make([]artifactResponse, 0, len(items))
+	for _, item := range items {
+		out = append(out, artifactDTO(item))
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (h *RunHandler) StreamRunEvents(w http.ResponseWriter, r *http.Request) {
@@ -515,8 +532,8 @@ func (h *RunHandler) StreamRunEvents(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func runIDFromPath(w http.ResponseWriter, r *http.Request) (pgtype.UUID, bool) {
-	return parseUUIDInput(w, chi.URLParam(r, "id"), "id")
+func runIDFromPath(w http.ResponseWriter, r *http.Request) (string, bool) {
+	return parseIDInput(w, chi.URLParam(r, "id"), "id")
 }
 
 func validApprovalKind(value string) bool {
@@ -570,7 +587,7 @@ func writeSSEEvent(w http.ResponseWriter, event string, payload any) error {
 
 func runDTO(item store.Run) runResponse {
 	return runResponse{
-		ID:               uuidValue(item.ID),
+		ID:               item.ID,
 		ProjectID:        item.ProjectID,
 		TaskID:           item.TaskID,
 		AgentID:          item.AgentID,
@@ -578,45 +595,45 @@ func runDTO(item store.Run) runResponse {
 		RuntimeAdapterID: item.RuntimeAdapterID,
 		RepositoryID:     textValue(item.RepositoryID),
 		Prompt:           item.Prompt,
-		RequestedNetwork: item.RequestedNetwork,
-		NetworkEnabled:   item.NetworkEnabled,
+		RequestedNetwork: item.RequestedNetwork != 0,
+		NetworkEnabled:   item.NetworkEnabled != 0,
 		Status:           item.Status,
 		BranchName:       textValue(item.BranchName),
 		ResultSummary:    textValue(item.ResultSummary),
 		ErrorMessage:     textValue(item.ErrorMessage),
-		EstimatedCostUSD: 0,
+		EstimatedCostUSD: item.EstimatedCostUsd,
 		StartedAt:        item.StartedAt.Time,
 		CompletedAt:      item.CompletedAt.Time,
-		CreatedAt:        item.CreatedAt.Time,
-		UpdatedAt:        item.UpdatedAt.Time,
+		CreatedAt:        item.CreatedAt,
+		UpdatedAt:        item.UpdatedAt,
 	}
 }
 
 func runApprovalDTO(item store.RunApproval) runApprovalResponse {
 	return runApprovalResponse{
-		ID:        uuidValue(item.ID),
-		RunID:     uuidValue(item.RunID),
+		ID:        item.ID,
+		RunID:     item.RunID,
 		Kind:      item.Kind,
 		Decision:  item.Decision,
 		Reason:    textValue(item.Reason),
-		DecidedAt: item.DecidedAt.Time,
+		DecidedAt: item.DecidedAt,
 	}
 }
 
 func runLogDTO(item store.RunLog) runLogResponse {
 	return runLogResponse{
 		ID:        item.ID,
-		RunID:     uuidValue(item.RunID),
+		RunID:     item.RunID,
 		Stream:    item.Stream,
 		Message:   item.Message,
-		CreatedAt: item.CreatedAt.Time,
+		CreatedAt: item.CreatedAt,
 	}
 }
 
 func renderRunMemorySummaryBackend(run store.Run, logs []store.RunLog, includeLogs, includePrompt bool, logLimit int) string {
 	var b strings.Builder
 	b.WriteString("# BattOS Run Summary\n\n")
-	runIDStr := uuidValue(run.ID)
+	runIDStr := run.ID
 	b.WriteString(fmt.Sprintf("- Run: %s\n", runIDStr))
 	b.WriteString(fmt.Sprintf("- Project: %s\n", run.ProjectID))
 	b.WriteString(fmt.Sprintf("- Task: %s\n", run.TaskID))
@@ -652,4 +669,11 @@ func shortIDValue(value string) string {
 		return value
 	}
 	return value[:8]
+}
+
+func boolInt(value bool) int64 {
+	if value {
+		return 1
+	}
+	return 0
 }

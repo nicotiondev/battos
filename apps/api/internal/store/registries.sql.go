@@ -7,75 +7,74 @@ package store
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
+	"database/sql"
 )
 
 const countActiveMCPConnections = `-- name: CountActiveMCPConnections :one
-SELECT COUNT(*)::int AS total FROM mcp_connections WHERE status = 'active'
+SELECT COUNT(*) AS total FROM mcp_connections WHERE status = 'active'
 `
 
-func (q *Queries) CountActiveMCPConnections(ctx context.Context) (int32, error) {
-	row := q.db.QueryRow(ctx, countActiveMCPConnections)
-	var total int32
+func (q *Queries) CountActiveMCPConnections(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countActiveMCPConnections)
+	var total int64
 	err := row.Scan(&total)
 	return total, err
 }
 
 const countAgents = `-- name: CountAgents :one
-SELECT COUNT(*)::int AS total FROM agents WHERE status = 'active'
+SELECT COUNT(*) AS total FROM agents WHERE status = 'active'
 `
 
-func (q *Queries) CountAgents(ctx context.Context) (int32, error) {
-	row := q.db.QueryRow(ctx, countAgents)
-	var total int32
+func (q *Queries) CountAgents(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAgents)
+	var total int64
 	err := row.Scan(&total)
 	return total, err
 }
 
 const countAvailableRuntimes = `-- name: CountAvailableRuntimes :one
-SELECT COUNT(*)::int AS total FROM agent_runtimes WHERE status IN ('detected', 'configured')
+SELECT COUNT(*) AS total FROM agent_runtimes WHERE status IN ('detected', 'configured')
 `
 
-func (q *Queries) CountAvailableRuntimes(ctx context.Context) (int32, error) {
-	row := q.db.QueryRow(ctx, countAvailableRuntimes)
-	var total int32
+func (q *Queries) CountAvailableRuntimes(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAvailableRuntimes)
+	var total int64
 	err := row.Scan(&total)
 	return total, err
 }
 
 const countDetectedCLITools = `-- name: CountDetectedCLITools :one
-SELECT COUNT(*)::int AS total FROM cli_tools WHERE status = 'detected'
+SELECT COUNT(*) AS total FROM cli_tools WHERE status = 'detected'
 `
 
-func (q *Queries) CountDetectedCLITools(ctx context.Context) (int32, error) {
-	row := q.db.QueryRow(ctx, countDetectedCLITools)
-	var total int32
+func (q *Queries) CountDetectedCLITools(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countDetectedCLITools)
+	var total int64
 	err := row.Scan(&total)
 	return total, err
 }
 
 const countProjects = `-- name: CountProjects :one
 
-SELECT COUNT(*)::int AS total FROM projects WHERE status != 'archived'
+SELECT COUNT(*) AS total FROM projects WHERE status != 'archived'
 `
 
-// Queries para registries básicos.
+// Queries for basic registries.
 // Solo lectura + counts en Fase 2. CRUD completo viene en Fase 3.
-func (q *Queries) CountProjects(ctx context.Context) (int32, error) {
-	row := q.db.QueryRow(ctx, countProjects)
-	var total int32
+func (q *Queries) CountProjects(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countProjects)
+	var total int64
 	err := row.Scan(&total)
 	return total, err
 }
 
 const countSkills = `-- name: CountSkills :one
-SELECT COUNT(*)::int AS total FROM skills WHERE status = 'active'
+SELECT COUNT(*) AS total FROM skills WHERE status = 'active'
 `
 
-func (q *Queries) CountSkills(ctx context.Context) (int32, error) {
-	row := q.db.QueryRow(ctx, countSkills)
-	var total int32
+func (q *Queries) CountSkills(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countSkills)
+	var total int64
 	err := row.Scan(&total)
 	return total, err
 }
@@ -86,27 +85,29 @@ INSERT INTO agents (
     system_prompt, allowed_tools, allowed_projects, risk_level,
     is_lead, is_meta, status
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false, false, $12)
-RETURNING id, slug, name, role, description, runtime_id, runtime_config, system_prompt, allowed_tools, allowed_projects, risk_level, is_lead, is_meta, status, created_at, updated_at
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)
+RETURNING id, slug, name, role, description, runtime_id, runtime_config, system_prompt,
+          allowed_tools, allowed_projects, risk_level, is_lead, is_meta, status,
+          created_at, updated_at
 `
 
 type CreateAgentParams struct {
-	ID              string      `json:"id"`
-	Slug            string      `json:"slug"`
-	Name            string      `json:"name"`
-	Role            pgtype.Text `json:"role"`
-	Description     pgtype.Text `json:"description"`
-	RuntimeID       pgtype.Text `json:"runtime_id"`
-	RuntimeConfig   []byte      `json:"runtime_config"`
-	SystemPrompt    pgtype.Text `json:"system_prompt"`
-	AllowedTools    []byte      `json:"allowed_tools"`
-	AllowedProjects []byte      `json:"allowed_projects"`
-	RiskLevel       string      `json:"risk_level"`
-	Status          string      `json:"status"`
+	ID              string         `json:"id"`
+	Slug            string         `json:"slug"`
+	Name            string         `json:"name"`
+	Role            sql.NullString `json:"role"`
+	Description     sql.NullString `json:"description"`
+	RuntimeID       sql.NullString `json:"runtime_id"`
+	RuntimeConfig   string         `json:"runtime_config"`
+	SystemPrompt    sql.NullString `json:"system_prompt"`
+	AllowedTools    string         `json:"allowed_tools"`
+	AllowedProjects string         `json:"allowed_projects"`
+	RiskLevel       string         `json:"risk_level"`
+	Status          string         `json:"status"`
 }
 
 func (q *Queries) CreateAgent(ctx context.Context, arg CreateAgentParams) (Agent, error) {
-	row := q.db.QueryRow(ctx, createAgent,
+	row := q.db.QueryRowContext(ctx, createAgent,
 		arg.ID,
 		arg.Slug,
 		arg.Name,
@@ -143,11 +144,13 @@ func (q *Queries) CreateAgent(ctx context.Context, arg CreateAgentParams) (Agent
 }
 
 const getAgentRuntime = `-- name: GetAgentRuntime :one
-SELECT id, name, kind, status, binary_path, version, endpoint_url, risk_level, requires_auth, capabilities, config_schema, detected_at, created_at, updated_at FROM agent_runtimes WHERE id = $1
+SELECT id, name, kind, status, binary_path, version, endpoint_url, risk_level,
+       requires_auth, capabilities, config_schema, detected_at, created_at, updated_at
+FROM agent_runtimes WHERE id = ?
 `
 
 func (q *Queries) GetAgentRuntime(ctx context.Context, id string) (AgentRuntime, error) {
-	row := q.db.QueryRow(ctx, getAgentRuntime, id)
+	row := q.db.QueryRowContext(ctx, getAgentRuntime, id)
 	var i AgentRuntime
 	err := row.Scan(
 		&i.ID,
@@ -169,11 +172,13 @@ func (q *Queries) GetAgentRuntime(ctx context.Context, id string) (AgentRuntime,
 }
 
 const getProvider = `-- name: GetProvider :one
-SELECT id, name, kind, env_key, docs_url, status, monthly_budget_usd, monthly_spend_usd, last_check_at, created_at, updated_at FROM providers WHERE id = $1
+SELECT id, name, kind, env_key, docs_url, status, monthly_budget_usd,
+       monthly_spend_usd, last_check_at, created_at, updated_at
+FROM providers WHERE id = ?
 `
 
 func (q *Queries) GetProvider(ctx context.Context, id string) (Provider, error) {
-	row := q.db.QueryRow(ctx, getProvider, id)
+	row := q.db.QueryRowContext(ctx, getProvider, id)
 	var i Provider
 	err := row.Scan(
 		&i.ID,
@@ -192,11 +197,13 @@ func (q *Queries) GetProvider(ctx context.Context, id string) (Provider, error) 
 }
 
 const listAgentRuntimes = `-- name: ListAgentRuntimes :many
-SELECT id, name, kind, status, binary_path, version, endpoint_url, risk_level, requires_auth, capabilities, config_schema, detected_at, created_at, updated_at FROM agent_runtimes ORDER BY id
+SELECT id, name, kind, status, binary_path, version, endpoint_url, risk_level,
+       requires_auth, capabilities, config_schema, detected_at, created_at, updated_at
+FROM agent_runtimes ORDER BY id
 `
 
 func (q *Queries) ListAgentRuntimes(ctx context.Context) ([]AgentRuntime, error) {
-	rows, err := q.db.Query(ctx, listAgentRuntimes)
+	rows, err := q.db.QueryContext(ctx, listAgentRuntimes)
 	if err != nil {
 		return nil, err
 	}
@@ -224,6 +231,9 @@ func (q *Queries) ListAgentRuntimes(ctx context.Context) ([]AgentRuntime, error)
 		}
 		items = append(items, i)
 	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -231,11 +241,14 @@ func (q *Queries) ListAgentRuntimes(ctx context.Context) ([]AgentRuntime, error)
 }
 
 const listAgents = `-- name: ListAgents :many
-SELECT id, slug, name, role, description, runtime_id, runtime_config, system_prompt, allowed_tools, allowed_projects, risk_level, is_lead, is_meta, status, created_at, updated_at FROM agents ORDER BY id
+SELECT id, slug, name, role, description, runtime_id, runtime_config, system_prompt,
+       allowed_tools, allowed_projects, risk_level, is_lead, is_meta, status,
+       created_at, updated_at
+FROM agents ORDER BY id
 `
 
 func (q *Queries) ListAgents(ctx context.Context) ([]Agent, error) {
-	rows, err := q.db.Query(ctx, listAgents)
+	rows, err := q.db.QueryContext(ctx, listAgents)
 	if err != nil {
 		return nil, err
 	}
@@ -265,6 +278,9 @@ func (q *Queries) ListAgents(ctx context.Context) ([]Agent, error) {
 		}
 		items = append(items, i)
 	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -272,11 +288,13 @@ func (q *Queries) ListAgents(ctx context.Context) ([]Agent, error) {
 }
 
 const listCLITools = `-- name: ListCLITools :many
-SELECT id, name, command, kind, detected_path, version, runtime_id, status, risk_level, requires_auth, capabilities, last_detected_at, created_at, updated_at FROM cli_tools ORDER BY id
+SELECT id, name, command, kind, detected_path, version, runtime_id, status,
+       risk_level, requires_auth, capabilities, last_detected_at, created_at, updated_at
+FROM cli_tools ORDER BY id
 `
 
 func (q *Queries) ListCLITools(ctx context.Context) ([]CliTool, error) {
-	rows, err := q.db.Query(ctx, listCLITools)
+	rows, err := q.db.QueryContext(ctx, listCLITools)
 	if err != nil {
 		return nil, err
 	}
@@ -304,6 +322,9 @@ func (q *Queries) ListCLITools(ctx context.Context) ([]CliTool, error) {
 		}
 		items = append(items, i)
 	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -311,11 +332,13 @@ func (q *Queries) ListCLITools(ctx context.Context) ([]CliTool, error) {
 }
 
 const listProviders = `-- name: ListProviders :many
-SELECT id, name, kind, env_key, docs_url, status, monthly_budget_usd, monthly_spend_usd, last_check_at, created_at, updated_at FROM providers ORDER BY id
+SELECT id, name, kind, env_key, docs_url, status, monthly_budget_usd,
+       monthly_spend_usd, last_check_at, created_at, updated_at
+FROM providers ORDER BY id
 `
 
 func (q *Queries) ListProviders(ctx context.Context) ([]Provider, error) {
-	rows, err := q.db.Query(ctx, listProviders)
+	rows, err := q.db.QueryContext(ctx, listProviders)
 	if err != nil {
 		return nil, err
 	}
@@ -340,6 +363,9 @@ func (q *Queries) ListProviders(ctx context.Context) ([]Provider, error) {
 		}
 		items = append(items, i)
 	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -347,11 +373,14 @@ func (q *Queries) ListProviders(ctx context.Context) ([]Provider, error) {
 }
 
 const listSkills = `-- name: ListSkills :many
-SELECT id, slug, name, description, category, risk_level, inputs, outputs, steps, compatible_agents, compatible_runtimes, source, source_id, source_ref, version, status, created_at, updated_at, prompt_template, lifecycle FROM skills ORDER BY id
+SELECT id, slug, name, description, category, risk_level, inputs, outputs, steps,
+       compatible_agents, compatible_runtimes, source, source_id, source_ref, version,
+       status, prompt_template, lifecycle, created_at, updated_at
+FROM skills ORDER BY id
 `
 
 func (q *Queries) ListSkills(ctx context.Context) ([]Skill, error) {
-	rows, err := q.db.Query(ctx, listSkills)
+	rows, err := q.db.QueryContext(ctx, listSkills)
 	if err != nil {
 		return nil, err
 	}
@@ -376,14 +405,17 @@ func (q *Queries) ListSkills(ctx context.Context) ([]Skill, error) {
 			&i.SourceRef,
 			&i.Version,
 			&i.Status,
-			&i.CreatedAt,
-			&i.UpdatedAt,
 			&i.PromptTemplate,
 			&i.Lifecycle,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -393,24 +425,25 @@ func (q *Queries) ListSkills(ctx context.Context) ([]Skill, error) {
 
 const updateAgentRuntimeDetection = `-- name: UpdateAgentRuntimeDetection :one
 UPDATE agent_runtimes
-SET status = $2, binary_path = $3, version = $4, detected_at = NOW()
-WHERE id = $1
-RETURNING id, name, kind, status, binary_path, version, endpoint_url, risk_level, requires_auth, capabilities, config_schema, detected_at, created_at, updated_at
+SET status = ?, binary_path = ?, version = ?, detected_at = CURRENT_TIMESTAMP
+WHERE id = ?
+RETURNING id, name, kind, status, binary_path, version, endpoint_url, risk_level,
+          requires_auth, capabilities, config_schema, detected_at, created_at, updated_at
 `
 
 type UpdateAgentRuntimeDetectionParams struct {
-	ID         string      `json:"id"`
-	Status     string      `json:"status"`
-	BinaryPath pgtype.Text `json:"binary_path"`
-	Version    pgtype.Text `json:"version"`
+	Status     string         `json:"status"`
+	BinaryPath sql.NullString `json:"binary_path"`
+	Version    sql.NullString `json:"version"`
+	ID         string         `json:"id"`
 }
 
 func (q *Queries) UpdateAgentRuntimeDetection(ctx context.Context, arg UpdateAgentRuntimeDetectionParams) (AgentRuntime, error) {
-	row := q.db.QueryRow(ctx, updateAgentRuntimeDetection,
-		arg.ID,
+	row := q.db.QueryRowContext(ctx, updateAgentRuntimeDetection,
 		arg.Status,
 		arg.BinaryPath,
 		arg.Version,
+		arg.ID,
 	)
 	var i AgentRuntime
 	err := row.Scan(
@@ -433,16 +466,16 @@ func (q *Queries) UpdateAgentRuntimeDetection(ctx context.Context, arg UpdateAge
 }
 
 const updateProviderStatus = `-- name: UpdateProviderStatus :exec
-UPDATE providers SET status = $2, last_check_at = NOW() WHERE id = $1
+UPDATE providers SET status = ?, last_check_at = CURRENT_TIMESTAMP WHERE id = ?
 `
 
 type UpdateProviderStatusParams struct {
-	ID     string `json:"id"`
 	Status string `json:"status"`
+	ID     string `json:"id"`
 }
 
 func (q *Queries) UpdateProviderStatus(ctx context.Context, arg UpdateProviderStatusParams) error {
-	_, err := q.db.Exec(ctx, updateProviderStatus, arg.ID, arg.Status)
+	_, err := q.db.ExecContext(ctx, updateProviderStatus, arg.Status, arg.ID)
 	return err
 }
 
@@ -451,7 +484,7 @@ INSERT INTO cli_tools (
     id, name, command, kind, detected_path, version, runtime_id, status,
     risk_level, requires_auth, capabilities, last_detected_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 ON CONFLICT (id) DO UPDATE SET
     name = EXCLUDED.name,
     command = EXCLUDED.command,
@@ -463,26 +496,27 @@ ON CONFLICT (id) DO UPDATE SET
     risk_level = EXCLUDED.risk_level,
     requires_auth = EXCLUDED.requires_auth,
     capabilities = EXCLUDED.capabilities,
-    last_detected_at = NOW()
-RETURNING id, name, command, kind, detected_path, version, runtime_id, status, risk_level, requires_auth, capabilities, last_detected_at, created_at, updated_at
+    last_detected_at = CURRENT_TIMESTAMP
+RETURNING id, name, command, kind, detected_path, version, runtime_id, status,
+          risk_level, requires_auth, capabilities, last_detected_at, created_at, updated_at
 `
 
 type UpsertCLIToolDetectionParams struct {
-	ID           string      `json:"id"`
-	Name         string      `json:"name"`
-	Command      string      `json:"command"`
-	Kind         string      `json:"kind"`
-	DetectedPath pgtype.Text `json:"detected_path"`
-	Version      pgtype.Text `json:"version"`
-	RuntimeID    pgtype.Text `json:"runtime_id"`
-	Status       string      `json:"status"`
-	RiskLevel    string      `json:"risk_level"`
-	RequiresAuth bool        `json:"requires_auth"`
-	Capabilities []byte      `json:"capabilities"`
+	ID           string         `json:"id"`
+	Name         string         `json:"name"`
+	Command      string         `json:"command"`
+	Kind         string         `json:"kind"`
+	DetectedPath sql.NullString `json:"detected_path"`
+	Version      sql.NullString `json:"version"`
+	RuntimeID    sql.NullString `json:"runtime_id"`
+	Status       string         `json:"status"`
+	RiskLevel    string         `json:"risk_level"`
+	RequiresAuth int64          `json:"requires_auth"`
+	Capabilities string         `json:"capabilities"`
 }
 
 func (q *Queries) UpsertCLIToolDetection(ctx context.Context, arg UpsertCLIToolDetectionParams) (CliTool, error) {
-	row := q.db.QueryRow(ctx, upsertCLIToolDetection,
+	row := q.db.QueryRowContext(ctx, upsertCLIToolDetection,
 		arg.ID,
 		arg.Name,
 		arg.Command,

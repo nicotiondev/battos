@@ -1,6 +1,5 @@
 param(
     [string]$ApiUrl = $(if ($env:BATTOS_API_URL) { $env:BATTOS_API_URL } else { "http://127.0.0.1:8000" }),
-    [string]$DatabaseUrl = $(if ($env:DATABASE_URL) { $env:DATABASE_URL } else { "postgresql://battos:change-me@127.0.0.1:5432/battos?sslmode=disable" }),
     [string]$DockerImage = "alpine:3.20",
     [switch]$RequireMemoryContext
 )
@@ -15,7 +14,6 @@ function Write-Step {
 
 Write-Host "BattOS Docker run smoke"
 Write-Host "API: $ApiUrl"
-Write-Host "DB: $DatabaseUrl"
 Write-Host "Require memory context: $RequireMemoryContext"
 
 Write-Step "Checking API status"
@@ -29,12 +27,25 @@ if ($null -eq $db -or $db.status -ne "ok") {
 }
 Write-Host "API and DB are OK"
 
-Write-Step "Checking migrations"
-goose -dir apps/api/migrations postgres $DatabaseUrl up | Write-Host
-
 Write-Step "Checking Docker"
-docker info --format "{{.ServerVersion}}" | Write-Host
-docker run --rm --network none $DockerImage sh -c "echo battos-docker-sandbox-ok" | Write-Host
+$previousErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+$dockerVersion = docker info --format "{{.ServerVersion}}" 2>&1
+$dockerExitCode = $LASTEXITCODE
+$ErrorActionPreference = $previousErrorActionPreference
+if ($dockerExitCode -ne 0) {
+    throw "Docker is not available. Start Docker Desktop/daemon and retry. Details: $dockerVersion"
+}
+Write-Host $dockerVersion
+$previousErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+$dockerProbe = docker run --rm --network none $DockerImage sh -c "echo battos-docker-sandbox-ok" 2>&1
+$dockerProbeExitCode = $LASTEXITCODE
+$ErrorActionPreference = $previousErrorActionPreference
+if ($dockerProbeExitCode -ne 0) {
+    throw "Docker sandbox probe failed for image ${DockerImage}: $dockerProbe"
+}
+Write-Host $dockerProbe
 if (Test-Path "infra\.env") {
     $runningComposeServices = @(docker compose -f infra/docker-compose.yml --env-file infra/.env ps --status running --services 2>$null)
     if ($LASTEXITCODE -eq 0 -and $runningComposeServices -contains "battos-worker") {
@@ -46,12 +57,19 @@ Write-Step "Registering sandbox smoke runtime and agent"
 $runtimeId = $(if ($RequireMemoryContext) { "sandbox-memory-smoke" } else { "sandbox-smoke" })
 $agentId = $(if ($RequireMemoryContext) { "sandbox-memory-smoke-agent" } else { "sandbox-smoke-agent" })
 $agentName = $(if ($RequireMemoryContext) { "Sandbox Memory Smoke Agent" } else { "Sandbox Smoke Agent" })
-$runtimeName = $(if ($RequireMemoryContext) { "Sandbox Memory Smoke Test" } else { "Sandbox Smoke Test" })
-$sql1 = "INSERT INTO agent_runtimes (id, name, kind, risk_level, requires_auth, status) VALUES ('$runtimeId', '$runtimeName', 'subprocess', 'low', false, 'configured') ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status;"
-$sql2 = "INSERT INTO agents (id, slug, name, role, runtime_id, risk_level, status) VALUES ('$agentId', '$agentId', '$agentName', 'worker smoke test', '$runtimeId', 'low', 'active') ON CONFLICT (id) DO UPDATE SET runtime_id = EXCLUDED.runtime_id, status = EXCLUDED.status;"
-goose -dir apps/api/migrations postgres $DatabaseUrl status | Out-Null
-docker exec battos-db psql -U battos -d battos -v ON_ERROR_STOP=1 -c $sql1 | Write-Host
-docker exec battos-db psql -U battos -d battos -v ON_ERROR_STOP=1 -c $sql2 | Write-Host
+$agentBody = @{
+    slug = $agentId
+    name = $agentName
+    role = "worker smoke test"
+    runtime_id = $runtimeId
+    risk_level = "low"
+    status = "active"
+} | ConvertTo-Json
+try {
+    Invoke-RestMethod -UseBasicParsing -Method Post -Uri "$ApiUrl/agents" -ContentType "application/json" -Body $agentBody | Out-Null
+} catch {
+    Write-Host "Smoke agent may already exist: $($_.Exception.Message)"
+}
 
 Write-Step "Creating project, task, run and execute approval"
 $stamp = Get-Date -Format "yyyyMMddHHmmss"
@@ -97,7 +115,6 @@ if ($approval.run.status -ne "queued") {
 Write-Host "Run queued: $($run.id)"
 
 Write-Step "Processing run with worker Docker sandbox"
-$env:DATABASE_URL = $DatabaseUrl
 $env:BATTOS_EXECUTION_SANDBOX_MODE = "docker"
 $env:BATTOS_EXECUTION_DOCKER_IMAGE = $DockerImage
 $env:GOCACHE = (Resolve-Path "data\.cache\go-build").Path

@@ -7,24 +7,23 @@ package store
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
+	"database/sql"
 )
 
 const appendRunLog = `-- name: AppendRunLog :one
 INSERT INTO run_logs (run_id, stream, message)
-VALUES ($1, $2, $3)
+VALUES (?, ?, ?)
 RETURNING id, run_id, stream, message, created_at
 `
 
 type AppendRunLogParams struct {
-	RunID   pgtype.UUID `json:"run_id"`
-	Stream  string      `json:"stream"`
-	Message string      `json:"message"`
+	RunID   string `json:"run_id"`
+	Stream  string `json:"stream"`
+	Message string `json:"message"`
 }
 
 func (q *Queries) AppendRunLog(ctx context.Context, arg AppendRunLogParams) (RunLog, error) {
-	row := q.db.QueryRow(ctx, appendRunLog, arg.RunID, arg.Stream, arg.Message)
+	row := q.db.QueryRowContext(ctx, appendRunLog, arg.RunID, arg.Stream, arg.Message)
 	var i RunLog
 	err := row.Scan(
 		&i.ID,
@@ -39,14 +38,17 @@ func (q *Queries) AppendRunLog(ctx context.Context, arg AppendRunLogParams) (Run
 const cancelRun = `-- name: CancelRun :one
 UPDATE runs
 SET status = 'cancelled',
-    completed_at = COALESCE(completed_at, NOW())
-WHERE id = $1
+    completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP)
+WHERE id = ?
   AND status IN ('draft', 'awaiting_approval', 'queued', 'running')
-RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id, repository_id, prompt, requested_network, network_enabled, status, branch_name, result_summary, error_message, estimated_cost_usd, metadata, started_at, completed_at, created_at, updated_at
+RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
+          repository_id, prompt, requested_network, network_enabled, status,
+          branch_name, result_summary, error_message, estimated_cost_usd,
+          metadata, started_at, completed_at, created_at, updated_at
 `
 
-func (q *Queries) CancelRun(ctx context.Context, id pgtype.UUID) (Run, error) {
-	row := q.db.QueryRow(ctx, cancelRun, id)
+func (q *Queries) CancelRun(ctx context.Context, id string) (Run, error) {
+	row := q.db.QueryRowContext(ctx, cancelRun, id)
 	var i Run
 	err := row.Scan(
 		&i.ID,
@@ -76,20 +78,22 @@ func (q *Queries) CancelRun(ctx context.Context, id pgtype.UUID) (Run, error) {
 const claimNextQueuedRun = `-- name: ClaimNextQueuedRun :one
 UPDATE runs
 SET status = 'running',
-    started_at = NOW()
+    started_at = CURRENT_TIMESTAMP
 WHERE id = (
     SELECT id
     FROM runs
     WHERE status = 'queued'
     ORDER BY created_at ASC
-    FOR UPDATE SKIP LOCKED
     LIMIT 1
 )
-RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id, repository_id, prompt, requested_network, network_enabled, status, branch_name, result_summary, error_message, estimated_cost_usd, metadata, started_at, completed_at, created_at, updated_at
+RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
+          repository_id, prompt, requested_network, network_enabled, status,
+          branch_name, result_summary, error_message, estimated_cost_usd,
+          metadata, started_at, completed_at, created_at, updated_at
 `
 
 func (q *Queries) ClaimNextQueuedRun(ctx context.Context) (Run, error) {
-	row := q.db.QueryRow(ctx, claimNextQueuedRun)
+	row := q.db.QueryRowContext(ctx, claimNextQueuedRun)
 	var i Run
 	err := row.Scan(
 		&i.ID,
@@ -119,14 +123,17 @@ func (q *Queries) ClaimNextQueuedRun(ctx context.Context) (Run, error) {
 const claimQueuedRunByID = `-- name: ClaimQueuedRunByID :one
 UPDATE runs
 SET status = 'running',
-    started_at = NOW()
-WHERE id = $1
+    started_at = CURRENT_TIMESTAMP
+WHERE id = ?
   AND status = 'queued'
-RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id, repository_id, prompt, requested_network, network_enabled, status, branch_name, result_summary, error_message, estimated_cost_usd, metadata, started_at, completed_at, created_at, updated_at
+RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
+          repository_id, prompt, requested_network, network_enabled, status,
+          branch_name, result_summary, error_message, estimated_cost_usd,
+          metadata, started_at, completed_at, created_at, updated_at
 `
 
-func (q *Queries) ClaimQueuedRunByID(ctx context.Context, id pgtype.UUID) (Run, error) {
-	row := q.db.QueryRow(ctx, claimQueuedRunByID, id)
+func (q *Queries) ClaimQueuedRunByID(ctx context.Context, id string) (Run, error) {
+	row := q.db.QueryRowContext(ctx, claimQueuedRunByID, id)
 	var i Run
 	err := row.Scan(
 		&i.ID,
@@ -156,20 +163,23 @@ func (q *Queries) ClaimQueuedRunByID(ctx context.Context, id pgtype.UUID) (Run, 
 const completeRun = `-- name: CompleteRun :one
 UPDATE runs
 SET status = 'succeeded',
-    result_summary = $2,
-    completed_at = NOW(),
+    result_summary = ?,
+    completed_at = CURRENT_TIMESTAMP,
     error_message = NULL
-WHERE id = $1
-RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id, repository_id, prompt, requested_network, network_enabled, status, branch_name, result_summary, error_message, estimated_cost_usd, metadata, started_at, completed_at, created_at, updated_at
+WHERE id = ?
+RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
+          repository_id, prompt, requested_network, network_enabled, status,
+          branch_name, result_summary, error_message, estimated_cost_usd,
+          metadata, started_at, completed_at, created_at, updated_at
 `
 
 type CompleteRunParams struct {
-	ID            pgtype.UUID `json:"id"`
-	ResultSummary pgtype.Text `json:"result_summary"`
+	ResultSummary sql.NullString `json:"result_summary"`
+	ID            string         `json:"id"`
 }
 
 func (q *Queries) CompleteRun(ctx context.Context, arg CompleteRunParams) (Run, error) {
-	row := q.db.QueryRow(ctx, completeRun, arg.ID, arg.ResultSummary)
+	row := q.db.QueryRowContext(ctx, completeRun, arg.ResultSummary, arg.ID)
 	var i Run
 	err := row.Scan(
 		&i.ID,
@@ -199,27 +209,30 @@ func (q *Queries) CompleteRun(ctx context.Context, arg CompleteRunParams) (Run, 
 const createRun = `-- name: CreateRun :one
 
 INSERT INTO runs (
-    project_id, task_id, agent_id, skill_id, runtime_adapter_id, repository_id,
+    id, project_id, task_id, agent_id, skill_id, runtime_adapter_id, repository_id,
     prompt, requested_network, network_enabled, status, metadata
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, 'awaiting_approval', '{}'::jsonb)
-RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id, repository_id, prompt, requested_network, network_enabled, status, branch_name, result_summary, error_message, estimated_cost_usd, metadata, started_at, completed_at, created_at, updated_at
+VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, ?, ?, 0, 'awaiting_approval', '{}')
+RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
+          repository_id, prompt, requested_network, network_enabled, status,
+          branch_name, result_summary, error_message, estimated_cost_usd,
+          metadata, started_at, completed_at, created_at, updated_at
 `
 
 type CreateRunParams struct {
-	ProjectID        string      `json:"project_id"`
-	TaskID           string      `json:"task_id"`
-	AgentID          string      `json:"agent_id"`
-	SkillID          pgtype.Text `json:"skill_id"`
-	RuntimeAdapterID string      `json:"runtime_adapter_id"`
-	RepositoryID     pgtype.Text `json:"repository_id"`
-	Prompt           string      `json:"prompt"`
-	RequestedNetwork bool        `json:"requested_network"`
+	ProjectID        string         `json:"project_id"`
+	TaskID           string         `json:"task_id"`
+	AgentID          string         `json:"agent_id"`
+	SkillID          sql.NullString `json:"skill_id"`
+	RuntimeAdapterID string         `json:"runtime_adapter_id"`
+	RepositoryID     sql.NullString `json:"repository_id"`
+	Prompt           string         `json:"prompt"`
+	RequestedNetwork int64          `json:"requested_network"`
 }
 
 // Run proposal and approval queries.
 func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (Run, error) {
-	row := q.db.QueryRow(ctx, createRun,
+	row := q.db.QueryRowContext(ctx, createRun,
 		arg.ProjectID,
 		arg.TaskID,
 		arg.AgentID,
@@ -256,20 +269,20 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (Run, erro
 }
 
 const createRunApproval = `-- name: CreateRunApproval :one
-INSERT INTO run_approvals (run_id, kind, decision, reason)
-VALUES ($1, $2, $3, $4)
+INSERT INTO run_approvals (id, run_id, kind, decision, reason)
+VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?)
 RETURNING id, run_id, kind, decision, reason, decided_at
 `
 
 type CreateRunApprovalParams struct {
-	RunID    pgtype.UUID `json:"run_id"`
-	Kind     string      `json:"kind"`
-	Decision string      `json:"decision"`
-	Reason   pgtype.Text `json:"reason"`
+	RunID    string         `json:"run_id"`
+	Kind     string         `json:"kind"`
+	Decision string         `json:"decision"`
+	Reason   sql.NullString `json:"reason"`
 }
 
 func (q *Queries) CreateRunApproval(ctx context.Context, arg CreateRunApprovalParams) (RunApproval, error) {
-	row := q.db.QueryRow(ctx, createRunApproval,
+	row := q.db.QueryRowContext(ctx, createRunApproval,
 		arg.RunID,
 		arg.Kind,
 		arg.Decision,
@@ -289,13 +302,16 @@ func (q *Queries) CreateRunApproval(ctx context.Context, arg CreateRunApprovalPa
 
 const enableRunNetwork = `-- name: EnableRunNetwork :one
 UPDATE runs
-SET network_enabled = true
-WHERE id = $1
-RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id, repository_id, prompt, requested_network, network_enabled, status, branch_name, result_summary, error_message, estimated_cost_usd, metadata, started_at, completed_at, created_at, updated_at
+SET network_enabled = 1
+WHERE id = ?
+RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
+          repository_id, prompt, requested_network, network_enabled, status,
+          branch_name, result_summary, error_message, estimated_cost_usd,
+          metadata, started_at, completed_at, created_at, updated_at
 `
 
-func (q *Queries) EnableRunNetwork(ctx context.Context, id pgtype.UUID) (Run, error) {
-	row := q.db.QueryRow(ctx, enableRunNetwork, id)
+func (q *Queries) EnableRunNetwork(ctx context.Context, id string) (Run, error) {
+	row := q.db.QueryRowContext(ctx, enableRunNetwork, id)
 	var i Run
 	err := row.Scan(
 		&i.ID,
@@ -325,21 +341,24 @@ func (q *Queries) EnableRunNetwork(ctx context.Context, id pgtype.UUID) (Run, er
 const failRun = `-- name: FailRun :one
 UPDATE runs
 SET status = 'failed',
-    result_summary = $2,
-    error_message = $3,
-    completed_at = NOW()
-WHERE id = $1
-RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id, repository_id, prompt, requested_network, network_enabled, status, branch_name, result_summary, error_message, estimated_cost_usd, metadata, started_at, completed_at, created_at, updated_at
+    result_summary = ?,
+    error_message = ?,
+    completed_at = CURRENT_TIMESTAMP
+WHERE id = ?
+RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
+          repository_id, prompt, requested_network, network_enabled, status,
+          branch_name, result_summary, error_message, estimated_cost_usd,
+          metadata, started_at, completed_at, created_at, updated_at
 `
 
 type FailRunParams struct {
-	ID            pgtype.UUID `json:"id"`
-	ResultSummary pgtype.Text `json:"result_summary"`
-	ErrorMessage  pgtype.Text `json:"error_message"`
+	ResultSummary sql.NullString `json:"result_summary"`
+	ErrorMessage  sql.NullString `json:"error_message"`
+	ID            string         `json:"id"`
 }
 
 func (q *Queries) FailRun(ctx context.Context, arg FailRunParams) (Run, error) {
-	row := q.db.QueryRow(ctx, failRun, arg.ID, arg.ResultSummary, arg.ErrorMessage)
+	row := q.db.QueryRowContext(ctx, failRun, arg.ResultSummary, arg.ErrorMessage, arg.ID)
 	var i Run
 	err := row.Scan(
 		&i.ID,
@@ -367,11 +386,14 @@ func (q *Queries) FailRun(ctx context.Context, arg FailRunParams) (Run, error) {
 }
 
 const getRun = `-- name: GetRun :one
-SELECT id, project_id, task_id, agent_id, skill_id, runtime_adapter_id, repository_id, prompt, requested_network, network_enabled, status, branch_name, result_summary, error_message, estimated_cost_usd, metadata, started_at, completed_at, created_at, updated_at FROM runs WHERE id = $1
+SELECT id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
+       repository_id, prompt, requested_network, network_enabled, status,
+       branch_name, result_summary, error_message, estimated_cost_usd,
+       metadata, started_at, completed_at, created_at, updated_at FROM runs WHERE id = ?
 `
 
-func (q *Queries) GetRun(ctx context.Context, id pgtype.UUID) (Run, error) {
-	row := q.db.QueryRow(ctx, getRun, id)
+func (q *Queries) GetRun(ctx context.Context, id string) (Run, error) {
+	row := q.db.QueryRowContext(ctx, getRun, id)
 	var i Run
 	err := row.Scan(
 		&i.ID,
@@ -400,12 +422,12 @@ func (q *Queries) GetRun(ctx context.Context, id pgtype.UUID) (Run, error) {
 
 const listRunLogs = `-- name: ListRunLogs :many
 SELECT id, run_id, stream, message, created_at FROM run_logs
-WHERE run_id = $1
+WHERE run_id = ?
 ORDER BY created_at ASC
 `
 
-func (q *Queries) ListRunLogs(ctx context.Context, runID pgtype.UUID) ([]RunLog, error) {
-	rows, err := q.db.Query(ctx, listRunLogs, runID)
+func (q *Queries) ListRunLogs(ctx context.Context, runID string) ([]RunLog, error) {
+	rows, err := q.db.QueryContext(ctx, listRunLogs, runID)
 	if err != nil {
 		return nil, err
 	}
@@ -424,6 +446,9 @@ func (q *Queries) ListRunLogs(ctx context.Context, runID pgtype.UUID) ([]RunLog,
 		}
 		items = append(items, i)
 	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -431,12 +456,15 @@ func (q *Queries) ListRunLogs(ctx context.Context, runID pgtype.UUID) ([]RunLog,
 }
 
 const listRuns = `-- name: ListRuns :many
-SELECT id, project_id, task_id, agent_id, skill_id, runtime_adapter_id, repository_id, prompt, requested_network, network_enabled, status, branch_name, result_summary, error_message, estimated_cost_usd, metadata, started_at, completed_at, created_at, updated_at FROM runs
+SELECT id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
+       repository_id, prompt, requested_network, network_enabled, status,
+       branch_name, result_summary, error_message, estimated_cost_usd,
+       metadata, started_at, completed_at, created_at, updated_at FROM runs
 ORDER BY created_at DESC
 `
 
 func (q *Queries) ListRuns(ctx context.Context) ([]Run, error) {
-	rows, err := q.db.Query(ctx, listRuns)
+	rows, err := q.db.QueryContext(ctx, listRuns)
 	if err != nil {
 		return nil, err
 	}
@@ -469,6 +497,9 @@ func (q *Queries) ListRuns(ctx context.Context) ([]Run, error) {
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -477,13 +508,16 @@ func (q *Queries) ListRuns(ctx context.Context) ([]Run, error) {
 }
 
 const listRunsByProject = `-- name: ListRunsByProject :many
-SELECT id, project_id, task_id, agent_id, skill_id, runtime_adapter_id, repository_id, prompt, requested_network, network_enabled, status, branch_name, result_summary, error_message, estimated_cost_usd, metadata, started_at, completed_at, created_at, updated_at FROM runs
-WHERE project_id = $1
+SELECT id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
+       repository_id, prompt, requested_network, network_enabled, status,
+       branch_name, result_summary, error_message, estimated_cost_usd,
+       metadata, started_at, completed_at, created_at, updated_at FROM runs
+WHERE project_id = ?
 ORDER BY created_at DESC
 `
 
 func (q *Queries) ListRunsByProject(ctx context.Context, projectID string) ([]Run, error) {
-	rows, err := q.db.Query(ctx, listRunsByProject, projectID)
+	rows, err := q.db.QueryContext(ctx, listRunsByProject, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -516,6 +550,9 @@ func (q *Queries) ListRunsByProject(ctx context.Context, projectID string) ([]Ru
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -525,20 +562,23 @@ func (q *Queries) ListRunsByProject(ctx context.Context, projectID string) ([]Ru
 
 const updateRunBranchAndMetadata = `-- name: UpdateRunBranchAndMetadata :one
 UPDATE runs
-SET branch_name = $2,
-    metadata = $3
-WHERE id = $1
-RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id, repository_id, prompt, requested_network, network_enabled, status, branch_name, result_summary, error_message, estimated_cost_usd, metadata, started_at, completed_at, created_at, updated_at
+SET branch_name = ?,
+    metadata = ?
+WHERE id = ?
+RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
+          repository_id, prompt, requested_network, network_enabled, status,
+          branch_name, result_summary, error_message, estimated_cost_usd,
+          metadata, started_at, completed_at, created_at, updated_at
 `
 
 type UpdateRunBranchAndMetadataParams struct {
-	ID         pgtype.UUID `json:"id"`
-	BranchName pgtype.Text `json:"branch_name"`
-	Metadata   []byte      `json:"metadata"`
+	BranchName sql.NullString `json:"branch_name"`
+	Metadata   string         `json:"metadata"`
+	ID         string         `json:"id"`
 }
 
 func (q *Queries) UpdateRunBranchAndMetadata(ctx context.Context, arg UpdateRunBranchAndMetadataParams) (Run, error) {
-	row := q.db.QueryRow(ctx, updateRunBranchAndMetadata, arg.ID, arg.BranchName, arg.Metadata)
+	row := q.db.QueryRowContext(ctx, updateRunBranchAndMetadata, arg.BranchName, arg.Metadata, arg.ID)
 	var i Run
 	err := row.Scan(
 		&i.ID,
@@ -567,18 +607,21 @@ func (q *Queries) UpdateRunBranchAndMetadata(ctx context.Context, arg UpdateRunB
 
 const updateRunStatus = `-- name: UpdateRunStatus :one
 UPDATE runs
-SET status = $2
-WHERE id = $1
-RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id, repository_id, prompt, requested_network, network_enabled, status, branch_name, result_summary, error_message, estimated_cost_usd, metadata, started_at, completed_at, created_at, updated_at
+SET status = ?
+WHERE id = ?
+RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
+          repository_id, prompt, requested_network, network_enabled, status,
+          branch_name, result_summary, error_message, estimated_cost_usd,
+          metadata, started_at, completed_at, created_at, updated_at
 `
 
 type UpdateRunStatusParams struct {
-	ID     pgtype.UUID `json:"id"`
-	Status string      `json:"status"`
+	Status string `json:"status"`
+	ID     string `json:"id"`
 }
 
 func (q *Queries) UpdateRunStatus(ctx context.Context, arg UpdateRunStatusParams) (Run, error) {
-	row := q.db.QueryRow(ctx, updateRunStatus, arg.ID, arg.Status)
+	row := q.db.QueryRowContext(ctx, updateRunStatus, arg.Status, arg.ID)
 	var i Run
 	err := row.Scan(
 		&i.ID,

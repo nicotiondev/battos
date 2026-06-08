@@ -9,14 +9,14 @@
 version: "2"
 
 sql:
-  - engine: postgresql
+  - engine: sqlite
     queries: "./queries"
-    schema: "./migrations"
+    schema: "./internal/store/sqlite_schema.sql"
     gen:
       go:
         package: "store"
         out: "./internal/store"
-        sql_package: "pgx/v5"
+        sql_package: "database/sql"
 
         # Tipos que mapeamos especialmente
         emit_json_tags: true
@@ -25,9 +25,3 @@ sql:
         emit_interface: true          # genera interface Querier (útil para mocks)
         emit_exact_table_names: false
         emit_empty_slices: true       # devuelve [] en vez de nil en List queries
-
-        # JSONB → json.RawMessage (más ergonómico que []byte).
-        # Nullable JSONB → *json.RawMessage (sqlc agrega el puntero automáticamente).
-        overrides:
-          - db_type: "pg_catalog.jsonb"
-            go_type: "encoding/json.RawMessage"

@@ -10,20 +10,20 @@ import (
 )
 
 const countAuditLogs = `-- name: CountAuditLogs :one
-SELECT COUNT(*)::int AS total FROM audit_logs
+SELECT COUNT(*) AS total FROM audit_logs
 `
 
-func (q *Queries) CountAuditLogs(ctx context.Context) (int32, error) {
-	row := q.db.QueryRow(ctx, countAuditLogs)
-	var total int32
+func (q *Queries) CountAuditLogs(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAuditLogs)
+	var total int64
 	err := row.Scan(&total)
 	return total, err
 }
 
 const createAuditLog = `-- name: CreateAuditLog :one
 
-INSERT INTO audit_logs (action, actor, target_type, target_id, details, ip_address)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO audit_logs (id, action, actor, target_type, target_id, details, ip_address)
+VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?)
 RETURNING id, action, actor, target_type, target_id, details, ip_address, created_at
 `
 
@@ -32,13 +32,13 @@ type CreateAuditLogParams struct {
 	Actor      string `json:"actor"`
 	TargetType string `json:"target_type"`
 	TargetID   string `json:"target_id"`
-	Details    []byte `json:"details"`
+	Details    string `json:"details"`
 	IpAddress  string `json:"ip_address"`
 }
 
 // Audit log queries para registro de acciones administrativas.
 func (q *Queries) CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) (AuditLog, error) {
-	row := q.db.QueryRow(ctx, createAuditLog,
+	row := q.db.QueryRowContext(ctx, createAuditLog,
 		arg.Action,
 		arg.Actor,
 		arg.TargetType,
@@ -61,13 +61,14 @@ func (q *Queries) CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) 
 }
 
 const listAuditLogs = `-- name: ListAuditLogs :many
-SELECT id, action, actor, target_type, target_id, details, ip_address, created_at FROM audit_logs
+SELECT id, action, actor, target_type, target_id, details, ip_address, created_at
+FROM audit_logs
 ORDER BY created_at DESC
-LIMIT $1
+LIMIT ?
 `
 
-func (q *Queries) ListAuditLogs(ctx context.Context, limit int32) ([]AuditLog, error) {
-	rows, err := q.db.Query(ctx, listAuditLogs, limit)
+func (q *Queries) ListAuditLogs(ctx context.Context, limit int64) ([]AuditLog, error) {
+	rows, err := q.db.QueryContext(ctx, listAuditLogs, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -88,6 +89,9 @@ func (q *Queries) ListAuditLogs(ctx context.Context, limit int32) ([]AuditLog, e
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -96,19 +100,20 @@ func (q *Queries) ListAuditLogs(ctx context.Context, limit int32) ([]AuditLog, e
 }
 
 const listAuditLogsByAction = `-- name: ListAuditLogsByAction :many
-SELECT id, action, actor, target_type, target_id, details, ip_address, created_at FROM audit_logs
-WHERE action = $1
+SELECT id, action, actor, target_type, target_id, details, ip_address, created_at
+FROM audit_logs
+WHERE action = ?
 ORDER BY created_at DESC
-LIMIT $2
+LIMIT ?
 `
 
 type ListAuditLogsByActionParams struct {
 	Action string `json:"action"`
-	Limit  int32  `json:"limit"`
+	Limit  int64  `json:"limit"`
 }
 
 func (q *Queries) ListAuditLogsByAction(ctx context.Context, arg ListAuditLogsByActionParams) ([]AuditLog, error) {
-	rows, err := q.db.Query(ctx, listAuditLogsByAction, arg.Action, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, listAuditLogsByAction, arg.Action, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -129,6 +134,9 @@ func (q *Queries) ListAuditLogsByAction(ctx context.Context, arg ListAuditLogsBy
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -137,19 +145,20 @@ func (q *Queries) ListAuditLogsByAction(ctx context.Context, arg ListAuditLogsBy
 }
 
 const listAuditLogsByActor = `-- name: ListAuditLogsByActor :many
-SELECT id, action, actor, target_type, target_id, details, ip_address, created_at FROM audit_logs
-WHERE actor = $1
+SELECT id, action, actor, target_type, target_id, details, ip_address, created_at
+FROM audit_logs
+WHERE actor = ?
 ORDER BY created_at DESC
-LIMIT $2
+LIMIT ?
 `
 
 type ListAuditLogsByActorParams struct {
 	Actor string `json:"actor"`
-	Limit int32  `json:"limit"`
+	Limit int64  `json:"limit"`
 }
 
 func (q *Queries) ListAuditLogsByActor(ctx context.Context, arg ListAuditLogsByActorParams) ([]AuditLog, error) {
-	rows, err := q.db.Query(ctx, listAuditLogsByActor, arg.Actor, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, listAuditLogsByActor, arg.Actor, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -170,6 +179,9 @@ func (q *Queries) ListAuditLogsByActor(ctx context.Context, arg ListAuditLogsByA
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

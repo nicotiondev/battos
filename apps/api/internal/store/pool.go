@@ -2,48 +2,50 @@ package store
 
 import (
 	"context"
+	"database/sql"
+	_ "embed"
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	_ "modernc.org/sqlite"
 )
 
-// OpenPool abre un pool de conexiones a Postgres con timeouts razonables.
-//
-// El DATABASE_URL viene del env (DATABASE_URL=postgresql://...) y se valida
-// con un Ping antes de devolver el pool.
-//
-// El pool es la unidad que se inyecta a los handlers; sqlc.New(pool) crea
-// el Queries que ejecuta las queries generadas.
-func OpenPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
-	if databaseURL == "" {
-		return nil, fmt.Errorf("store: DATABASE_URL vacío")
+//go:embed sqlite_schema.sql
+var sqliteSchema string
+
+// OpenDB abre la base SQLite unificada de BattOS y aplica el schema
+// idempotente. Es la fuente operacional única de v0.1.
+func OpenDB(ctx context.Context, dbPath string) (*sql.DB, error) {
+	if dbPath == "" {
+		return nil, errors.New("store: database path vacío")
+	}
+	if dir := filepath.Dir(dbPath); dir != "." && dir != "" {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return nil, fmt.Errorf("store: crear directorio SQLite: %w", err)
+		}
 	}
 
-	cfg, err := pgxpool.ParseConfig(databaseURL)
+	dsn := fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)", dbPath)
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
-		return nil, fmt.Errorf("store: parseando DATABASE_URL: %w", err)
+		return nil, fmt.Errorf("store: abrir SQLite: %w", err)
 	}
-
-	// Tamaño razonable para single-instance dev. Subir en prod si hace falta.
-	cfg.MaxConns = 10
-	cfg.MinConns = 1
-	cfg.MaxConnLifetime = 30 * time.Minute
-	cfg.MaxConnIdleTime = 5 * time.Minute
-	cfg.HealthCheckPeriod = 30 * time.Second
-	cfg.ConnConfig.ConnectTimeout = 5 * time.Second
-
-	pool, err := pgxpool.NewWithConfig(ctx, cfg)
-	if err != nil {
-		return nil, fmt.Errorf("store: pgxpool.NewWithConfig: %w", err)
-	}
+	db.SetMaxOpenConns(8)
+	db.SetMaxIdleConns(4)
+	db.SetConnMaxLifetime(30 * time.Minute)
 
 	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	if err := pool.Ping(pingCtx); err != nil {
-		pool.Close()
-		return nil, fmt.Errorf("store: ping inicial: %w", err)
+	if err := db.PingContext(pingCtx); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("store: ping SQLite: %w", err)
 	}
-
-	return pool, nil
+	if _, err := db.ExecContext(ctx, sqliteSchema); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("store: aplicar schema SQLite: %w", err)
+	}
+	return db, nil
 }

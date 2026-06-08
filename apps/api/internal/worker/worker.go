@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,16 +12,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/nicotion/battos/apps/api/internal/gitauth"
 	"github.com/nicotion/battos/apps/api/internal/store"
 )
 
 type Store interface {
 	ClaimNextQueuedRun(context.Context) (store.Run, error)
-	ClaimQueuedRunByID(context.Context, pgtype.UUID) (store.Run, error)
+	ClaimQueuedRunByID(context.Context, string) (store.Run, error)
 	AppendRunLog(context.Context, store.AppendRunLogParams) (store.RunLog, error)
 	CompleteRun(context.Context, store.CompleteRunParams) (store.Run, error)
 	FailRun(context.Context, store.FailRunParams) (store.Run, error)
@@ -54,10 +52,17 @@ type ExecutionPlan struct {
 	Command        string
 	Args           []string
 	EnvKeys        []string
+	Mounts         []Mount
 	Prompt         string
 	WorkDir        string
 	NetworkEnabled bool
 	Timeout        time.Duration
+}
+
+type Mount struct {
+	Source   string
+	Target   string
+	ReadOnly bool
 }
 
 type ProducedArtifact struct {
@@ -130,7 +135,7 @@ func (w *Worker) RunLoop(ctx context.Context, pollInterval time.Duration) error 
 
 func (w *Worker) ProcessOne(ctx context.Context) (bool, error) {
 	run, err := w.store.ClaimNextQueuedRun(ctx)
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
 	if err != nil {
@@ -139,9 +144,9 @@ func (w *Worker) ProcessOne(ctx context.Context) (bool, error) {
 	return w.processClaimedRun(ctx, run)
 }
 
-func (w *Worker) ProcessRunID(ctx context.Context, id pgtype.UUID) (bool, error) {
+func (w *Worker) ProcessRunID(ctx context.Context, id string) (bool, error) {
 	run, err := w.store.ClaimQueuedRunByID(ctx, id)
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
 	if err != nil {
@@ -242,7 +247,7 @@ func (w *Worker) processClaimedRun(ctx context.Context, run store.Run) (bool, er
 				_ = cmdSetURL.Run()
 			}
 
-			branchName = fmt.Sprintf("battos-run-%s", uuid.UUID(run.ID.Bytes).String())
+			branchName = fmt.Sprintf("battos-run-%s", run.ID)
 			_ = w.log(ctx, run.ID, "system", fmt.Sprintf("git: creating and switching to branch %s", branchName))
 			cmdCheckout := exec.Command("git", "checkout", "-b", branchName)
 			cmdCheckout.Dir = workDir
@@ -286,13 +291,13 @@ func (w *Worker) processClaimedRun(ctx context.Context, run store.Run) (bool, er
 		_, errArt := w.store.CreateArtifact(ctx, store.CreateArtifactParams{
 			ProjectID:   run.ProjectID,
 			TaskID:      nullableText(run.TaskID),
-			RunID:       run.ID,
+			RunID:       sql.NullString{String: run.ID, Valid: true},
 			Name:        art.Name,
 			Kind:        art.Kind,
-			Content:     pgtype.Text{String: art.Content, Valid: true},
-			ManagedPath: pgtype.Text{String: relPath, Valid: true},
-			ExternalUrl: pgtype.Text{Valid: false},
-			Metadata:    []byte("{}"),
+			Content:     sql.NullString{String: art.Content, Valid: true},
+			ManagedPath: sql.NullString{String: relPath, Valid: true},
+			ExternalUrl: sql.NullString{},
+			Metadata:    "{}",
 		})
 		if errArt != nil {
 			_ = w.log(ctx, run.ID, "system", fmt.Sprintf("error registering artifact %q in database: %v", art.Name, errArt))
@@ -303,7 +308,7 @@ func (w *Worker) processClaimedRun(ctx context.Context, run store.Run) (bool, er
 
 	var metadataMap map[string]any
 	if len(run.Metadata) > 0 {
-		_ = json.Unmarshal(run.Metadata, &metadataMap)
+		_ = json.Unmarshal([]byte(run.Metadata), &metadataMap)
 	}
 	if metadataMap == nil {
 		metadataMap = make(map[string]any)
@@ -321,13 +326,13 @@ func (w *Worker) processClaimedRun(ctx context.Context, run store.Run) (bool, er
 			_, errArt := w.store.CreateArtifact(ctx, store.CreateArtifactParams{
 				ProjectID:   run.ProjectID,
 				TaskID:      nullableText(run.TaskID),
-				RunID:       run.ID,
+				RunID:       sql.NullString{String: run.ID, Valid: true},
 				Name:        "run-diff",
 				Kind:        "diff",
-				Content:     pgtype.Text{String: diffStr, Valid: true},
-				ManagedPath: pgtype.Text{Valid: false},
-				ExternalUrl: pgtype.Text{Valid: false},
-				Metadata:    []byte("{}"),
+				Content:     sql.NullString{String: diffStr, Valid: true},
+				ManagedPath: sql.NullString{},
+				ExternalUrl: sql.NullString{},
+				Metadata:    "{}",
 			})
 			if errArt != nil {
 				_ = w.log(ctx, run.ID, "system", fmt.Sprintf("error registering diff artifact: %v", errArt))
@@ -340,8 +345,8 @@ func (w *Worker) processClaimedRun(ctx context.Context, run store.Run) (bool, er
 		metadataBytes, _ := json.Marshal(metadataMap)
 		_, errUpdate := w.store.UpdateRunBranchAndMetadata(ctx, store.UpdateRunBranchAndMetadataParams{
 			ID:         run.ID,
-			BranchName: pgtype.Text{String: branchName, Valid: true},
-			Metadata:   metadataBytes,
+			BranchName: sql.NullString{String: branchName, Valid: true},
+			Metadata:   string(metadataBytes),
 		})
 		if errUpdate != nil {
 			_ = w.log(ctx, run.ID, "system", fmt.Sprintf("error updating run branch/metadata: %v", errUpdate))
@@ -358,7 +363,7 @@ func (w *Worker) processClaimedRun(ctx context.Context, run store.Run) (bool, er
 	return true, nil
 }
 
-func (w *Worker) fail(ctx context.Context, id pgtype.UUID, summary, message string) error {
+func (w *Worker) fail(ctx context.Context, id string, summary, message string) error {
 	if logErr := w.log(ctx, id, "stderr", message); logErr != nil {
 		return logErr
 	}
@@ -372,7 +377,7 @@ func (w *Worker) fail(ctx context.Context, id pgtype.UUID, summary, message stri
 	return nil
 }
 
-func (w *Worker) log(ctx context.Context, id pgtype.UUID, stream, message string) error {
+func (w *Worker) log(ctx context.Context, id string, stream, message string) error {
 	if message == "" {
 		return nil
 	}
@@ -391,8 +396,8 @@ func normalizeStream(value string) string {
 	}
 }
 
-func nullableText(value string) pgtype.Text {
-	return pgtype.Text{String: value, Valid: value != ""}
+func nullableText(value string) sql.NullString {
+	return sql.NullString{String: value, Valid: value != ""}
 }
 
 func validatePlan(plan ExecutionPlan, run store.Run) error {
@@ -410,7 +415,18 @@ func validatePlan(plan ExecutionPlan, run store.Run) error {
 			return fmt.Errorf("invalid env key %q", key)
 		}
 	}
-	if plan.NetworkEnabled && !run.NetworkEnabled {
+	for _, mount := range plan.Mounts {
+		if strings.TrimSpace(mount.Source) == "" || strings.TrimSpace(mount.Target) == "" {
+			return fmt.Errorf("invalid host_session mount")
+		}
+		if !mount.ReadOnly {
+			return fmt.Errorf("host_session mounts must be read-only")
+		}
+	}
+	if len(plan.Mounts) > 0 && !plan.NetworkEnabled {
+		return fmt.Errorf("host_session requires network approval")
+	}
+	if plan.NetworkEnabled && run.NetworkEnabled == 0 {
 		return fmt.Errorf("network was not approved for this run")
 	}
 	if plan.Timeout <= 0 {
@@ -447,10 +463,10 @@ func (w *Worker) recordUsage(ctx context.Context, run store.Run, res Result) {
 		}
 	}
 	if providerID == "" {
-		if run.RuntimeAdapterID == "claude-code" {
+		if run.RuntimeAdapterID == "claude-code" || run.RuntimeAdapterID == "claude-code-host-session" {
 			providerID = "anthropic"
 			modelID = "claude-3-5-sonnet"
-		} else if run.RuntimeAdapterID == "codex" {
+		} else if run.RuntimeAdapterID == "codex" || run.RuntimeAdapterID == "codex-host-session" {
 			providerID = "openai"
 			modelID = "gpt-4o"
 		} else {
@@ -459,21 +475,18 @@ func (w *Worker) recordUsage(ctx context.Context, run store.Run, res Result) {
 		}
 	}
 
-	costVal := pgtype.Numeric{}
-	_ = costVal.Scan(fmt.Sprintf("%.6f", res.EstimatedCostUSD))
-
 	_, errUsage := w.store.CreateUsageEvent(ctx, store.CreateUsageEventParams{
-		RunID:            pgtype.UUID{Bytes: run.ID.Bytes, Valid: run.ID.Valid},
-		ProviderID:       pgtype.Text{String: providerID, Valid: providerID != ""},
-		ModelID:          pgtype.Text{String: modelID, Valid: modelID != ""},
-		ProjectID:        pgtype.Text{String: run.ProjectID, Valid: run.ProjectID != ""},
-		AgentID:          pgtype.Text{String: run.AgentID, Valid: run.AgentID != ""},
+		RunID:            sql.NullString{String: run.ID, Valid: run.ID != ""},
+		ProviderID:       sql.NullString{String: providerID, Valid: providerID != ""},
+		ModelID:          sql.NullString{String: modelID, Valid: modelID != ""},
+		ProjectID:        sql.NullString{String: run.ProjectID, Valid: run.ProjectID != ""},
+		AgentID:          sql.NullString{String: run.AgentID, Valid: run.AgentID != ""},
 		SkillID:          run.SkillID,
-		InputTokens:      res.TokensIn,
-		OutputTokens:     res.TokensOut,
+		InputTokens:      int64(res.TokensIn),
+		OutputTokens:     int64(res.TokensOut),
 		CachedTokens:     0,
 		RequestCount:     1,
-		EstimatedCostUsd: costVal,
+		EstimatedCostUsd: res.EstimatedCostUSD,
 	})
 	if errUsage != nil {
 		_ = w.log(ctx, run.ID, "system", fmt.Sprintf("error registering usage event: %v", errUsage))

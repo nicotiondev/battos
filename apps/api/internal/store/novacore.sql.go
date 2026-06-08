@@ -7,18 +7,17 @@ package store
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
+	"database/sql"
 )
 
 const createNovaConversation = `-- name: CreateNovaConversation :one
-INSERT INTO novacore_conversations (user_id)
-VALUES ($1)
+INSERT INTO novacore_conversations (id, user_id)
+VALUES (lower(hex(randomblob(16))), ?)
 RETURNING id, user_id, started_at, ended_at, message_count, total_input_tokens, total_output_tokens, total_cost_usd
 `
 
-func (q *Queries) CreateNovaConversation(ctx context.Context, userID pgtype.Text) (NovacoreConversation, error) {
-	row := q.db.QueryRow(ctx, createNovaConversation, userID)
+func (q *Queries) CreateNovaConversation(ctx context.Context, userID sql.NullString) (NovacoreConversation, error) {
+	row := q.db.QueryRowContext(ctx, createNovaConversation, userID)
 	var i NovacoreConversation
 	err := row.Scan(
 		&i.ID,
@@ -34,23 +33,23 @@ func (q *Queries) CreateNovaConversation(ctx context.Context, userID pgtype.Text
 }
 
 const createNovaMessage = `-- name: CreateNovaMessage :one
-INSERT INTO novacore_messages (conversation_id, role, content, tool_calls, tool_result, tokens_in, tokens_out)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO novacore_messages (id, conversation_id, role, content, tool_calls, tool_result, tokens_in, tokens_out)
+VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, ?)
 RETURNING id, conversation_id, role, content, tool_calls, tool_result, tokens_in, tokens_out, created_at
 `
 
 type CreateNovaMessageParams struct {
-	ConversationID pgtype.UUID `json:"conversation_id"`
-	Role           string      `json:"role"`
-	Content        pgtype.Text `json:"content"`
-	ToolCalls      []byte      `json:"tool_calls"`
-	ToolResult     []byte      `json:"tool_result"`
-	TokensIn       int32       `json:"tokens_in"`
-	TokensOut      int32       `json:"tokens_out"`
+	ConversationID string         `json:"conversation_id"`
+	Role           string         `json:"role"`
+	Content        sql.NullString `json:"content"`
+	ToolCalls      sql.NullString `json:"tool_calls"`
+	ToolResult     sql.NullString `json:"tool_result"`
+	TokensIn       int64          `json:"tokens_in"`
+	TokensOut      int64          `json:"tokens_out"`
 }
 
 func (q *Queries) CreateNovaMessage(ctx context.Context, arg CreateNovaMessageParams) (NovacoreMessage, error) {
-	row := q.db.QueryRow(ctx, createNovaMessage,
+	row := q.db.QueryRowContext(ctx, createNovaMessage,
 		arg.ConversationID,
 		arg.Role,
 		arg.Content,
@@ -77,11 +76,11 @@ func (q *Queries) CreateNovaMessage(ctx context.Context, arg CreateNovaMessagePa
 const getNovaConversation = `-- name: GetNovaConversation :one
 SELECT id, user_id, started_at, ended_at, message_count, total_input_tokens, total_output_tokens, total_cost_usd
 FROM novacore_conversations
-WHERE id = $1
+WHERE id = ?
 `
 
-func (q *Queries) GetNovaConversation(ctx context.Context, id pgtype.UUID) (NovacoreConversation, error) {
-	row := q.db.QueryRow(ctx, getNovaConversation, id)
+func (q *Queries) GetNovaConversation(ctx context.Context, id string) (NovacoreConversation, error) {
+	row := q.db.QueryRowContext(ctx, getNovaConversation, id)
 	var i NovacoreConversation
 	err := row.Scan(
 		&i.ID,
@@ -103,7 +102,7 @@ ORDER BY started_at DESC
 `
 
 func (q *Queries) ListNovaConversations(ctx context.Context) ([]NovacoreConversation, error) {
-	rows, err := q.db.Query(ctx, listNovaConversations)
+	rows, err := q.db.QueryContext(ctx, listNovaConversations)
 	if err != nil {
 		return nil, err
 	}
@@ -125,6 +124,9 @@ func (q *Queries) ListNovaConversations(ctx context.Context) ([]NovacoreConversa
 		}
 		items = append(items, i)
 	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -134,12 +136,12 @@ func (q *Queries) ListNovaConversations(ctx context.Context) ([]NovacoreConversa
 const listNovaMessagesByConversation = `-- name: ListNovaMessagesByConversation :many
 SELECT id, conversation_id, role, content, tool_calls, tool_result, tokens_in, tokens_out, created_at
 FROM novacore_messages
-WHERE conversation_id = $1
+WHERE conversation_id = ?
 ORDER BY created_at ASC
 `
 
-func (q *Queries) ListNovaMessagesByConversation(ctx context.Context, conversationID pgtype.UUID) ([]NovacoreMessage, error) {
-	rows, err := q.db.Query(ctx, listNovaMessagesByConversation, conversationID)
+func (q *Queries) ListNovaMessagesByConversation(ctx context.Context, conversationID string) ([]NovacoreMessage, error) {
+	rows, err := q.db.QueryContext(ctx, listNovaMessagesByConversation, conversationID)
 	if err != nil {
 		return nil, err
 	}
@@ -162,6 +164,9 @@ func (q *Queries) ListNovaMessagesByConversation(ctx context.Context, conversati
 		}
 		items = append(items, i)
 	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -171,26 +176,26 @@ func (q *Queries) ListNovaMessagesByConversation(ctx context.Context, conversati
 const updateNovaConversationStats = `-- name: UpdateNovaConversationStats :one
 UPDATE novacore_conversations
 SET message_count = message_count + 1,
-    total_input_tokens = total_input_tokens + $2,
-    total_output_tokens = total_output_tokens + $3,
-    total_cost_usd = total_cost_usd + $4
-WHERE id = $1
+    total_input_tokens = total_input_tokens + ?,
+    total_output_tokens = total_output_tokens + ?,
+    total_cost_usd = total_cost_usd + ?
+WHERE id = ?
 RETURNING id, user_id, started_at, ended_at, message_count, total_input_tokens, total_output_tokens, total_cost_usd
 `
 
 type UpdateNovaConversationStatsParams struct {
-	ID                pgtype.UUID    `json:"id"`
-	TotalInputTokens  int32          `json:"total_input_tokens"`
-	TotalOutputTokens int32          `json:"total_output_tokens"`
-	TotalCostUsd      pgtype.Numeric `json:"total_cost_usd"`
+	TotalInputTokens  int64   `json:"total_input_tokens"`
+	TotalOutputTokens int64   `json:"total_output_tokens"`
+	TotalCostUsd      float64 `json:"total_cost_usd"`
+	ID                string  `json:"id"`
 }
 
 func (q *Queries) UpdateNovaConversationStats(ctx context.Context, arg UpdateNovaConversationStatsParams) (NovacoreConversation, error) {
-	row := q.db.QueryRow(ctx, updateNovaConversationStats,
-		arg.ID,
+	row := q.db.QueryRowContext(ctx, updateNovaConversationStats,
 		arg.TotalInputTokens,
 		arg.TotalOutputTokens,
 		arg.TotalCostUsd,
+		arg.ID,
 	)
 	var i NovacoreConversation
 	err := row.Scan(

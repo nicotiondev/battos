@@ -1,26 +1,29 @@
 -- Audit log queries para registro de acciones administrativas.
 
 -- name: CreateAuditLog :one
-INSERT INTO audit_logs (action, actor, target_type, target_id, details, ip_address)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING *;
+INSERT INTO audit_logs (id, action, actor, target_type, target_id, details, ip_address)
+VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?)
+RETURNING id, action, actor, target_type, target_id, details, ip_address, created_at;
 
 -- name: ListAuditLogs :many
-SELECT * FROM audit_logs
+SELECT id, action, actor, target_type, target_id, details, ip_address, created_at
+FROM audit_logs
 ORDER BY created_at DESC
-LIMIT $1;
+LIMIT ?;
 
 -- name: ListAuditLogsByAction :many
-SELECT * FROM audit_logs
-WHERE action = $1
+SELECT id, action, actor, target_type, target_id, details, ip_address, created_at
+FROM audit_logs
+WHERE action = ?
 ORDER BY created_at DESC
-LIMIT $2;
+LIMIT ?;
 
 -- name: ListAuditLogsByActor :many
-SELECT * FROM audit_logs
-WHERE actor = $1
+SELECT id, action, actor, target_type, target_id, details, ip_address, created_at
+FROM audit_logs
+WHERE actor = ?
 ORDER BY created_at DESC
-LIMIT $2;
+LIMIT ?;
 
 -- name: CountAuditLogs :one
-SELECT COUNT(*)::int AS total FROM audit_logs;
+SELECT COUNT(*) AS total FROM audit_logs;

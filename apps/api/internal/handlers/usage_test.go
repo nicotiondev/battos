@@ -2,12 +2,12 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/nicotion/battos/apps/api/internal/store"
 )
 
@@ -19,50 +19,41 @@ func (s fakeUsageStore) GetUsageOverview(context.Context) ([]store.GetUsageOverv
 	return s.overview, nil
 }
 
-func (s fakeUsageStore) GetUsageByRun(context.Context, pgtype.UUID) ([]store.UsageEvent, error) {
+func (s fakeUsageStore) GetUsageByRun(context.Context, sql.NullString) ([]store.UsageEvent, error) {
 	return nil, nil
 }
 
-func (s fakeUsageStore) GetRun(context.Context, pgtype.UUID) (store.Run, error) {
+func (s fakeUsageStore) GetRun(context.Context, string) (store.Run, error) {
 	return store.Run{}, nil
-}
-
-func numericValue(t *testing.T, value string) pgtype.Numeric {
-	t.Helper()
-	var out pgtype.Numeric
-	if err := out.Scan(value); err != nil {
-		t.Fatalf("scan numeric %q: %v", value, err)
-	}
-	return out
 }
 
 func TestUsageOverviewIncludesBudgetAndPrecision(t *testing.T) {
 	handler := NewUsageHandler(fakeUsageStore{overview: []store.GetUsageOverviewRow{
 		{
-			ProjectID:               pgtype.Text{String: "landing-acme", Valid: true},
+			ProjectID:               sql.NullString{String: "landing-acme", Valid: true},
 			ProjectName:             "Landing Acme",
-			ProjectMonthlyBudgetUsd: numericValue(t, "25.50"),
-			AgentID:                 pgtype.Text{String: "nova", Valid: true},
-			ModelID:                 pgtype.Text{String: "gpt-4o", Valid: true},
-			ProviderID:              pgtype.Text{String: "openai", Valid: true},
-			TotalInputTokens:        1000,
-			TotalOutputTokens:       250,
-			TotalCachedTokens:       100,
-			TotalRequests:           3,
-			TotalCostUsd:            numericValue(t, "1.234567"),
+			ProjectMonthlyBudgetUsd: sql.NullFloat64{Float64: 25.50, Valid: true},
+			AgentID:                 sql.NullString{String: "nova", Valid: true},
+			ModelID:                 sql.NullString{String: "gpt-4o", Valid: true},
+			ProviderID:              sql.NullString{String: "openai", Valid: true},
+			TotalInputTokens:        sql.NullFloat64{Float64: 1000, Valid: true},
+			TotalOutputTokens:       sql.NullFloat64{Float64: 250, Valid: true},
+			TotalCachedTokens:       sql.NullFloat64{Float64: 100, Valid: true},
+			TotalRequests:           sql.NullFloat64{Float64: 3, Valid: true},
+			TotalCostUsd:            1.234567,
 		},
 		{
-			ProjectID:               pgtype.Text{String: "research", Valid: true},
+			ProjectID:               sql.NullString{String: "research", Valid: true},
 			ProjectName:             "Research",
-			ProjectMonthlyBudgetUsd: numericValue(t, "0"),
-			AgentID:                 pgtype.Text{String: "analyst", Valid: true},
-			ModelID:                 pgtype.Text{String: "unknown", Valid: true},
-			ProviderID:              pgtype.Text{String: "unknown", Valid: true},
-			TotalInputTokens:        10,
-			TotalOutputTokens:       5,
-			TotalCachedTokens:       0,
-			TotalRequests:           1,
-			TotalCostUsd:            numericValue(t, "0"),
+			ProjectMonthlyBudgetUsd: sql.NullFloat64{Float64: 0, Valid: true},
+			AgentID:                 sql.NullString{String: "analyst", Valid: true},
+			ModelID:                 sql.NullString{String: "unknown", Valid: true},
+			ProviderID:              sql.NullString{String: "unknown", Valid: true},
+			TotalInputTokens:        sql.NullFloat64{Float64: 10, Valid: true},
+			TotalOutputTokens:       sql.NullFloat64{Float64: 5, Valid: true},
+			TotalCachedTokens:       sql.NullFloat64{Float64: 0, Valid: true},
+			TotalRequests:           sql.NullFloat64{Float64: 1, Valid: true},
+			TotalCostUsd:            0,
 		},
 	}})
 

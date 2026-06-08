@@ -35,7 +35,7 @@ type SystemHandler struct {
 // NewSystemHandler crea el handler con sus dependencias.
 //
 // pingDB y pingMem son closures que el main inyecta — así desacoplamos
-// el handler del paquete concreto (pgxpool / memory.Core).
+// el handler del paquete concreto (database/sql / memory.Core).
 func NewSystemHandler(sampler *sysmetrics.Sampler, pingDB, pingMem func(context.Context) error) *SystemHandler {
 	return &SystemHandler{sampler: sampler, pingDB: pingDB, pingMem: pingMem}
 }
@@ -84,7 +84,7 @@ func (h *SystemHandler) Status(w http.ResponseWriter, r *http.Request) {
 	subsystems := []core.SubsystemHealth{
 		{Name: "config", Status: core.HealthOK, Detail: "battos.yaml cargado"},
 		{Name: "sysmetrics", Status: sysmetricsHealth(h.sampler)},
-		checkSubsystem(r.Context(), "database", h.pingDB, "Postgres conectado"),
+		checkSubsystem(r.Context(), "database", h.pingDB, "SQLite local conectado"),
 		checkSubsystem(r.Context(), "memory", h.pingMem, "SQLite + FTS5 listo"),
 	}
 
@@ -189,7 +189,7 @@ func (h *SystemHandler) emitMetrics(w http.ResponseWriter, ctx context.Context) 
 	subsystems := []core.SubsystemHealth{
 		{Name: "config", Status: core.HealthOK, Detail: "battos.yaml cargado"},
 		{Name: "sysmetrics", Status: sysmetricsHealth(h.sampler)},
-		checkSubsystem(ctx, "database", h.pingDB, "Postgres conectado"),
+		checkSubsystem(ctx, "database", h.pingDB, "SQLite local conectado"),
 		checkSubsystem(ctx, "memory", h.pingMem, "SQLite + FTS5 listo"),
 	}
 

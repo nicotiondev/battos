@@ -92,10 +92,10 @@ func (h *RegistriesHandler) CreateAgent(w http.ResponseWriter, r *http.Request) 
 		Role:            nullableText(in.Role),
 		Description:     nullableText(in.Description),
 		RuntimeID:       nullableText(in.RuntimeID),
-		RuntimeConfig:   []byte("{}"),
+		RuntimeConfig:   "{}",
 		SystemPrompt:    nullableText(in.SystemPrompt),
-		AllowedTools:    []byte("[]"),
-		AllowedProjects: []byte("[]"),
+		AllowedTools:    "[]",
+		AllowedProjects: "[]",
 		RiskLevel:       defaultString(in.RiskLevel, "medium"),
 		Status:          defaultString(in.Status, "active"),
 	})
@@ -129,11 +129,11 @@ func agentDTO(item store.Agent) agentResponse {
 		RuntimeID:    textValue(item.RuntimeID),
 		SystemPrompt: textValue(item.SystemPrompt),
 		RiskLevel:    item.RiskLevel,
-		IsLead:       item.IsLead,
-		IsMeta:       item.IsMeta,
+		IsLead:       item.IsLead != 0,
+		IsMeta:       item.IsMeta != 0,
 		Status:       item.Status,
-		CreatedAt:    timeValue(item.CreatedAt),
-		UpdatedAt:    timeValue(item.UpdatedAt),
+		CreatedAt:    item.CreatedAt,
+		UpdatedAt:    item.UpdatedAt,
 	}
 }
 
@@ -149,7 +149,7 @@ func skillDTO(item store.Skill) skillResponse {
 		Status:         item.Status,
 		Lifecycle:      item.Lifecycle,
 		PromptTemplate: textValue(item.PromptTemplate),
-		CreatedAt:      timeValue(item.CreatedAt),
-		UpdatedAt:      timeValue(item.UpdatedAt),
+		CreatedAt:      item.CreatedAt,
+		UpdatedAt:      item.UpdatedAt,
 	}
 }

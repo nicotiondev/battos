@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"os"
 	"os/exec"
@@ -10,7 +11,6 @@ import (
 
 	"net/http"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/nicotion/battos/apps/api/internal/store"
 )
 
@@ -50,7 +50,7 @@ type runtimeToolSpec struct {
 	RiskLevel    string
 	RequiresAuth bool
 	ProviderEnv  string
-	Capabilities []byte
+	Capabilities string
 }
 
 type runtimeAdapterResponse struct {
@@ -99,7 +99,17 @@ var approvedRuntimeTools = []runtimeToolSpec{
 		RiskLevel:    "high",
 		RequiresAuth: true,
 		ProviderEnv:  "ANTHROPIC_API_KEY",
-		Capabilities: []byte(`["code_editing","file_reading","terminal_commands","mcp"]`),
+		Capabilities: `["code_editing","file_reading","terminal_commands","mcp"]`,
+	},
+	{
+		ID:           "claude-code-host-session",
+		Name:         "Claude Code (host session)",
+		Command:      "claude",
+		Kind:         "coding_agent",
+		RuntimeID:    "claude-code-host-session",
+		RiskLevel:    "high",
+		RequiresAuth: true,
+		Capabilities: `["code_editing","file_reading","terminal_commands","mcp","host_session"]`,
 	},
 	{
 		ID:           "codex",
@@ -110,7 +120,17 @@ var approvedRuntimeTools = []runtimeToolSpec{
 		RiskLevel:    "high",
 		RequiresAuth: true,
 		ProviderEnv:  "OPENAI_API_KEY",
-		Capabilities: []byte(`["code_generation","repo_editing","tests"]`),
+		Capabilities: `["code_generation","repo_editing","tests"]`,
+	},
+	{
+		ID:           "codex-host-session",
+		Name:         "Codex CLI (host session)",
+		Command:      "codex",
+		Kind:         "coding_agent",
+		RuntimeID:    "codex-host-session",
+		RiskLevel:    "high",
+		RequiresAuth: true,
+		Capabilities: `["code_generation","repo_editing","tests","host_session"]`,
 	},
 }
 
@@ -183,7 +203,7 @@ func (h *RuntimeHandler) DetectProviders(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		item.Status = status
-		item.LastCheckAt = pgtype.Timestamptz{Time: h.now(), Valid: true}
+		item.LastCheckAt = sql.NullTime{Time: h.now(), Valid: true}
 		out = append(out, providerDTO(item))
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -219,7 +239,7 @@ func (h *RuntimeHandler) detectRuntime(ctx context.Context, spec runtimeToolSpec
 		RuntimeID:    nullableText(spec.RuntimeID),
 		Status:       cliStatusFromRuntimeStatus(status),
 		RiskLevel:    spec.RiskLevel,
-		RequiresAuth: spec.RequiresAuth,
+		RequiresAuth: boolInt(spec.RequiresAuth),
 		Capabilities: spec.Capabilities,
 	})
 	if err != nil {
@@ -268,7 +288,7 @@ func runtimeAdapterDTO(item store.AgentRuntime) runtimeAdapterResponse {
 		Command:              commandForRuntime(item.ID),
 		ApprovalRequired:     true,
 		ApprovedForExecution: false,
-		RequiresAuth:         item.RequiresAuth,
+		RequiresAuth:         item.RequiresAuth != 0,
 		LastDetectedAt:       timeValue(item.DetectedAt),
 	}
 }
@@ -284,7 +304,7 @@ func cliToolDTO(item store.CliTool) cliToolResponse {
 		Version:        textValue(item.Version),
 		RuntimeID:      textValue(item.RuntimeID),
 		RiskLevel:      item.RiskLevel,
-		RequiresAuth:   item.RequiresAuth,
+		RequiresAuth:   item.RequiresAuth != 0,
 		LastDetectedAt: timeValue(item.LastDetectedAt),
 	}
 }
@@ -309,7 +329,7 @@ func commandForRuntime(id string) string {
 	return ""
 }
 
-func timeValue(value pgtype.Timestamptz) time.Time {
+func timeValue(value sql.NullTime) time.Time {
 	if !value.Valid {
 		return time.Time{}
 	}

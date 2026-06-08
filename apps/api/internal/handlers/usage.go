@@ -2,20 +2,20 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/nicotion/battos/apps/api/internal/store"
 )
 
 type UsageStore interface {
 	GetUsageOverview(context.Context) ([]store.GetUsageOverviewRow, error)
-	GetUsageByRun(context.Context, pgtype.UUID) ([]store.UsageEvent, error)
-	GetRun(context.Context, pgtype.UUID) (store.Run, error)
+	GetUsageByRun(context.Context, sql.NullString) ([]store.UsageEvent, error)
+	GetRun(context.Context, string) (store.Run, error)
 }
 
 type UsageHandler struct {
@@ -49,10 +49,10 @@ type usageEventResponse struct {
 	ProjectID        string    `json:"project_id"`
 	AgentID          string    `json:"agent_id"`
 	SkillID          string    `json:"skill_id"`
-	InputTokens      int32     `json:"input_tokens"`
-	OutputTokens     int32     `json:"output_tokens"`
-	CachedTokens     int32     `json:"cached_tokens"`
-	RequestCount     int32     `json:"request_count"`
+	InputTokens      int64     `json:"input_tokens"`
+	OutputTokens     int64     `json:"output_tokens"`
+	CachedTokens     int64     `json:"cached_tokens"`
+	RequestCount     int64     `json:"request_count"`
 	EstimatedCostUSD float64   `json:"estimated_cost_usd"`
 	CreatedAt        time.Time `json:"created_at"`
 }
@@ -66,24 +66,24 @@ func (h *UsageHandler) Overview(w http.ResponseWriter, r *http.Request) {
 
 	out := make([]usageOverviewResponse, 0, len(items))
 	for _, item := range items {
-		cost, _ := item.TotalCostUsd.Float64Value()
-		budget, _ := item.ProjectMonthlyBudgetUsd.Float64Value()
+		cost := interfaceFloat64(item.TotalCostUsd)
+		budget := nullFloat64(item.ProjectMonthlyBudgetUsd)
 		costPrecision := "not_reported"
-		if cost.Float64 > 0 {
+		if cost > 0 {
 			costPrecision = "estimated"
 		}
 		out = append(out, usageOverviewResponse{
 			ProjectID:               textValue(item.ProjectID),
 			ProjectName:             item.ProjectName,
-			ProjectMonthlyBudgetUSD: budget.Float64,
+			ProjectMonthlyBudgetUSD: budget,
 			AgentID:                 textValue(item.AgentID),
 			ModelID:                 textValue(item.ModelID),
 			ProviderID:              textValue(item.ProviderID),
-			TotalInputTokens:        item.TotalInputTokens,
-			TotalOutputTokens:       item.TotalOutputTokens,
-			TotalCachedTokens:       item.TotalCachedTokens,
-			TotalRequests:           item.TotalRequests,
-			TotalCostUSD:            cost.Float64,
+			TotalInputTokens:        int64(nullFloat64(item.TotalInputTokens)),
+			TotalOutputTokens:       int64(nullFloat64(item.TotalOutputTokens)),
+			TotalCachedTokens:       int64(nullFloat64(item.TotalCachedTokens)),
+			TotalRequests:           int64(nullFloat64(item.TotalRequests)),
+			TotalCostUSD:            cost,
 			CostPrecision:           costPrecision,
 		})
 	}
@@ -92,14 +92,14 @@ func (h *UsageHandler) Overview(w http.ResponseWriter, r *http.Request) {
 
 func (h *UsageHandler) GetUsageByRun(w http.ResponseWriter, r *http.Request) {
 	runIDStr := chi.URLParam(r, "id")
-	runID, ok := parseUUIDInput(w, runIDStr, "id")
+	runID, ok := parseIDInput(w, runIDStr, "id")
 	if !ok {
 		return
 	}
 
 	_, errRun := h.store.GetRun(r.Context(), runID)
 	if errRun != nil {
-		if errors.Is(errRun, pgx.ErrNoRows) {
+		if errors.Is(errRun, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, map[string]any{"error": map[string]any{"message": "run no encontrada", "code": 404}})
 			return
 		}
@@ -107,7 +107,7 @@ func (h *UsageHandler) GetUsageByRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	events, err := h.store.GetUsageByRun(r.Context(), runID)
+	events, err := h.store.GetUsageByRun(r.Context(), sql.NullString{String: runID, Valid: true})
 	if err != nil {
 		writeWorkError(w, err)
 		return
@@ -115,10 +115,9 @@ func (h *UsageHandler) GetUsageByRun(w http.ResponseWriter, r *http.Request) {
 
 	out := make([]usageEventResponse, 0, len(events))
 	for _, item := range events {
-		cost, _ := item.EstimatedCostUsd.Float64Value()
 		out = append(out, usageEventResponse{
-			ID:               uuidValue(item.ID),
-			RunID:            uuidValue(item.RunID),
+			ID:               item.ID,
+			RunID:            textValue(item.RunID),
 			ProviderID:       textValue(item.ProviderID),
 			ModelID:          textValue(item.ModelID),
 			ProjectID:        textValue(item.ProjectID),
@@ -128,9 +127,35 @@ func (h *UsageHandler) GetUsageByRun(w http.ResponseWriter, r *http.Request) {
 			OutputTokens:     item.OutputTokens,
 			CachedTokens:     item.CachedTokens,
 			RequestCount:     item.RequestCount,
-			EstimatedCostUSD: cost.Float64,
-			CreatedAt:        item.CreatedAt.Time,
+			EstimatedCostUSD: item.EstimatedCostUsd,
+			CreatedAt:        item.CreatedAt,
 		})
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+func nullFloat64(value sql.NullFloat64) float64 {
+	if value.Valid {
+		return value.Float64
+	}
+	return 0
+}
+
+func interfaceFloat64(value any) float64 {
+	switch v := value.(type) {
+	case float64:
+		return v
+	case int64:
+		return float64(v)
+	case []byte:
+		var parsed float64
+		_, _ = fmt.Sscanf(string(v), "%f", &parsed)
+		return parsed
+	case string:
+		var parsed float64
+		_, _ = fmt.Sscanf(v, "%f", &parsed)
+		return parsed
+	default:
+		return 0
+	}
 }

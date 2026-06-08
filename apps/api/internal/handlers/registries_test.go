@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/nicotion/battos/apps/api/internal/store"
 )
 
@@ -30,11 +30,11 @@ func (f *fakeRegistriesStore) CreateAgent(_ context.Context, arg store.CreateAge
 		AllowedTools:    arg.AllowedTools,
 		AllowedProjects: arg.AllowedProjects,
 		RiskLevel:       arg.RiskLevel,
-		IsLead:          false,
-		IsMeta:          false,
+		IsLead:          0,
+		IsMeta:          0,
 		Status:          arg.Status,
-		CreatedAt:       pgtype.Timestamptz{Valid: false},
-		UpdatedAt:       pgtype.Timestamptz{Valid: false},
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
 	}, nil
 }
 
@@ -70,11 +70,11 @@ func TestCreateAgentUsesSafeDefaults(t *testing.T) {
 	if q.createAgentArg.RuntimeID.String != "codex" || !q.createAgentArg.RuntimeID.Valid {
 		t.Fatalf("runtime_id = %#v, want codex", q.createAgentArg.RuntimeID)
 	}
-	if string(q.createAgentArg.RuntimeConfig) != "{}" {
-		t.Fatalf("runtime_config = %s, want {}", string(q.createAgentArg.RuntimeConfig))
+	if q.createAgentArg.RuntimeConfig != "{}" {
+		t.Fatalf("runtime_config = %s, want {}", q.createAgentArg.RuntimeConfig)
 	}
-	if string(q.createAgentArg.AllowedTools) != "[]" || string(q.createAgentArg.AllowedProjects) != "[]" {
-		t.Fatalf("allowed defaults = %s / %s, want [] / []", string(q.createAgentArg.AllowedTools), string(q.createAgentArg.AllowedProjects))
+	if q.createAgentArg.AllowedTools != "[]" || q.createAgentArg.AllowedProjects != "[]" {
+		t.Fatalf("allowed defaults = %s / %s, want [] / []", q.createAgentArg.AllowedTools, q.createAgentArg.AllowedProjects)
 	}
 	if q.createAgentArg.RiskLevel != "medium" || q.createAgentArg.Status != "active" {
 		t.Fatalf("defaults = risk %q status %q, want medium/active", q.createAgentArg.RiskLevel, q.createAgentArg.Status)

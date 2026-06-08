@@ -20,7 +20,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nicotion/battos/apps/api/internal/config"
 	"github.com/nicotion/battos/apps/api/internal/handlers"
 	"github.com/nicotion/battos/apps/api/internal/memory"
@@ -64,62 +63,38 @@ func run() error {
 	sampler.Start(ctx)
 	logger.Info("sysmetrics.sampler started", "interval_s", int(sampleInterval.Seconds()))
 
-	// --- 4. Postgres pool (opcional — el API arranca aunque falle, en estado degraded) ---
-	var pgPool *pgxpool.Pool
-	var pgInitErr error
-	if cfg.DatabaseURL != "" {
-		pgPool, err = store.OpenPool(ctx, cfg.DatabaseURL)
-		if err != nil {
-			logger.Warn("postgres pool init failed (subsystem 'database' será DOWN)", "error", err)
-			pgInitErr = err
-			pgPool = nil
-		} else {
-			logger.Info("postgres pool ready")
-			defer pgPool.Close()
-		}
-	} else {
-		logger.Warn("DATABASE_URL no seteado — subsistema 'database' quedará UNKNOWN")
+	// --- 4. SQLite unificado ---
+	db, err := store.OpenDB(ctx, cfg.Database.Path)
+	if err != nil {
+		return fmt.Errorf("database: %w", err)
 	}
+	defer db.Close()
+	logger.Info("sqlite database ready", "path", cfg.Database.Path)
 
-	// --- 5. Memory Core (siempre disponible, embebido) ---
-	memCore, err := memory.Open(cfg.Memory.DBPath)
+	// --- 5. Memory Core sobre la misma base SQLite ---
+	memCore, err := memory.OpenWithDB(db)
 	if err != nil {
 		return fmt.Errorf("memory core: %w", err)
 	}
 	defer memCore.Close()
-	logger.Info("memory core ready", "db_path", cfg.Memory.DBPath)
+	logger.Info("memory core ready", "db_path", cfg.Database.Path)
 
 	// Closures de healthcheck que el SystemHandler usa para reportar /status.
-	var pingDB func(context.Context) error
-	if pgPool != nil {
-		pingDB = func(ctx context.Context) error { return pgPool.Ping(ctx) }
-	} else if pgInitErr != nil {
-		pingDB = func(context.Context) error { return pgInitErr }
-	}
+	pingDB := db.PingContext
 	pingMem := memCore.Ping
 
 	// --- 6. Router ---
 	systemHandler := handlers.NewSystemHandler(sampler, pingDB, pingMem)
 	memoryHandler := handlers.NewMemoryHandler(memCore)
-	var workHandler *handlers.WorkHandler
-	var knowledgeHandler *handlers.KnowledgeHandler
-	var registriesHandler *handlers.RegistriesHandler
-	var runtimeHandler *handlers.RuntimeHandler
-	var runHandler *handlers.RunHandler
-	var repositoriesHandler *handlers.RepositoriesHandler
-	var novaCoreHandler *handlers.NovaCoreHandler
-	var usageHandler *handlers.UsageHandler
-	if pgPool != nil {
-		queries := store.New(pgPool)
-		workHandler = handlers.NewWorkHandler(queries)
-		knowledgeHandler = handlers.NewKnowledgeHandler(queries, cfg.Knowledge.ArtifactsDir)
-		registriesHandler = handlers.NewRegistriesHandler(queries)
-		runtimeHandler = handlers.NewRuntimeHandler(queries)
-		runHandler = handlers.NewRunHandler(queries, memCore)
-		repositoriesHandler = handlers.NewRepositoriesHandler(queries, cfg.Execution.RepositoriesDir)
-		novaCoreHandler = handlers.NewNovaCoreHandler(queries, memCore, cfg)
-		usageHandler = handlers.NewUsageHandler(queries)
-	}
+	queries := store.New(db)
+	workHandler := handlers.NewWorkHandler(queries)
+	knowledgeHandler := handlers.NewKnowledgeHandler(queries, cfg.Knowledge.ArtifactsDir)
+	registriesHandler := handlers.NewRegistriesHandler(queries)
+	runtimeHandler := handlers.NewRuntimeHandler(queries)
+	runHandler := handlers.NewRunHandler(queries, memCore)
+	repositoriesHandler := handlers.NewRepositoriesHandler(queries, cfg.Execution.RepositoriesDir)
+	novaCoreHandler := handlers.NewNovaCoreHandler(queries, memCore, cfg)
+	usageHandler := handlers.NewUsageHandler(queries)
 	router := server.NewRouter(server.Deps{
 		Config:       cfg,
 		Logger:       logger,

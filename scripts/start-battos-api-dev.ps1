@@ -1,21 +1,16 @@
 param(
-    [string]$DatabaseUrl = $env:DATABASE_URL,
+    [string]$DatabasePath = $(if ($env:BATTOS_DATABASE_PATH) { $env:BATTOS_DATABASE_PATH } else { "data\battos.db" }),
     [int]$Port = 8000,
     [switch]$StopExisting,
     [switch]$Background,
     [switch]$Wait,
-    [switch]$NoDatabase,
     [int]$TimeoutSeconds = 120
 )
 
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-if ($NoDatabase) {
-    $DatabaseUrl = ""
-} elseif ([string]::IsNullOrWhiteSpace($DatabaseUrl)) {
-    $DatabaseUrl = "postgresql://battos:change-me@127.0.0.1:5432/battos?sslmode=disable"
-}
+$databasePathResolved = if ([System.IO.Path]::IsPathRooted($DatabasePath)) { $DatabasePath } else { Join-Path $repoRoot $DatabasePath }
 
 if ($StopExisting) {
     $listeners = netstat -ano | Select-String ":$Port\s+.*LISTENING"
@@ -48,18 +43,14 @@ if ($Background) {
 	$repoRootEscaped = $repoRoot.Replace("'", "''")
 	$goPathEscaped = $goPath.Replace("'", "''")
 	$cacheDirEscaped = $cacheDir.Replace("'", "''")
-	$databaseUrlEscaped = $DatabaseUrl.Replace("'", "''")
+	$databasePathEscaped = $databasePathResolved.Replace("'", "''")
 	$script = @(
 		"`$ErrorActionPreference = 'Stop'",
 		"Set-Location '$repoRootEscaped'",
 		"`$env:BATTOS_API_PORT = '$Port'",
+		"`$env:BATTOS_DATABASE_PATH = '$databasePathEscaped'",
 		"`$env:GOCACHE = '$cacheDirEscaped'"
 	)
-	if ($NoDatabase) {
-		$script += "Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue"
-	} else {
-		$script += "`$env:DATABASE_URL = '$databaseUrlEscaped'"
-	}
 	$script += "& '$goPathEscaped' run ./apps/api/cmd/api"
 	$launcherPath = Join-Path $cacheDir "start-api-$Port.ps1"
 	$stdoutPath = Join-Path $logsDir "start-api-$Port.out.log"
@@ -67,11 +58,7 @@ if ($Background) {
 	Set-Content -LiteralPath $launcherPath -Value ($script -join "`r`n") -Encoding UTF8
 	Start-Process -FilePath "powershell" -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$launcherPath`"" -WorkingDirectory $repoRoot -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
 	Write-Host "BattOS API starting in background on port $Port"
-	if ($NoDatabase) {
-		Write-Host "DATABASE_URL=<unset>"
-	} else {
-		Write-Host "DATABASE_URL=$DatabaseUrl"
-	}
+	Write-Host "BATTOS_DATABASE_PATH=$databasePathResolved"
 	Write-Host "GOCACHE=$cacheDir"
 	Write-Host "STDOUT=$stdoutPath"
 	Write-Host "STDERR=$stderrPath"
@@ -95,17 +82,9 @@ if ($Background) {
     exit 0
 }
 
-if ($NoDatabase) {
-    Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
-} else {
-    $env:DATABASE_URL = $DatabaseUrl
-}
+$env:BATTOS_DATABASE_PATH = $databasePathResolved
 $env:BATTOS_API_PORT = "$Port"
 Set-Location $repoRoot
 Write-Host "BattOS API running in foreground on port $Port"
-if ($NoDatabase) {
-    Write-Host "DATABASE_URL=<unset>"
-} else {
-    Write-Host "DATABASE_URL=$DatabaseUrl"
-}
+Write-Host "BATTOS_DATABASE_PATH=$databasePathResolved"
 go run ./apps/api/cmd/api

@@ -7,31 +7,31 @@ package store
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
+	"database/sql"
 )
 
 const createRepository = `-- name: CreateRepository :one
 
 INSERT INTO repositories (id, project_id, kind, name, remote_url, credential_ref, default_branch, metadata)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, project_id, kind, name, remote_url, credential_ref, default_branch, metadata, created_at, updated_at
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING id, project_id, kind, name, remote_url, credential_ref, default_branch,
+          metadata, created_at, updated_at
 `
 
 type CreateRepositoryParams struct {
-	ID            string      `json:"id"`
-	ProjectID     string      `json:"project_id"`
-	Kind          string      `json:"kind"`
-	Name          string      `json:"name"`
-	RemoteUrl     pgtype.Text `json:"remote_url"`
-	CredentialRef pgtype.Text `json:"credential_ref"`
-	DefaultBranch string      `json:"default_branch"`
-	Metadata      []byte      `json:"metadata"`
+	ID            string         `json:"id"`
+	ProjectID     string         `json:"project_id"`
+	Kind          string         `json:"kind"`
+	Name          string         `json:"name"`
+	RemoteUrl     sql.NullString `json:"remote_url"`
+	CredentialRef sql.NullString `json:"credential_ref"`
+	DefaultBranch string         `json:"default_branch"`
+	Metadata      string         `json:"metadata"`
 }
 
 // Repositories CRUD
 func (q *Queries) CreateRepository(ctx context.Context, arg CreateRepositoryParams) (Repository, error) {
-	row := q.db.QueryRow(ctx, createRepository,
+	row := q.db.QueryRowContext(ctx, createRepository,
 		arg.ID,
 		arg.ProjectID,
 		arg.Kind,
@@ -58,12 +58,13 @@ func (q *Queries) CreateRepository(ctx context.Context, arg CreateRepositoryPara
 }
 
 const deleteRepository = `-- name: DeleteRepository :one
-DELETE FROM repositories WHERE id = $1
-RETURNING id, project_id, kind, name, remote_url, credential_ref, default_branch, metadata, created_at, updated_at
+DELETE FROM repositories WHERE id = ?
+RETURNING id, project_id, kind, name, remote_url, credential_ref, default_branch,
+          metadata, created_at, updated_at
 `
 
 func (q *Queries) DeleteRepository(ctx context.Context, id string) (Repository, error) {
-	row := q.db.QueryRow(ctx, deleteRepository, id)
+	row := q.db.QueryRowContext(ctx, deleteRepository, id)
 	var i Repository
 	err := row.Scan(
 		&i.ID,
@@ -81,11 +82,12 @@ func (q *Queries) DeleteRepository(ctx context.Context, id string) (Repository, 
 }
 
 const getRepository = `-- name: GetRepository :one
-SELECT id, project_id, kind, name, remote_url, credential_ref, default_branch, metadata, created_at, updated_at FROM repositories WHERE id = $1
+SELECT id, project_id, kind, name, remote_url, credential_ref, default_branch,
+       metadata, created_at, updated_at FROM repositories WHERE id = ?
 `
 
 func (q *Queries) GetRepository(ctx context.Context, id string) (Repository, error) {
-	row := q.db.QueryRow(ctx, getRepository, id)
+	row := q.db.QueryRowContext(ctx, getRepository, id)
 	var i Repository
 	err := row.Scan(
 		&i.ID,
@@ -103,12 +105,13 @@ func (q *Queries) GetRepository(ctx context.Context, id string) (Repository, err
 }
 
 const listRepositories = `-- name: ListRepositories :many
-SELECT id, project_id, kind, name, remote_url, credential_ref, default_branch, metadata, created_at, updated_at FROM repositories
+SELECT id, project_id, kind, name, remote_url, credential_ref, default_branch,
+       metadata, created_at, updated_at FROM repositories
 ORDER BY created_at DESC
 `
 
 func (q *Queries) ListRepositories(ctx context.Context) ([]Repository, error) {
-	rows, err := q.db.Query(ctx, listRepositories)
+	rows, err := q.db.QueryContext(ctx, listRepositories)
 	if err != nil {
 		return nil, err
 	}
@@ -131,6 +134,9 @@ func (q *Queries) ListRepositories(ctx context.Context) ([]Repository, error) {
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -139,13 +145,14 @@ func (q *Queries) ListRepositories(ctx context.Context) ([]Repository, error) {
 }
 
 const listRepositoriesByProject = `-- name: ListRepositoriesByProject :many
-SELECT id, project_id, kind, name, remote_url, credential_ref, default_branch, metadata, created_at, updated_at FROM repositories
-WHERE project_id = $1
+SELECT id, project_id, kind, name, remote_url, credential_ref, default_branch,
+       metadata, created_at, updated_at FROM repositories
+WHERE project_id = ?
 ORDER BY created_at DESC
 `
 
 func (q *Queries) ListRepositoriesByProject(ctx context.Context, projectID string) ([]Repository, error) {
-	rows, err := q.db.Query(ctx, listRepositoriesByProject, projectID)
+	rows, err := q.db.QueryContext(ctx, listRepositoriesByProject, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -168,6 +175,9 @@ func (q *Queries) ListRepositoriesByProject(ctx context.Context, projectID strin
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

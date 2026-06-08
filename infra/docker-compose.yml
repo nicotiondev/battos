@@ -1,7 +1,6 @@
 # BattOS - Docker Compose para dev local y VPS.
 #
 # Servicios:
-#   battos-db      Postgres 16 single-user
 #   battos-api     API Go
 #   battos-worker  Worker de runs, opcional con perfil worker
 #
@@ -14,25 +13,6 @@
 name: battos
 
 services:
-  battos-db:
-    image: postgres:16-alpine
-    container_name: battos-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - battos_postgres_data:/var/lib/postgresql/data
-    ports:
-      # En produccion no exponer 5432 al host; en dev ayuda para conectar tools.
-      - "127.0.0.1:5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
   battos-api:
     build:
       context: ..
@@ -47,7 +27,7 @@ services:
       BATTOS_API_HOST: "0.0.0.0"
       BATTOS_AUTH_MODE: "token"
       BATTOS_API_TOKEN: ${BATTOS_API_TOKEN}
-      DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@battos-db:5432/${POSTGRES_DB}?sslmode=disable"
+      BATTOS_DATABASE_PATH: ${BATTOS_DATABASE_PATH:-/app/data/battos.db}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY}
@@ -60,9 +40,6 @@ services:
       - ../config:/app/config:ro
       - ../agents:/app/agents:ro
       - ../skills:/app/skills:ro
-    depends_on:
-      battos-db:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8000/health"]
       interval: 10s
@@ -84,7 +61,7 @@ services:
       BATTOS_SECRET_KEY: ${BATTOS_SECRET_KEY}
       BATTOS_AUTH_MODE: "token"
       BATTOS_API_TOKEN: ${BATTOS_API_TOKEN}
-      DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@battos-db:5432/${POSTGRES_DB}?sslmode=disable"
+      BATTOS_DATABASE_PATH: ${BATTOS_DATABASE_PATH:-/app/data/battos.db}
       BATTOS_EXECUTION_SANDBOX_MODE: ${BATTOS_EXECUTION_SANDBOX_MODE:-dry_run}
       BATTOS_EXECUTION_DOCKER_IMAGE: ${BATTOS_EXECUTION_DOCKER_IMAGE:-alpine:3.20}
       BATTOS_EXECUTION_WORKSPACES_DIR: ${BATTOS_EXECUTION_WORKSPACES_DIR:-/app/data/runs/workspaces}
@@ -102,9 +79,8 @@ services:
       - ../agents:/app/agents:ro
       - ../skills:/app/skills:ro
     depends_on:
-      battos-db:
+      battos-api:
         condition: service_healthy
 
 volumes:
-  battos_postgres_data:
   battos_data:

@@ -7,29 +7,28 @@ package store
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
+	"database/sql"
 )
 
 const createDomain = `-- name: CreateDomain :one
 
 INSERT INTO domains (id, slug, name, description, status, metadata)
-VALUES ($1, $2, $3, $4, $5, $6)
+VALUES (?, ?, ?, ?, ?, ?)
 RETURNING id, slug, name, description, status, metadata, created_at, updated_at
 `
 
 type CreateDomainParams struct {
-	ID          string      `json:"id"`
-	Slug        string      `json:"slug"`
-	Name        string      `json:"name"`
-	Description pgtype.Text `json:"description"`
-	Status      string      `json:"status"`
-	Metadata    []byte      `json:"metadata"`
+	ID          string         `json:"id"`
+	Slug        string         `json:"slug"`
+	Name        string         `json:"name"`
+	Description sql.NullString `json:"description"`
+	Status      string         `json:"status"`
+	Metadata    string         `json:"metadata"`
 }
 
 // Work Board CRUD: domains, projects, goals and tasks.
 func (q *Queries) CreateDomain(ctx context.Context, arg CreateDomainParams) (Domain, error) {
-	row := q.db.QueryRow(ctx, createDomain,
+	row := q.db.QueryRowContext(ctx, createDomain,
 		arg.ID,
 		arg.Slug,
 		arg.Name,
@@ -52,21 +51,21 @@ func (q *Queries) CreateDomain(ctx context.Context, arg CreateDomainParams) (Dom
 }
 
 const createGoal = `-- name: CreateGoal :one
-INSERT INTO goals (project_id, title, description, status, metadata)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO goals (id, project_id, title, description, status, metadata)
+VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?)
 RETURNING id, project_id, title, description, status, metadata, created_at, updated_at
 `
 
 type CreateGoalParams struct {
-	ProjectID   string      `json:"project_id"`
-	Title       string      `json:"title"`
-	Description pgtype.Text `json:"description"`
-	Status      string      `json:"status"`
-	Metadata    []byte      `json:"metadata"`
+	ProjectID   string         `json:"project_id"`
+	Title       string         `json:"title"`
+	Description sql.NullString `json:"description"`
+	Status      string         `json:"status"`
+	Metadata    string         `json:"metadata"`
 }
 
 func (q *Queries) CreateGoal(ctx context.Context, arg CreateGoalParams) (Goal, error) {
-	row := q.db.QueryRow(ctx, createGoal,
+	row := q.db.QueryRowContext(ctx, createGoal,
 		arg.ProjectID,
 		arg.Title,
 		arg.Description,
@@ -89,22 +88,23 @@ func (q *Queries) CreateGoal(ctx context.Context, arg CreateGoalParams) (Goal, e
 
 const createProject = `-- name: CreateProject :one
 INSERT INTO projects (id, slug, name, description, domain_id, status, metadata)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, slug, name, description, status, owner_agent_id, monthly_budget_usd, metadata, created_at, updated_at, domain_id
+VALUES (?, ?, ?, ?, ?, ?, ?)
+RETURNING id, slug, name, description, status, owner_agent_id, monthly_budget_usd,
+          metadata, domain_id, created_at, updated_at
 `
 
 type CreateProjectParams struct {
-	ID          string      `json:"id"`
-	Slug        string      `json:"slug"`
-	Name        string      `json:"name"`
-	Description pgtype.Text `json:"description"`
-	DomainID    pgtype.Text `json:"domain_id"`
-	Status      string      `json:"status"`
-	Metadata    []byte      `json:"metadata"`
+	ID          string         `json:"id"`
+	Slug        string         `json:"slug"`
+	Name        string         `json:"name"`
+	Description sql.NullString `json:"description"`
+	DomainID    sql.NullString `json:"domain_id"`
+	Status      string         `json:"status"`
+	Metadata    string         `json:"metadata"`
 }
 
 func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error) {
-	row := q.db.QueryRow(ctx, createProject,
+	row := q.db.QueryRowContext(ctx, createProject,
 		arg.ID,
 		arg.Slug,
 		arg.Name,
@@ -123,35 +123,36 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		&i.OwnerAgentID,
 		&i.MonthlyBudgetUsd,
 		&i.Metadata,
+		&i.DomainID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.DomainID,
 	)
 	return i, err
 }
 
 const createTask = `-- name: CreateTask :one
 INSERT INTO tasks (
-    project_id, goal_id, title, description, assigned_agent_id, status,
+    id, project_id, goal_id, title, description, assigned_agent_id, status,
     board_position, metadata
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, project_id, goal_id, title, description, assigned_agent_id, status, board_position, metadata, created_at, updated_at
+VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING id, project_id, goal_id, title, description, assigned_agent_id, status,
+          board_position, metadata, created_at, updated_at
 `
 
 type CreateTaskParams struct {
-	ProjectID       string      `json:"project_id"`
-	GoalID          pgtype.Text `json:"goal_id"`
-	Title           string      `json:"title"`
-	Description     pgtype.Text `json:"description"`
-	AssignedAgentID pgtype.Text `json:"assigned_agent_id"`
-	Status          string      `json:"status"`
-	BoardPosition   int32       `json:"board_position"`
-	Metadata        []byte      `json:"metadata"`
+	ProjectID       string         `json:"project_id"`
+	GoalID          sql.NullString `json:"goal_id"`
+	Title           string         `json:"title"`
+	Description     sql.NullString `json:"description"`
+	AssignedAgentID sql.NullString `json:"assigned_agent_id"`
+	Status          string         `json:"status"`
+	BoardPosition   int64          `json:"board_position"`
+	Metadata        string         `json:"metadata"`
 }
 
 func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error) {
-	row := q.db.QueryRow(ctx, createTask,
+	row := q.db.QueryRowContext(ctx, createTask,
 		arg.ProjectID,
 		arg.GoalID,
 		arg.Title,
@@ -186,15 +187,16 @@ VALUES (
     'Inbox',
     'Captura temporal para tareas sin proyecto asignado',
     'active',
-    '{"system":true,"purpose":"task_inbox"}'::jsonb
+    '{"system":true,"purpose":"task_inbox"}'
 )
 ON CONFLICT (id) DO UPDATE
 SET updated_at = projects.updated_at
-RETURNING id, slug, name, description, status, owner_agent_id, monthly_budget_usd, metadata, created_at, updated_at, domain_id
+RETURNING id, slug, name, description, status, owner_agent_id, monthly_budget_usd,
+          metadata, domain_id, created_at, updated_at
 `
 
 func (q *Queries) EnsureInboxProject(ctx context.Context) (Project, error) {
-	row := q.db.QueryRow(ctx, ensureInboxProject)
+	row := q.db.QueryRowContext(ctx, ensureInboxProject)
 	var i Project
 	err := row.Scan(
 		&i.ID,
@@ -205,19 +207,19 @@ func (q *Queries) EnsureInboxProject(ctx context.Context) (Project, error) {
 		&i.OwnerAgentID,
 		&i.MonthlyBudgetUsd,
 		&i.Metadata,
+		&i.DomainID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.DomainID,
 	)
 	return i, err
 }
 
 const getDomain = `-- name: GetDomain :one
-SELECT id, slug, name, description, status, metadata, created_at, updated_at FROM domains WHERE id = $1
+SELECT id, slug, name, description, status, metadata, created_at, updated_at FROM domains WHERE id = ?
 `
 
 func (q *Queries) GetDomain(ctx context.Context, id string) (Domain, error) {
-	row := q.db.QueryRow(ctx, getDomain, id)
+	row := q.db.QueryRowContext(ctx, getDomain, id)
 	var i Domain
 	err := row.Scan(
 		&i.ID,
@@ -233,11 +235,11 @@ func (q *Queries) GetDomain(ctx context.Context, id string) (Domain, error) {
 }
 
 const getGoal = `-- name: GetGoal :one
-SELECT id, project_id, title, description, status, metadata, created_at, updated_at FROM goals WHERE id = $1
+SELECT id, project_id, title, description, status, metadata, created_at, updated_at FROM goals WHERE id = ?
 `
 
 func (q *Queries) GetGoal(ctx context.Context, id string) (Goal, error) {
-	row := q.db.QueryRow(ctx, getGoal, id)
+	row := q.db.QueryRowContext(ctx, getGoal, id)
 	var i Goal
 	err := row.Scan(
 		&i.ID,
@@ -253,11 +255,12 @@ func (q *Queries) GetGoal(ctx context.Context, id string) (Goal, error) {
 }
 
 const getProject = `-- name: GetProject :one
-SELECT id, slug, name, description, status, owner_agent_id, monthly_budget_usd, metadata, created_at, updated_at, domain_id FROM projects WHERE id = $1
+SELECT id, slug, name, description, status, owner_agent_id, monthly_budget_usd,
+       metadata, domain_id, created_at, updated_at FROM projects WHERE id = ?
 `
 
 func (q *Queries) GetProject(ctx context.Context, id string) (Project, error) {
-	row := q.db.QueryRow(ctx, getProject, id)
+	row := q.db.QueryRowContext(ctx, getProject, id)
 	var i Project
 	err := row.Scan(
 		&i.ID,
@@ -268,19 +271,20 @@ func (q *Queries) GetProject(ctx context.Context, id string) (Project, error) {
 		&i.OwnerAgentID,
 		&i.MonthlyBudgetUsd,
 		&i.Metadata,
+		&i.DomainID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.DomainID,
 	)
 	return i, err
 }
 
 const getTask = `-- name: GetTask :one
-SELECT id, project_id, goal_id, title, description, assigned_agent_id, status, board_position, metadata, created_at, updated_at FROM tasks WHERE id = $1
+SELECT id, project_id, goal_id, title, description, assigned_agent_id, status,
+       board_position, metadata, created_at, updated_at FROM tasks WHERE id = ?
 `
 
 func (q *Queries) GetTask(ctx context.Context, id string) (Task, error) {
-	row := q.db.QueryRow(ctx, getTask, id)
+	row := q.db.QueryRowContext(ctx, getTask, id)
 	var i Task
 	err := row.Scan(
 		&i.ID,
@@ -305,7 +309,7 @@ ORDER BY created_at DESC
 `
 
 func (q *Queries) ListDomains(ctx context.Context) ([]Domain, error) {
-	rows, err := q.db.Query(ctx, listDomains)
+	rows, err := q.db.QueryContext(ctx, listDomains)
 	if err != nil {
 		return nil, err
 	}
@@ -327,6 +331,9 @@ func (q *Queries) ListDomains(ctx context.Context) ([]Domain, error) {
 		}
 		items = append(items, i)
 	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -339,7 +346,7 @@ ORDER BY project_id, created_at DESC
 `
 
 func (q *Queries) ListGoals(ctx context.Context) ([]Goal, error) {
-	rows, err := q.db.Query(ctx, listGoals)
+	rows, err := q.db.QueryContext(ctx, listGoals)
 	if err != nil {
 		return nil, err
 	}
@@ -360,6 +367,9 @@ func (q *Queries) ListGoals(ctx context.Context) ([]Goal, error) {
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -369,12 +379,12 @@ func (q *Queries) ListGoals(ctx context.Context) ([]Goal, error) {
 
 const listGoalsByProject = `-- name: ListGoalsByProject :many
 SELECT id, project_id, title, description, status, metadata, created_at, updated_at FROM goals
-WHERE project_id = $1
+WHERE project_id = ?
 ORDER BY created_at DESC
 `
 
 func (q *Queries) ListGoalsByProject(ctx context.Context, projectID string) ([]Goal, error) {
-	rows, err := q.db.Query(ctx, listGoalsByProject, projectID)
+	rows, err := q.db.QueryContext(ctx, listGoalsByProject, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -396,6 +406,9 @@ func (q *Queries) ListGoalsByProject(ctx context.Context, projectID string) ([]G
 		}
 		items = append(items, i)
 	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -403,13 +416,14 @@ func (q *Queries) ListGoalsByProject(ctx context.Context, projectID string) ([]G
 }
 
 const listProjects = `-- name: ListProjects :many
-SELECT id, slug, name, description, status, owner_agent_id, monthly_budget_usd, metadata, created_at, updated_at, domain_id FROM projects
+SELECT id, slug, name, description, status, owner_agent_id, monthly_budget_usd,
+       metadata, domain_id, created_at, updated_at FROM projects
 WHERE status != 'archived'
 ORDER BY created_at DESC
 `
 
 func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
-	rows, err := q.db.Query(ctx, listProjects)
+	rows, err := q.db.QueryContext(ctx, listProjects)
 	if err != nil {
 		return nil, err
 	}
@@ -426,13 +440,16 @@ func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
 			&i.OwnerAgentID,
 			&i.MonthlyBudgetUsd,
 			&i.Metadata,
+			&i.DomainID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.DomainID,
 		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -441,12 +458,13 @@ func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
 }
 
 const listTasks = `-- name: ListTasks :many
-SELECT id, project_id, goal_id, title, description, assigned_agent_id, status, board_position, metadata, created_at, updated_at FROM tasks
+SELECT id, project_id, goal_id, title, description, assigned_agent_id, status,
+       board_position, metadata, created_at, updated_at FROM tasks
 ORDER BY project_id, status, board_position, created_at DESC
 `
 
 func (q *Queries) ListTasks(ctx context.Context) ([]Task, error) {
-	rows, err := q.db.Query(ctx, listTasks)
+	rows, err := q.db.QueryContext(ctx, listTasks)
 	if err != nil {
 		return nil, err
 	}
@@ -470,6 +488,9 @@ func (q *Queries) ListTasks(ctx context.Context) ([]Task, error) {
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -478,13 +499,14 @@ func (q *Queries) ListTasks(ctx context.Context) ([]Task, error) {
 }
 
 const listTasksByProject = `-- name: ListTasksByProject :many
-SELECT id, project_id, goal_id, title, description, assigned_agent_id, status, board_position, metadata, created_at, updated_at FROM tasks
-WHERE project_id = $1
+SELECT id, project_id, goal_id, title, description, assigned_agent_id, status,
+       board_position, metadata, created_at, updated_at FROM tasks
+WHERE project_id = ?
 ORDER BY status, board_position, created_at DESC
 `
 
 func (q *Queries) ListTasksByProject(ctx context.Context, projectID string) ([]Task, error) {
-	rows, err := q.db.Query(ctx, listTasksByProject, projectID)
+	rows, err := q.db.QueryContext(ctx, listTasksByProject, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -508,6 +530,9 @@ func (q *Queries) ListTasksByProject(ctx context.Context, projectID string) ([]T
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -517,26 +542,26 @@ func (q *Queries) ListTasksByProject(ctx context.Context, projectID string) ([]T
 
 const updateDomain = `-- name: UpdateDomain :one
 UPDATE domains
-SET name = $2, description = $3, status = $4, metadata = $5
-WHERE id = $1
+SET name = ?, description = ?, status = ?, metadata = ?
+WHERE id = ?
 RETURNING id, slug, name, description, status, metadata, created_at, updated_at
 `
 
 type UpdateDomainParams struct {
-	ID          string      `json:"id"`
-	Name        string      `json:"name"`
-	Description pgtype.Text `json:"description"`
-	Status      string      `json:"status"`
-	Metadata    []byte      `json:"metadata"`
+	Name        string         `json:"name"`
+	Description sql.NullString `json:"description"`
+	Status      string         `json:"status"`
+	Metadata    string         `json:"metadata"`
+	ID          string         `json:"id"`
 }
 
 func (q *Queries) UpdateDomain(ctx context.Context, arg UpdateDomainParams) (Domain, error) {
-	row := q.db.QueryRow(ctx, updateDomain,
-		arg.ID,
+	row := q.db.QueryRowContext(ctx, updateDomain,
 		arg.Name,
 		arg.Description,
 		arg.Status,
 		arg.Metadata,
+		arg.ID,
 	)
 	var i Domain
 	err := row.Scan(
@@ -554,26 +579,26 @@ func (q *Queries) UpdateDomain(ctx context.Context, arg UpdateDomainParams) (Dom
 
 const updateGoal = `-- name: UpdateGoal :one
 UPDATE goals
-SET title = $2, description = $3, status = $4, metadata = $5
-WHERE id = $1
+SET title = ?, description = ?, status = ?, metadata = ?
+WHERE id = ?
 RETURNING id, project_id, title, description, status, metadata, created_at, updated_at
 `
 
 type UpdateGoalParams struct {
-	ID          string      `json:"id"`
-	Title       string      `json:"title"`
-	Description pgtype.Text `json:"description"`
-	Status      string      `json:"status"`
-	Metadata    []byte      `json:"metadata"`
+	Title       string         `json:"title"`
+	Description sql.NullString `json:"description"`
+	Status      string         `json:"status"`
+	Metadata    string         `json:"metadata"`
+	ID          string         `json:"id"`
 }
 
 func (q *Queries) UpdateGoal(ctx context.Context, arg UpdateGoalParams) (Goal, error) {
-	row := q.db.QueryRow(ctx, updateGoal,
-		arg.ID,
+	row := q.db.QueryRowContext(ctx, updateGoal,
 		arg.Title,
 		arg.Description,
 		arg.Status,
 		arg.Metadata,
+		arg.ID,
 	)
 	var i Goal
 	err := row.Scan(
@@ -591,28 +616,29 @@ func (q *Queries) UpdateGoal(ctx context.Context, arg UpdateGoalParams) (Goal, e
 
 const updateProject = `-- name: UpdateProject :one
 UPDATE projects
-SET name = $2, description = $3, domain_id = $4, status = $5, metadata = $6
-WHERE id = $1
-RETURNING id, slug, name, description, status, owner_agent_id, monthly_budget_usd, metadata, created_at, updated_at, domain_id
+SET name = ?, description = ?, domain_id = ?, status = ?, metadata = ?
+WHERE id = ?
+RETURNING id, slug, name, description, status, owner_agent_id, monthly_budget_usd,
+          metadata, domain_id, created_at, updated_at
 `
 
 type UpdateProjectParams struct {
-	ID          string      `json:"id"`
-	Name        string      `json:"name"`
-	Description pgtype.Text `json:"description"`
-	DomainID    pgtype.Text `json:"domain_id"`
-	Status      string      `json:"status"`
-	Metadata    []byte      `json:"metadata"`
+	Name        string         `json:"name"`
+	Description sql.NullString `json:"description"`
+	DomainID    sql.NullString `json:"domain_id"`
+	Status      string         `json:"status"`
+	Metadata    string         `json:"metadata"`
+	ID          string         `json:"id"`
 }
 
 func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error) {
-	row := q.db.QueryRow(ctx, updateProject,
-		arg.ID,
+	row := q.db.QueryRowContext(ctx, updateProject,
 		arg.Name,
 		arg.Description,
 		arg.DomainID,
 		arg.Status,
 		arg.Metadata,
+		arg.ID,
 	)
 	var i Project
 	err := row.Scan(
@@ -624,36 +650,36 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		&i.OwnerAgentID,
 		&i.MonthlyBudgetUsd,
 		&i.Metadata,
+		&i.DomainID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.DomainID,
 	)
 	return i, err
 }
 
 const updateTask = `-- name: UpdateTask :one
 UPDATE tasks
-SET project_id = $2, goal_id = $3, title = $4, description = $5, assigned_agent_id = $6,
-    status = $7, board_position = $8, metadata = $9
-WHERE id = $1
-RETURNING id, project_id, goal_id, title, description, assigned_agent_id, status, board_position, metadata, created_at, updated_at
+SET project_id = ?, goal_id = ?, title = ?, description = ?, assigned_agent_id = ?,
+    status = ?, board_position = ?, metadata = ?
+WHERE id = ?
+RETURNING id, project_id, goal_id, title, description, assigned_agent_id, status,
+          board_position, metadata, created_at, updated_at
 `
 
 type UpdateTaskParams struct {
-	ID              string      `json:"id"`
-	ProjectID       string      `json:"project_id"`
-	GoalID          pgtype.Text `json:"goal_id"`
-	Title           string      `json:"title"`
-	Description     pgtype.Text `json:"description"`
-	AssignedAgentID pgtype.Text `json:"assigned_agent_id"`
-	Status          string      `json:"status"`
-	BoardPosition   int32       `json:"board_position"`
-	Metadata        []byte      `json:"metadata"`
+	ProjectID       string         `json:"project_id"`
+	GoalID          sql.NullString `json:"goal_id"`
+	Title           string         `json:"title"`
+	Description     sql.NullString `json:"description"`
+	AssignedAgentID sql.NullString `json:"assigned_agent_id"`
+	Status          string         `json:"status"`
+	BoardPosition   int64          `json:"board_position"`
+	Metadata        string         `json:"metadata"`
+	ID              string         `json:"id"`
 }
 
 func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error) {
-	row := q.db.QueryRow(ctx, updateTask,
-		arg.ID,
+	row := q.db.QueryRowContext(ctx, updateTask,
 		arg.ProjectID,
 		arg.GoalID,
 		arg.Title,
@@ -662,6 +688,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		arg.Status,
 		arg.BoardPosition,
 		arg.Metadata,
+		arg.ID,
 	)
 	var i Task
 	err := row.Scan(

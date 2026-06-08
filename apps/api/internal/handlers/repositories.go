@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -11,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/nicotion/battos/apps/api/internal/store"
 )
 
@@ -99,7 +99,7 @@ func (h *RepositoriesHandler) ConnectRepository(w http.ResponseWriter, r *http.R
 	// Verificar si el proyecto existe
 	_, errProj := h.store.GetProject(r.Context(), in.ProjectID)
 	if errProj != nil {
-		if errors.Is(errProj, pgx.ErrNoRows) {
+		if errors.Is(errProj, sql.ErrNoRows) {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"message": "el project_id especificado no existe", "code": 400}})
 			return
 		}
@@ -126,7 +126,7 @@ func (h *RepositoriesHandler) ConnectRepository(w http.ResponseWriter, r *http.R
 		RemoteUrl:     nullableText(in.RemoteURL),
 		CredentialRef: nullableText(in.CredentialRef),
 		DefaultBranch: "master",
-		Metadata:      []byte("{}"),
+		Metadata:      "{}",
 	})
 	if err != nil {
 		writeWorkError(w, err)
@@ -190,7 +190,7 @@ func repositoryDTO(item store.Repository) repositoryResponse {
 		RemoteURL:     textValue(item.RemoteUrl),
 		CredentialRef: textValue(item.CredentialRef),
 		DefaultBranch: item.DefaultBranch,
-		CreatedAt:     item.CreatedAt.Time,
-		UpdatedAt:     item.UpdatedAt.Time,
+		CreatedAt:     item.CreatedAt,
+		UpdatedAt:     item.UpdatedAt,
 	}
 }

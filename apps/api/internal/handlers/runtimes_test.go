@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -10,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/nicotion/battos/apps/api/internal/store"
 )
 
@@ -33,7 +33,7 @@ func (f *fakeRuntimeStore) UpdateAgentRuntimeDetection(_ context.Context, arg st
 		Status:       arg.Status,
 		BinaryPath:   arg.BinaryPath,
 		Version:      arg.Version,
-		RequiresAuth: true,
+		RequiresAuth: 1,
 	}, nil
 }
 
@@ -66,7 +66,7 @@ func TestDetectProvidersUsesEnvPresenceWithoutExposingSecret(t *testing.T) {
 		Kind:        "api",
 		EnvKey:      "BATTOS_TEST_PROVIDER_KEY",
 		Status:      "not_configured",
-		LastCheckAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		LastCheckAt: sql.NullTime{Time: time.Now(), Valid: true},
 	}}}
 	h := NewRuntimeHandler(q)
 	req := httptest.NewRequest(http.MethodPost, "/providers/detect", nil)
@@ -90,8 +90,8 @@ func TestRuntimeAdapterDTORequiresApprovalAndDoesNotApproveExecution(t *testing.
 		ID:           "claude-code",
 		Name:         "Claude Code CLI",
 		Status:       "detected",
-		RequiresAuth: true,
-		BinaryPath:   pgtype.Text{String: "C:/tools/claude.exe", Valid: true},
+		RequiresAuth: 1,
+		BinaryPath:   sql.NullString{String: "C:/tools/claude.exe", Valid: true},
 	})
 	if !dto.ApprovalRequired {
 		t.Fatalf("approval_required = false, want true")
@@ -111,7 +111,7 @@ func TestDetectRuntimeClassifiesAndPersistsStates(t *testing.T) {
 		RiskLevel:    "high",
 		RequiresAuth: true,
 		ProviderEnv:  "ANTHROPIC_API_KEY",
-		Capabilities: []byte(`["code_editing"]`),
+		Capabilities: `["code_editing"]`,
 	}
 	tests := []struct {
 		name          string

@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/nicotion/battos/apps/api/internal/store"
 )
 
@@ -27,21 +25,21 @@ func (f *fakeKnowledgeStore) ListKnowledgeWorkspaces(context.Context) ([]store.K
 	return nil, nil
 }
 
-func (f *fakeKnowledgeStore) GetKnowledgeWorkspace(context.Context, pgtype.UUID) (store.KnowledgeWorkspace, error) {
+func (f *fakeKnowledgeStore) GetKnowledgeWorkspace(context.Context, string) (store.KnowledgeWorkspace, error) {
 	return f.workspace, nil
 }
 
 func (f *fakeKnowledgeStore) CreateJournal(_ context.Context, arg store.CreateJournalParams) (store.Journal, error) {
 	f.createJournalParams = arg
 	return store.Journal{
-		ID:          uuidPG("4f81b4b5-0df6-4f8a-b0f4-35ef03b56f31"),
+		ID:          "4f81b4b5-0df6-4f8a-b0f4-35ef03b56f31",
 		WorkspaceID: arg.WorkspaceID,
 		ProjectID:   arg.ProjectID,
 		Title:       arg.Title,
 		Content:     arg.Content,
 		JournalDate: arg.JournalDate,
-		CreatedAt:   pgtype.Timestamptz{Time: time.Now(), Valid: true},
-		UpdatedAt:   pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
 	}, nil
 }
 
@@ -49,22 +47,22 @@ func (f *fakeKnowledgeStore) ListJournalsByProject(context.Context, string) ([]s
 	return nil, nil
 }
 
-func (f *fakeKnowledgeStore) GetJournal(context.Context, pgtype.UUID) (store.Journal, error) {
+func (f *fakeKnowledgeStore) GetJournal(context.Context, string) (store.Journal, error) {
 	return store.Journal{}, nil
 }
 
 func (f *fakeKnowledgeStore) CreateArtifact(_ context.Context, arg store.CreateArtifactParams) (store.Artifact, error) {
 	f.createArtifactParams = arg
 	return store.Artifact{
-		ID:        uuidPG("a08ddf7c-116a-4e49-a604-39965087a979"),
+		ID:        "a08ddf7c-116a-4e49-a604-39965087a979",
 		ProjectID: arg.ProjectID,
 		TaskID:    arg.TaskID,
 		RunID:     arg.RunID,
 		Name:      arg.Name,
 		Kind:      arg.Kind,
 		Content:   arg.Content,
-		CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
-		UpdatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}, nil
 }
 
@@ -72,12 +70,12 @@ func (f *fakeKnowledgeStore) ListArtifactsByProject(context.Context, string) ([]
 	return nil, nil
 }
 
-func (f *fakeKnowledgeStore) GetArtifact(context.Context, pgtype.UUID) (store.Artifact, error) {
+func (f *fakeKnowledgeStore) GetArtifact(context.Context, string) (store.Artifact, error) {
 	return store.Artifact{}, nil
 }
 
 func TestCreateJournalInfersProjectFromWorkspace(t *testing.T) {
-	workspaceID := uuidPG("92373df9-afc6-49b0-8c78-adfac5259df3")
+	workspaceID := "92373df9-afc6-49b0-8c78-adfac5259df3"
 	q := &fakeKnowledgeStore{workspace: store.KnowledgeWorkspace{ID: workspaceID, ProjectID: "web"}}
 	h := NewKnowledgeHandler(q, t.TempDir())
 	req := httptest.NewRequest(http.MethodPost, "/journals", strings.NewReader(`{"workspace_id":"92373df9-afc6-49b0-8c78-adfac5259df3","title":"Daily","content":"Notas"}`))
@@ -94,7 +92,7 @@ func TestCreateJournalInfersProjectFromWorkspace(t *testing.T) {
 }
 
 func TestCreateJournalRejectsProjectDifferentFromWorkspace(t *testing.T) {
-	q := &fakeKnowledgeStore{workspace: store.KnowledgeWorkspace{ID: uuidPG("92373df9-afc6-49b0-8c78-adfac5259df3"), ProjectID: "web"}}
+	q := &fakeKnowledgeStore{workspace: store.KnowledgeWorkspace{ID: "92373df9-afc6-49b0-8c78-adfac5259df3", ProjectID: "web"}}
 	h := NewKnowledgeHandler(q, t.TempDir())
 	req := httptest.NewRequest(http.MethodPost, "/journals", strings.NewReader(`{"workspace_id":"92373df9-afc6-49b0-8c78-adfac5259df3","project_id":"other","title":"Daily","content":"Notas"}`))
 	rec := httptest.NewRecorder()
@@ -151,9 +149,4 @@ func TestCreateArtifactRejectsPathTraversal(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
 	}
-}
-
-func uuidPG(value string) pgtype.UUID {
-	parsed := uuid.MustParse(value)
-	return pgtype.UUID{Bytes: parsed, Valid: true}
 }

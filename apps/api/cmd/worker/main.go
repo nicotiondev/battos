@@ -9,8 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/nicotion/battos/apps/api/internal/config"
 	"github.com/nicotion/battos/apps/api/internal/memory"
 	"github.com/nicotion/battos/apps/api/internal/store"
@@ -34,20 +32,16 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("config: %w", err)
 	}
-	if cfg.DatabaseURL == "" {
-		return fmt.Errorf("DATABASE_URL es obligatorio para el worker")
-	}
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	pool, err := store.OpenPool(ctx, cfg.DatabaseURL)
+	db, err := store.OpenDB(ctx, cfg.Database.Path)
 	if err != nil {
-		return fmt.Errorf("postgres pool: %w", err)
+		return fmt.Errorf("database: %w", err)
 	}
-	defer pool.Close()
+	defer db.Close()
 
-	memCore, err := memory.Open(cfg.Memory.DBPath)
+	memCore, err := memory.OpenWithDB(db)
 	if err != nil {
 		return fmt.Errorf("memory core: %w", err)
 	}
@@ -60,7 +54,11 @@ func run() error {
 			WorkspacesDir: cfg.Execution.WorkspacesDir,
 		}
 	}
-	w := runworker.New(store.New(pool), sandbox, runworker.ApprovedDryRunAdapters())
+	w := runworker.New(store.New(db), sandbox, runworker.ApprovedAdapters(runworker.AdapterOptions{
+		HostSessionEnabled:   cfg.Execution.HostSessionEnabled,
+		CodexCredentialsDir:  cfg.Execution.CodexCredentialsDir,
+		ClaudeCredentialsDir: cfg.Execution.ClaudeCredentialsDir,
+	}))
 	w.ArtifactsDir = cfg.Knowledge.ArtifactsDir
 	w.WorkspacesDir = cfg.Execution.WorkspacesDir
 	w.RepositoriesDir = cfg.Execution.RepositoriesDir
@@ -97,10 +95,9 @@ func run() error {
 	return w.RunLoop(ctx, pollInterval)
 }
 
-func parseRunID(value string) (pgtype.UUID, error) {
-	parsed, err := uuid.Parse(value)
-	if err != nil {
-		return pgtype.UUID{}, fmt.Errorf("run-id invalido: %w", err)
+func parseRunID(value string) (string, error) {
+	if value == "" {
+		return "", fmt.Errorf("run-id vacío")
 	}
-	return pgtype.UUID{Bytes: parsed, Valid: true}, nil
+	return value, nil
 }

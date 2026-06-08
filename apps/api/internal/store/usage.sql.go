@@ -7,37 +7,38 @@ package store
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
+	"database/sql"
 )
 
 const createUsageEvent = `-- name: CreateUsageEvent :one
 
 INSERT INTO usage_events (
-    run_id, provider_id, model_id, project_id, agent_id, skill_id,
+    id, run_id, provider_id, model_id, project_id, agent_id, skill_id,
     input_tokens, output_tokens, cached_tokens, request_count, estimated_cost_usd
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-RETURNING id, run_id, provider_id, model_id, project_id, agent_id, skill_id, input_tokens, output_tokens, cached_tokens, request_count, estimated_cost_usd, created_at
+VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING id, run_id, provider_id, model_id, project_id, agent_id, skill_id,
+          input_tokens, output_tokens, cached_tokens, request_count,
+          estimated_cost_usd, created_at
 `
 
 type CreateUsageEventParams struct {
-	RunID            pgtype.UUID    `json:"run_id"`
-	ProviderID       pgtype.Text    `json:"provider_id"`
-	ModelID          pgtype.Text    `json:"model_id"`
-	ProjectID        pgtype.Text    `json:"project_id"`
-	AgentID          pgtype.Text    `json:"agent_id"`
-	SkillID          pgtype.Text    `json:"skill_id"`
-	InputTokens      int32          `json:"input_tokens"`
-	OutputTokens     int32          `json:"output_tokens"`
-	CachedTokens     int32          `json:"cached_tokens"`
-	RequestCount     int32          `json:"request_count"`
-	EstimatedCostUsd pgtype.Numeric `json:"estimated_cost_usd"`
+	RunID            sql.NullString `json:"run_id"`
+	ProviderID       sql.NullString `json:"provider_id"`
+	ModelID          sql.NullString `json:"model_id"`
+	ProjectID        sql.NullString `json:"project_id"`
+	AgentID          sql.NullString `json:"agent_id"`
+	SkillID          sql.NullString `json:"skill_id"`
+	InputTokens      int64          `json:"input_tokens"`
+	OutputTokens     int64          `json:"output_tokens"`
+	CachedTokens     int64          `json:"cached_tokens"`
+	RequestCount     int64          `json:"request_count"`
+	EstimatedCostUsd float64        `json:"estimated_cost_usd"`
 }
 
 // Queries para eventos de consumo y uso (usage_events)
 func (q *Queries) CreateUsageEvent(ctx context.Context, arg CreateUsageEventParams) (UsageEvent, error) {
-	row := q.db.QueryRow(ctx, createUsageEvent,
+	row := q.db.QueryRowContext(ctx, createUsageEvent,
 		arg.RunID,
 		arg.ProviderID,
 		arg.ModelID,
@@ -70,11 +71,14 @@ func (q *Queries) CreateUsageEvent(ctx context.Context, arg CreateUsageEventPara
 }
 
 const getUsageByRun = `-- name: GetUsageByRun :many
-SELECT id, run_id, provider_id, model_id, project_id, agent_id, skill_id, input_tokens, output_tokens, cached_tokens, request_count, estimated_cost_usd, created_at FROM usage_events WHERE run_id = $1 ORDER BY created_at DESC
+SELECT id, run_id, provider_id, model_id, project_id, agent_id, skill_id,
+       input_tokens, output_tokens, cached_tokens, request_count,
+       estimated_cost_usd, created_at
+FROM usage_events WHERE run_id = ? ORDER BY created_at DESC
 `
 
-func (q *Queries) GetUsageByRun(ctx context.Context, runID pgtype.UUID) ([]UsageEvent, error) {
-	rows, err := q.db.Query(ctx, getUsageByRun, runID)
+func (q *Queries) GetUsageByRun(ctx context.Context, runID sql.NullString) ([]UsageEvent, error) {
+	rows, err := q.db.QueryContext(ctx, getUsageByRun, runID)
 	if err != nil {
 		return nil, err
 	}
@@ -101,6 +105,9 @@ func (q *Queries) GetUsageByRun(ctx context.Context, runID pgtype.UUID) ([]Usage
 		}
 		items = append(items, i)
 	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -115,33 +122,33 @@ SELECT
     ue.agent_id,
     ue.model_id,
     ue.provider_id,
-    SUM(ue.input_tokens)::bigint AS total_input_tokens,
-    SUM(ue.output_tokens)::bigint AS total_output_tokens,
-    SUM(ue.cached_tokens)::bigint AS total_cached_tokens,
-    SUM(ue.request_count)::bigint AS total_requests,
-    COALESCE(SUM(ue.estimated_cost_usd), 0)::numeric(10, 6) AS total_cost_usd
+    SUM(ue.input_tokens) AS total_input_tokens,
+    SUM(ue.output_tokens) AS total_output_tokens,
+    SUM(ue.cached_tokens) AS total_cached_tokens,
+    SUM(ue.request_count) AS total_requests,
+    COALESCE(SUM(ue.estimated_cost_usd), 0) AS total_cost_usd
 FROM usage_events ue
-LEFT JOIN projects p ON p.slug = ue.project_id OR p.id::text = ue.project_id
+LEFT JOIN projects p ON p.slug = ue.project_id OR p.id = ue.project_id
 GROUP BY ue.project_id, p.name, p.monthly_budget_usd, ue.agent_id, ue.model_id, ue.provider_id
 ORDER BY total_cost_usd DESC
 `
 
 type GetUsageOverviewRow struct {
-	ProjectID               pgtype.Text    `json:"project_id"`
-	ProjectName             string         `json:"project_name"`
-	ProjectMonthlyBudgetUsd pgtype.Numeric `json:"project_monthly_budget_usd"`
-	AgentID                 pgtype.Text    `json:"agent_id"`
-	ModelID                 pgtype.Text    `json:"model_id"`
-	ProviderID              pgtype.Text    `json:"provider_id"`
-	TotalInputTokens        int64          `json:"total_input_tokens"`
-	TotalOutputTokens       int64          `json:"total_output_tokens"`
-	TotalCachedTokens       int64          `json:"total_cached_tokens"`
-	TotalRequests           int64          `json:"total_requests"`
-	TotalCostUsd            pgtype.Numeric `json:"total_cost_usd"`
+	ProjectID               sql.NullString  `json:"project_id"`
+	ProjectName             string          `json:"project_name"`
+	ProjectMonthlyBudgetUsd sql.NullFloat64 `json:"project_monthly_budget_usd"`
+	AgentID                 sql.NullString  `json:"agent_id"`
+	ModelID                 sql.NullString  `json:"model_id"`
+	ProviderID              sql.NullString  `json:"provider_id"`
+	TotalInputTokens        sql.NullFloat64 `json:"total_input_tokens"`
+	TotalOutputTokens       sql.NullFloat64 `json:"total_output_tokens"`
+	TotalCachedTokens       sql.NullFloat64 `json:"total_cached_tokens"`
+	TotalRequests           sql.NullFloat64 `json:"total_requests"`
+	TotalCostUsd            interface{}     `json:"total_cost_usd"`
 }
 
 func (q *Queries) GetUsageOverview(ctx context.Context) ([]GetUsageOverviewRow, error) {
-	rows, err := q.db.Query(ctx, getUsageOverview)
+	rows, err := q.db.QueryContext(ctx, getUsageOverview)
 	if err != nil {
 		return nil, err
 	}
@@ -165,6 +172,9 @@ func (q *Queries) GetUsageOverview(ctx context.Context) ([]GetUsageOverviewRow, 
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

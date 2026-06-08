@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,8 +14,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/nicotion/battos/apps/api/internal/config"
 	"github.com/nicotion/battos/apps/api/internal/store"
 )
@@ -26,11 +25,11 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 type fakeNovaStore struct {
-	CreateNovaConversationFn         func(context.Context, pgtype.Text) (store.NovacoreConversation, error)
-	GetNovaConversationFn            func(context.Context, pgtype.UUID) (store.NovacoreConversation, error)
+	CreateNovaConversationFn         func(context.Context, sql.NullString) (store.NovacoreConversation, error)
+	GetNovaConversationFn            func(context.Context, string) (store.NovacoreConversation, error)
 	ListNovaConversationsFn          func(context.Context) ([]store.NovacoreConversation, error)
 	CreateNovaMessageFn              func(context.Context, store.CreateNovaMessageParams) (store.NovacoreMessage, error)
-	ListNovaMessagesByConversationFn func(context.Context, pgtype.UUID) ([]store.NovacoreMessage, error)
+	ListNovaMessagesByConversationFn func(context.Context, string) ([]store.NovacoreMessage, error)
 	UpdateNovaConversationStatsFn    func(context.Context, store.UpdateNovaConversationStatsParams) (store.NovacoreConversation, error)
 
 	ListProjectsFn      func(context.Context) ([]store.Project, error)
@@ -40,14 +39,14 @@ type fakeNovaStore struct {
 	ListProvidersFn     func(context.Context) ([]store.Provider, error)
 }
 
-func (f *fakeNovaStore) CreateNovaConversation(ctx context.Context, userID pgtype.Text) (store.NovacoreConversation, error) {
+func (f *fakeNovaStore) CreateNovaConversation(ctx context.Context, userID sql.NullString) (store.NovacoreConversation, error) {
 	if f.CreateNovaConversationFn != nil {
 		return f.CreateNovaConversationFn(ctx, userID)
 	}
 	return store.NovacoreConversation{}, nil
 }
 
-func (f *fakeNovaStore) GetNovaConversation(ctx context.Context, id pgtype.UUID) (store.NovacoreConversation, error) {
+func (f *fakeNovaStore) GetNovaConversation(ctx context.Context, id string) (store.NovacoreConversation, error) {
 	if f.GetNovaConversationFn != nil {
 		return f.GetNovaConversationFn(ctx, id)
 	}
@@ -68,7 +67,7 @@ func (f *fakeNovaStore) CreateNovaMessage(ctx context.Context, params store.Crea
 	return store.NovacoreMessage{}, nil
 }
 
-func (f *fakeNovaStore) ListNovaMessagesByConversation(ctx context.Context, id pgtype.UUID) ([]store.NovacoreMessage, error) {
+func (f *fakeNovaStore) ListNovaMessagesByConversation(ctx context.Context, id string) ([]store.NovacoreMessage, error) {
 	if f.ListNovaMessagesByConversationFn != nil {
 		return f.ListNovaMessagesByConversationFn(ctx, id)
 	}
@@ -118,21 +117,19 @@ func (f *fakeNovaStore) ListProviders(ctx context.Context) ([]store.Provider, er
 }
 
 func TestListConversations(t *testing.T) {
-	convID := [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	convID := "01020304-0506-0708-090a-0b0c0d0e0f10"
 	started := time.Now().Add(-10 * time.Minute)
-	cost := pgtype.Numeric{}
-	_ = cost.Scan("0.00125")
 
 	q := &fakeNovaStore{
 		ListNovaConversationsFn: func(ctx context.Context) ([]store.NovacoreConversation, error) {
 			return []store.NovacoreConversation{
 				{
-					ID:                pgtype.UUID{Bytes: convID, Valid: true},
-					StartedAt:         pgtype.Timestamptz{Time: started, Valid: true},
+					ID:                convID,
+					StartedAt:         started,
 					MessageCount:      5,
 					TotalInputTokens:  100,
 					TotalOutputTokens: 200,
-					TotalCostUsd:      cost,
+					TotalCostUsd:      0.00125,
 				},
 			}, nil
 		},
@@ -170,27 +167,27 @@ func TestGetConversationMessages(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		q := &fakeNovaStore{
-			GetNovaConversationFn: func(ctx context.Context, id pgtype.UUID) (store.NovacoreConversation, error) {
+			GetNovaConversationFn: func(ctx context.Context, id string) (store.NovacoreConversation, error) {
 				return store.NovacoreConversation{
 					ID:        id,
-					StartedAt: pgtype.Timestamptz{Time: started, Valid: true},
+					StartedAt: started,
 				}, nil
 			},
-			ListNovaMessagesByConversationFn: func(ctx context.Context, id pgtype.UUID) ([]store.NovacoreMessage, error) {
+			ListNovaMessagesByConversationFn: func(ctx context.Context, id string) ([]store.NovacoreMessage, error) {
 				return []store.NovacoreMessage{
 					{
-						ID:             pgtype.UUID{Bytes: [16]byte{1}, Valid: true},
+						ID:             "msg-1",
 						ConversationID: id,
 						Role:           "user",
-						Content:        pgtype.Text{String: "Hola", Valid: true},
-						CreatedAt:      pgtype.Timestamptz{Time: started, Valid: true},
+						Content:        sql.NullString{String: "Hola", Valid: true},
+						CreatedAt:      started,
 					},
 					{
-						ID:             pgtype.UUID{Bytes: [16]byte{2}, Valid: true},
+						ID:             "msg-2",
 						ConversationID: id,
 						Role:           "assistant",
-						Content:        pgtype.Text{String: "Mundo", Valid: true},
-						CreatedAt:      pgtype.Timestamptz{Time: started.Add(time.Second), Valid: true},
+						Content:        sql.NullString{String: "Mundo", Valid: true},
+						CreatedAt:      started.Add(time.Second),
 					},
 				}, nil
 			},
@@ -229,8 +226,8 @@ func TestGetConversationMessages(t *testing.T) {
 
 	t.Run("not found", func(t *testing.T) {
 		q := &fakeNovaStore{
-			GetNovaConversationFn: func(ctx context.Context, id pgtype.UUID) (store.NovacoreConversation, error) {
-				return store.NovacoreConversation{}, pgx.ErrNoRows
+			GetNovaConversationFn: func(ctx context.Context, id string) (store.NovacoreConversation, error) {
+				return store.NovacoreConversation{}, sql.ErrNoRows
 			},
 		}
 
@@ -249,19 +246,19 @@ func TestGetConversationMessages(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid uuid", func(t *testing.T) {
+	t.Run("text id", func(t *testing.T) {
 		h := NewNovaCoreHandler(&fakeNovaStore{}, nil, &config.Config{})
-		req := httptest.NewRequest(http.MethodGet, "/novacore/conversations/invalid-uuid/messages", nil)
+		req := httptest.NewRequest(http.MethodGet, "/novacore/conversations/text-id/messages", nil)
 		rec := httptest.NewRecorder()
 
 		rctx := chi.NewRouteContext()
-		rctx.URLParams.Add("id", "invalid-uuid")
+		rctx.URLParams.Add("id", "text-id")
 		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
 		h.GetConversationMessages(rec, req)
 
-		if rec.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
 		}
 	})
 }
@@ -326,14 +323,14 @@ func TestChatSuccessAnthropic(t *testing.T) {
 		},
 	}
 
-	convID := pgtype.UUID{Bytes: [16]byte{1, 2, 3, 4}, Valid: true}
-	msgID := pgtype.UUID{Bytes: [16]byte{5, 6, 7, 8}, Valid: true}
+	convID := "conv-1"
+	msgID := "msg-1"
 
 	var createdMessages []store.CreateNovaMessageParams
 	var updatedStats []store.UpdateNovaConversationStatsParams
 
 	q := &fakeNovaStore{
-		CreateNovaConversationFn: func(ctx context.Context, userID pgtype.Text) (store.NovacoreConversation, error) {
+		CreateNovaConversationFn: func(ctx context.Context, userID sql.NullString) (store.NovacoreConversation, error) {
 			return store.NovacoreConversation{
 				ID: convID,
 			}, nil
@@ -347,7 +344,7 @@ func TestChatSuccessAnthropic(t *testing.T) {
 				Content:        params.Content,
 			}, nil
 		},
-		ListNovaMessagesByConversationFn: func(ctx context.Context, id pgtype.UUID) ([]store.NovacoreMessage, error) {
+		ListNovaMessagesByConversationFn: func(ctx context.Context, id string) ([]store.NovacoreMessage, error) {
 			// Devolver los mensajes guardados hasta ahora en el test
 			var list []store.NovacoreMessage
 			for _, m := range createdMessages {
@@ -456,13 +453,13 @@ func TestChatSuccessOpenAI(t *testing.T) {
 		},
 	}
 
-	convID := pgtype.UUID{Bytes: [16]byte{1, 2, 3, 4}, Valid: true}
-	msgID := pgtype.UUID{Bytes: [16]byte{5, 6, 7, 8}, Valid: true}
+	convID := "conv-1"
+	msgID := "msg-1"
 
 	var createdMessages []store.CreateNovaMessageParams
 
 	q := &fakeNovaStore{
-		CreateNovaConversationFn: func(ctx context.Context, userID pgtype.Text) (store.NovacoreConversation, error) {
+		CreateNovaConversationFn: func(ctx context.Context, userID sql.NullString) (store.NovacoreConversation, error) {
 			return store.NovacoreConversation{ID: convID}, nil
 		},
 		CreateNovaMessageFn: func(ctx context.Context, params store.CreateNovaMessageParams) (store.NovacoreMessage, error) {
@@ -474,7 +471,7 @@ func TestChatSuccessOpenAI(t *testing.T) {
 				Content:        params.Content,
 			}, nil
 		},
-		ListNovaMessagesByConversationFn: func(ctx context.Context, id pgtype.UUID) ([]store.NovacoreMessage, error) {
+		ListNovaMessagesByConversationFn: func(ctx context.Context, id string) ([]store.NovacoreMessage, error) {
 			var list []store.NovacoreMessage
 			for _, m := range createdMessages {
 				list = append(list, store.NovacoreMessage{

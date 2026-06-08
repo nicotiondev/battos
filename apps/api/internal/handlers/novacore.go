@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,8 +11,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/nicotion/battos/apps/api/internal/config"
 	"github.com/nicotion/battos/apps/api/internal/memory"
 	"github.com/nicotion/battos/apps/api/internal/novacore"
@@ -19,11 +18,11 @@ import (
 )
 
 type NovaStore interface {
-	CreateNovaConversation(context.Context, pgtype.Text) (store.NovacoreConversation, error)
-	GetNovaConversation(context.Context, pgtype.UUID) (store.NovacoreConversation, error)
+	CreateNovaConversation(context.Context, sql.NullString) (store.NovacoreConversation, error)
+	GetNovaConversation(context.Context, string) (store.NovacoreConversation, error)
 	ListNovaConversations(context.Context) ([]store.NovacoreConversation, error)
 	CreateNovaMessage(context.Context, store.CreateNovaMessageParams) (store.NovacoreMessage, error)
-	ListNovaMessagesByConversation(context.Context, pgtype.UUID) ([]store.NovacoreMessage, error)
+	ListNovaMessagesByConversation(context.Context, string) ([]store.NovacoreMessage, error)
 	UpdateNovaConversationStats(context.Context, store.UpdateNovaConversationStatsParams) (store.NovacoreConversation, error)
 
 	ListProjects(context.Context) ([]store.Project, error)
@@ -65,9 +64,9 @@ type novacoreConversationResponse struct {
 	UserID             string     `json:"user_id,omitempty"`
 	StartedAt          time.Time  `json:"started_at"`
 	EndedAt            *time.Time `json:"ended_at,omitempty"`
-	MessageCount       int32      `json:"message_count"`
-	TotalInputTokens   int32      `json:"total_input_tokens"`
-	TotalOutputTokens  int32      `json:"total_output_tokens"`
+	MessageCount       int64      `json:"message_count"`
+	TotalInputTokens   int64      `json:"total_input_tokens"`
+	TotalOutputTokens  int64      `json:"total_output_tokens"`
 	TotalCostUSD       float64    `json:"total_cost_usd"`
 }
 
@@ -76,8 +75,8 @@ type novacoreMessageResponse struct {
 	ConversationID string    `json:"conversation_id"`
 	Role           string    `json:"role"`
 	Content        string    `json:"content"`
-	TokensIn       int32     `json:"tokens_in"`
-	TokensOut      int32     `json:"tokens_out"`
+	TokensIn       int64     `json:"tokens_in"`
+	TokensOut      int64     `json:"tokens_out"`
 	CreatedAt      time.Time `json:"created_at"`
 }
 
@@ -96,7 +95,7 @@ func (h *NovaCoreHandler) ListConversations(w http.ResponseWriter, r *http.Reque
 
 func (h *NovaCoreHandler) GetConversationMessages(w http.ResponseWriter, r *http.Request) {
 	convIDStr := chi.URLParam(r, "id")
-	convID, ok := parseUUIDInput(w, convIDStr, "id")
+	convID, ok := parseIDInput(w, convIDStr, "id")
 	if !ok {
 		return
 	}
@@ -104,7 +103,7 @@ func (h *NovaCoreHandler) GetConversationMessages(w http.ResponseWriter, r *http
 	// Verificar si la conversacion existe
 	_, errConv := h.store.GetNovaConversation(r.Context(), convID)
 	if errConv != nil {
-		if errors.Is(errConv, pgx.ErrNoRows) {
+		if errors.Is(errConv, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, map[string]any{"error": map[string]any{"message": "conversacion no encontrada", "code": 404}})
 			return
 		}
@@ -142,9 +141,9 @@ func (h *NovaCoreHandler) Chat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var convID pgtype.UUID
+	var convID string
 	if in.ConversationID == "" {
-		conv, errCreate := h.store.CreateNovaConversation(r.Context(), pgtype.Text{Valid: false})
+		conv, errCreate := h.store.CreateNovaConversation(r.Context(), sql.NullString{})
 		if errCreate != nil {
 			writeWorkError(w, errCreate)
 			return
@@ -152,14 +151,14 @@ func (h *NovaCoreHandler) Chat(w http.ResponseWriter, r *http.Request) {
 		convID = conv.ID
 	} else {
 		var ok bool
-		convID, ok = parseUUIDInput(w, in.ConversationID, "conversation_id")
+		convID, ok = parseIDInput(w, in.ConversationID, "conversation_id")
 		if !ok {
 			return
 		}
 		// Verificar existencia
 		_, errGet := h.store.GetNovaConversation(r.Context(), convID)
 		if errGet != nil {
-			if errors.Is(errGet, pgx.ErrNoRows) {
+			if errors.Is(errGet, sql.ErrNoRows) {
 				writeJSON(w, http.StatusNotFound, map[string]any{"error": map[string]any{"message": "conversacion no encontrada", "code": 404}})
 				return
 			}
@@ -172,9 +171,9 @@ func (h *NovaCoreHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	_, errUserMsg := h.store.CreateNovaMessage(r.Context(), store.CreateNovaMessageParams{
 		ConversationID: convID,
 		Role:           "user",
-		Content:        pgtype.Text{String: in.Content, Valid: true},
-		ToolCalls:      []byte("[]"),
-		ToolResult:     []byte("{}"),
+		Content:        sql.NullString{String: in.Content, Valid: true},
+		ToolCalls:      sql.NullString{String: "[]", Valid: true},
+		ToolResult:     sql.NullString{String: "{}", Valid: true},
 		TokensIn:       0,
 		TokensOut:      0,
 	})
@@ -215,11 +214,11 @@ func (h *NovaCoreHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	_, errAssistMsg := h.store.CreateNovaMessage(r.Context(), store.CreateNovaMessageParams{
 		ConversationID: convID,
 		Role:           "assistant",
-		Content:        pgtype.Text{String: responseStr, Valid: true},
-		ToolCalls:      []byte("[]"),
-		ToolResult:     []byte("{}"),
-		TokensIn:       int32(usage.InputTokens),
-		TokensOut:      int32(usage.OutputTokens),
+		Content:        sql.NullString{String: responseStr, Valid: true},
+		ToolCalls:      sql.NullString{String: "[]", Valid: true},
+		ToolResult:     sql.NullString{String: "{}", Valid: true},
+		TokensIn:       int64(usage.InputTokens),
+		TokensOut:      int64(usage.OutputTokens),
 	})
 	if errAssistMsg != nil {
 		writeWorkError(w, errAssistMsg)
@@ -228,14 +227,11 @@ func (h *NovaCoreHandler) Chat(w http.ResponseWriter, r *http.Request) {
 
 	// 6. Actualizar estadisticas de la conversacion (message_count y tokens)
 	// Para el costo, guardamos tokens y lo multiplicamos por la estimacion en decimal
-	costNumeric := pgtype.Numeric{}
-	_ = costNumeric.Scan(fmt.Sprintf("%.6f", usage.CostUSD))
-	
 	_, errStats := h.store.UpdateNovaConversationStats(r.Context(), store.UpdateNovaConversationStatsParams{
 		ID:                convID,
-		TotalInputTokens:  int32(usage.InputTokens),
-		TotalOutputTokens: int32(usage.OutputTokens),
-		TotalCostUsd:      costNumeric,
+		TotalInputTokens:  int64(usage.InputTokens),
+		TotalOutputTokens: int64(usage.OutputTokens),
+		TotalCostUsd:      usage.CostUSD,
 	})
 	if errStats != nil {
 		// Logueamos pero no fallamos el request si ya guardamos el mensaje
@@ -243,7 +239,7 @@ func (h *NovaCoreHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, novaChatResponse{
-		ConversationID: uuidValue(convID),
+		ConversationID: convID,
 		Role:           "assistant",
 		Content:        responseStr,
 		TokensIn:       usage.InputTokens,
@@ -289,7 +285,7 @@ Reglas inquebrantables:
 			b.WriteString("- (Sin agentes registrados)\n")
 		} else {
 			for _, a := range agents {
-				b.WriteString(fmt.Sprintf("- `%s`: %s (Role: %s, Runtime: %s, Lead: %t)\n", a.ID, a.Name, textValue(a.Role), textValue(a.RuntimeID), a.IsLead))
+				b.WriteString(fmt.Sprintf("- `%s`: %s (Role: %s, Runtime: %s, Lead: %t)\n", a.ID, a.Name, textValue(a.Role), textValue(a.RuntimeID), a.IsLead != 0))
 			}
 		}
 		b.WriteString("\n")
@@ -344,27 +340,26 @@ func novacoreConversationDTO(item store.NovacoreConversation) novacoreConversati
 	if item.EndedAt.Valid {
 		ended = &item.EndedAt.Time
 	}
-	cost, _ := item.TotalCostUsd.Float64Value()
 	return novacoreConversationResponse{
-		ID:                uuidValue(item.ID),
+		ID:                item.ID,
 		UserID:            textValue(item.UserID),
-		StartedAt:         item.StartedAt.Time,
+		StartedAt:         item.StartedAt,
 		EndedAt:           ended,
 		MessageCount:      item.MessageCount,
 		TotalInputTokens:  item.TotalInputTokens,
 		TotalOutputTokens: item.TotalOutputTokens,
-		TotalCostUSD:      cost.Float64,
+		TotalCostUSD:      item.TotalCostUsd,
 	}
 }
 
 func novacoreMessageDTO(item store.NovacoreMessage) novacoreMessageResponse {
 	return novacoreMessageResponse{
-		ID:             uuidValue(item.ID),
-		ConversationID: uuidValue(item.ConversationID),
+		ID:             item.ID,
+		ConversationID: item.ConversationID,
 		Role:           item.Role,
 		Content:        textValue(item.Content),
 		TokensIn:       item.TokensIn,
 		TokensOut:      item.TokensOut,
-		CreatedAt:      item.CreatedAt.Time,
+		CreatedAt:      item.CreatedAt,
 	}
 }

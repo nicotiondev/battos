@@ -158,6 +158,7 @@ func mountRunRoutes(r chi.Router, runs *handlers.RunHandler) {
 	r.Post("/runs/{id}/approvals", runs.ApproveRunAction)
 	r.Post("/runs/{id}/cancel", runs.CancelRun)
 	r.Get("/runs/{id}/logs", runs.ListRunLogs)
+	r.Get("/runs/{id}/artifacts", runs.ListRunArtifacts)
 	r.Get("/runs/{id}/diff", runs.GetRunDiff)
 }
 
@@ -167,7 +168,7 @@ func mountRunEventRoutes(r chi.Router, runs *handlers.RunHandler) {
 
 func mountUnavailableRunRoutes(r chi.Router) {
 	unavailable := func(w http.ResponseWriter, r *http.Request) {
-		WriteError(w, http.StatusServiceUnavailable, "Runs no disponible: configura DATABASE_URL y verifica Postgres")
+		WriteError(w, http.StatusServiceUnavailable, "Runs no disponible: verifica la base SQLite local")
 	}
 	r.Get("/runs", unavailable)
 	r.Post("/runs", unavailable)
@@ -175,12 +176,13 @@ func mountUnavailableRunRoutes(r chi.Router) {
 	r.Post("/runs/{id}/approvals", unavailable)
 	r.Post("/runs/{id}/cancel", unavailable)
 	r.Get("/runs/{id}/logs", unavailable)
+	r.Get("/runs/{id}/artifacts", unavailable)
 	r.Get("/runs/{id}/diff", unavailable)
 }
 
 func mountUnavailableRunEventRoutes(r chi.Router) {
 	unavailable := func(w http.ResponseWriter, r *http.Request) {
-		WriteError(w, http.StatusServiceUnavailable, "Run events no disponible: configura DATABASE_URL y verifica Postgres")
+		WriteError(w, http.StatusServiceUnavailable, "Run events no disponible: verifica la base SQLite local")
 	}
 	r.Get("/events/runs/{id}", unavailable)
 }
@@ -201,7 +203,7 @@ func mountRegistryRoutes(r chi.Router, registries *handlers.RegistriesHandler) {
 
 func mountUnavailableRegistryRoutes(r chi.Router) {
 	unavailable := func(w http.ResponseWriter, r *http.Request) {
-		WriteError(w, http.StatusServiceUnavailable, "Agents/skills no disponible: configura DATABASE_URL y verifica Postgres")
+		WriteError(w, http.StatusServiceUnavailable, "Agents/skills no disponible: verifica la base SQLite local")
 	}
 	r.Get("/agents", unavailable)
 	r.Post("/agents", unavailable)
@@ -210,7 +212,7 @@ func mountUnavailableRegistryRoutes(r chi.Router) {
 
 func mountUnavailableRuntimeRoutes(r chi.Router) {
 	unavailable := func(w http.ResponseWriter, r *http.Request) {
-		WriteError(w, http.StatusServiceUnavailable, "Runtime detection no disponible: configura DATABASE_URL y verifica Postgres")
+		WriteError(w, http.StatusServiceUnavailable, "Runtime detection no disponible: verifica la base SQLite local")
 	}
 	r.Get("/runtime-adapters", unavailable)
 	r.Post("/runtime-adapters/detect", unavailable)
@@ -252,7 +254,7 @@ func mountKnowledgeRoutes(r chi.Router, knowledge *handlers.KnowledgeHandler) {
 
 func mountUnavailableKnowledgeRoutes(r chi.Router) {
 	unavailable := func(w http.ResponseWriter, r *http.Request) {
-		WriteError(w, http.StatusServiceUnavailable, "Knowledge Center no disponible: configura DATABASE_URL y verifica Postgres")
+		WriteError(w, http.StatusServiceUnavailable, "Knowledge Center no disponible: verifica la base SQLite local")
 	}
 	r.Get("/knowledge/workspaces", unavailable)
 	r.Post("/knowledge/workspaces", unavailable)
@@ -264,7 +266,7 @@ func mountUnavailableKnowledgeRoutes(r chi.Router) {
 
 func mountUnavailableWorkRoutes(r chi.Router) {
 	unavailable := func(w http.ResponseWriter, r *http.Request) {
-		WriteError(w, http.StatusServiceUnavailable, "Work Board no disponible: configura DATABASE_URL y verifica Postgres")
+		WriteError(w, http.StatusServiceUnavailable, "Work Board no disponible: verifica la base SQLite local")
 	}
 	r.Get("/domains", unavailable)
 	r.Post("/domains", unavailable)
@@ -294,7 +296,7 @@ func mountRepositoryRoutes(r chi.Router, repos *handlers.RepositoriesHandler) {
 
 func mountUnavailableRepositoryRoutes(r chi.Router) {
 	unavailable := func(w http.ResponseWriter, r *http.Request) {
-		WriteError(w, http.StatusServiceUnavailable, "Repositories no disponible: configura DATABASE_URL y verifica Postgres")
+		WriteError(w, http.StatusServiceUnavailable, "Repositories no disponible: verifica la base SQLite local")
 	}
 	r.Get("/repositories", unavailable)
 	r.Post("/repositories", unavailable)
@@ -393,7 +395,7 @@ func mountNovaCoreRoutes(r chi.Router, nova *handlers.NovaCoreHandler) {
 
 func mountUnavailableNovaCoreRoutes(r chi.Router) {
 	unavailable := func(w http.ResponseWriter, r *http.Request) {
-		WriteError(w, http.StatusServiceUnavailable, "NovaCore no disponible: configura DATABASE_URL y verifica Postgres")
+		WriteError(w, http.StatusServiceUnavailable, "NovaCore no disponible: verifica la base SQLite local")
 	}
 	r.Get("/novacore/conversations", unavailable)
 	r.Get("/novacore/conversations/{id}/messages", unavailable)
@@ -407,7 +409,7 @@ func mountUsageRoutes(r chi.Router, usage *handlers.UsageHandler) {
 
 func mountUnavailableUsageRoutes(r chi.Router) {
 	unavailable := func(w http.ResponseWriter, r *http.Request) {
-		WriteError(w, http.StatusServiceUnavailable, "Usage telemetry no disponible: configura DATABASE_URL y verifica Postgres")
+		WriteError(w, http.StatusServiceUnavailable, "Usage telemetry no disponible: verifica la base SQLite local")
 	}
 	r.Get("/usage/overview", unavailable)
 	r.Get("/usage/runs/{id}", unavailable)

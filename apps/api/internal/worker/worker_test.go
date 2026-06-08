@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -10,15 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/nicotion/battos/apps/api/internal/store"
 )
 
 type fakeStore struct {
 	claimErr    error
-	claimedID   pgtype.UUID
+	claimedID   string
 	run         store.Run
 	logs        []store.AppendRunLogParams
 	artifacts   []store.CreateArtifactParams
@@ -36,7 +34,7 @@ func (f *fakeStore) ClaimNextQueuedRun(context.Context) (store.Run, error) {
 	return f.run, nil
 }
 
-func (f *fakeStore) ClaimQueuedRunByID(_ context.Context, id pgtype.UUID) (store.Run, error) {
+func (f *fakeStore) ClaimQueuedRunByID(_ context.Context, id string) (store.Run, error) {
 	f.claimedID = id
 	if f.claimErr != nil {
 		return store.Run{}, f.claimErr
@@ -46,7 +44,7 @@ func (f *fakeStore) ClaimQueuedRunByID(_ context.Context, id pgtype.UUID) (store
 
 func (f *fakeStore) AppendRunLog(_ context.Context, arg store.AppendRunLogParams) (store.RunLog, error) {
 	f.logs = append(f.logs, arg)
-	return store.RunLog{ID: int64(len(f.logs)), RunID: arg.RunID, Stream: arg.Stream, Message: arg.Message, CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}}, nil
+	return store.RunLog{ID: int64(len(f.logs)), RunID: arg.RunID, Stream: arg.Stream, Message: arg.Message, CreatedAt: time.Now()}, nil
 }
 
 func (f *fakeStore) CompleteRun(_ context.Context, arg store.CompleteRunParams) (store.Run, error) {
@@ -71,7 +69,7 @@ func (f *fakeStore) CreateArtifact(_ context.Context, arg store.CreateArtifactPa
 	}
 	f.artifacts = append(f.artifacts, arg)
 	return store.Artifact{
-		ID:          pgtype.UUID{Bytes: [16]byte{1}, Valid: true},
+		ID:          "artifact-1",
 		ProjectID:   arg.ProjectID,
 		TaskID:      arg.TaskID,
 		RunID:       arg.RunID,
@@ -101,7 +99,7 @@ func (f *fakeStore) UpdateRunBranchAndMetadata(_ context.Context, arg store.Upda
 
 func (f *fakeStore) CreateUsageEvent(_ context.Context, arg store.CreateUsageEventParams) (store.UsageEvent, error) {
 	return store.UsageEvent{
-		ID:               pgtype.UUID{Bytes: [16]byte{2}, Valid: true},
+		ID:               "usage-1",
 		RunID:            arg.RunID,
 		ProviderID:       arg.ProviderID,
 		ModelID:          arg.ModelID,
@@ -144,7 +142,7 @@ func TestProcessOneRegistersProducedArtifacts(t *testing.T) {
 		t.Fatalf("artifacts=%+v, want one registered artifact", store.artifacts)
 	}
 	artifact := store.artifacts[0]
-	if artifact.ProjectID != "web" || artifact.TaskID.String != "task-1" || artifact.RunID != run.ID {
+	if artifact.ProjectID != "web" || artifact.TaskID.String != "task-1" || artifact.RunID.String != run.ID {
 		t.Fatalf("artifact=%+v, want project/task/run association", artifact)
 	}
 	if !artifact.ManagedPath.Valid || !strings.Contains(artifact.ManagedPath.String, "web/outputs/") {
@@ -195,7 +193,7 @@ func (f fakeMemoryContext) ContextForRun(context.Context, store.Run) (MemoryCont
 }
 
 func TestProcessOneNoQueuedRun(t *testing.T) {
-	worker := New(&fakeStore{claimErr: pgx.ErrNoRows}, nil, nil)
+	worker := New(&fakeStore{claimErr: sql.ErrNoRows}, nil, nil)
 
 	processed, err := worker.ProcessOne(context.Background())
 
@@ -231,7 +229,7 @@ func TestProcessRunIDClaimsSpecificQueuedRun(t *testing.T) {
 func TestRunLoopStopsOnContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	worker := New(&fakeStore{claimErr: pgx.ErrNoRows}, nil, nil)
+	worker := New(&fakeStore{claimErr: sql.ErrNoRows}, nil, nil)
 
 	if err := worker.RunLoop(ctx, time.Millisecond); err != nil {
 		t.Fatalf("RunLoop returned error: %v", err)
@@ -415,6 +413,101 @@ func TestApprovedDryRunAdaptersCreatePlans(t *testing.T) {
 	}
 }
 
+func TestApprovedAdaptersHostSessionCodexPlan(t *testing.T) {
+	credentialsDir := t.TempDir()
+	adapters := ApprovedAdapters(AdapterOptions{
+		HostSessionEnabled:  true,
+		CodexCredentialsDir: credentialsDir,
+	})
+	run := testRun("codex-host-session")
+	run.NetworkEnabled = 1
+
+	plan, err := adapters["codex-host-session"].Plan(context.Background(), run)
+	if err != nil {
+		t.Fatalf("Plan returned error: %v", err)
+	}
+	if plan.RuntimeID != "codex-host-session" || plan.Command != "sh" {
+		t.Fatalf("plan=%+v, want codex-host-session shell plan", plan)
+	}
+	if contains(plan.EnvKeys, "OPENAI_API_KEY") {
+		t.Fatalf("plan env=%+v, host_session must not pass OPENAI_API_KEY", plan.EnvKeys)
+	}
+	if len(plan.Mounts) != 1 {
+		t.Fatalf("mounts=%+v, want one host credentials mount", plan.Mounts)
+	}
+	mount := plan.Mounts[0]
+	if mount.Source != credentialsDir || mount.Target != "/mnt/battos-codex-host" || !mount.ReadOnly {
+		t.Fatalf("mount=%+v, want read-only codex credentials mount", mount)
+	}
+}
+
+func TestApprovedAdaptersHostSessionClaudePlan(t *testing.T) {
+	credentialsDir := t.TempDir()
+	adapters := ApprovedAdapters(AdapterOptions{
+		HostSessionEnabled:   true,
+		ClaudeCredentialsDir: credentialsDir,
+	})
+	run := testRun("claude-code-host-session")
+	run.NetworkEnabled = 1
+
+	plan, err := adapters["claude-code-host-session"].Plan(context.Background(), run)
+	if err != nil {
+		t.Fatalf("Plan returned error: %v", err)
+	}
+	if plan.RuntimeID != "claude-code-host-session" || plan.Command != "sh" {
+		t.Fatalf("plan=%+v, want claude-code-host-session shell plan", plan)
+	}
+	if contains(plan.EnvKeys, "ANTHROPIC_API_KEY") {
+		t.Fatalf("plan env=%+v, host_session must not pass ANTHROPIC_API_KEY", plan.EnvKeys)
+	}
+	if len(plan.Mounts) != 1 {
+		t.Fatalf("mounts=%+v, want one host credentials mount", plan.Mounts)
+	}
+	mount := plan.Mounts[0]
+	if mount.Source != credentialsDir || mount.Target != "/mnt/battos-claude-host" || !mount.ReadOnly {
+		t.Fatalf("mount=%+v, want read-only claude credentials mount", mount)
+	}
+	if !strings.Contains(strings.Join(plan.Args, " "), "claude --print") || strings.Contains(strings.Join(plan.Args, " "), "--bare") {
+		t.Fatalf("args=%q, want non-bare claude print command", strings.Join(plan.Args, " "))
+	}
+}
+
+func TestApprovedAdaptersDoesNotRegisterHostSessionWhenDisabled(t *testing.T) {
+	adapters := ApprovedAdapters(AdapterOptions{})
+	if _, ok := adapters["codex-host-session"]; ok {
+		t.Fatalf("codex-host-session should only be registered when host_session is enabled")
+	}
+	if _, ok := adapters["claude-code-host-session"]; ok {
+		t.Fatalf("claude-code-host-session should only be registered when host_session is enabled")
+	}
+}
+
+func TestProcessOneRejectsHostSessionWithoutNetworkApproval(t *testing.T) {
+	run := testRun("codex-host-session")
+	store := &fakeStore{run: run}
+	worker := New(store, nil, map[string]Adapter{
+		"codex-host-session": fakeAdapter{plan: ExecutionPlan{
+			RuntimeID: "codex-host-session",
+			Command:   "sh",
+			Mounts: []Mount{{
+				Source:   t.TempDir(),
+				Target:   "/mnt/battos-codex-host",
+				ReadOnly: true,
+			}},
+			Timeout: time.Minute,
+		}},
+	})
+
+	processed, err := worker.ProcessOne(context.Background())
+
+	if err != nil {
+		t.Fatalf("ProcessOne returned error: %v", err)
+	}
+	if !processed || !store.failOK || !strings.Contains(store.failed.ErrorMessage.String, "host_session requires network approval") {
+		t.Fatalf("processed=%v failed=%+v, want host_session network approval failure", processed, store.failed)
+	}
+}
+
 type fakeRunner struct {
 	name    string
 	args    []string
@@ -520,6 +613,45 @@ func TestDockerSandboxPassesOnlyDeclaredEnvKeys(t *testing.T) {
 	}
 }
 
+func TestDockerSandboxMountsHostSessionCredentialsReadOnly(t *testing.T) {
+	credentialsDir := t.TempDir()
+	runner := &fakeRunner{}
+	plan := testPlan("codex-host-session")
+	plan.NetworkEnabled = true
+	plan.Mounts = []Mount{{
+		Source:   credentialsDir,
+		Target:   "/mnt/battos-codex-host",
+		ReadOnly: true,
+	}}
+
+	_, err := (DockerSandbox{Image: "battos-runtime-agents:dev", WorkspacesDir: t.TempDir(), Runner: runner}).Execute(context.Background(), plan, func(string, string) error { return nil })
+
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	joined := strings.Join(runner.args, " ")
+	expected := filepath.Clean(credentialsDir) + ":/mnt/battos-codex-host:ro"
+	if !strings.Contains(joined, expected) {
+		t.Fatalf("args=%q, want host credentials read-only mount %q", joined, expected)
+	}
+}
+
+func TestDockerSandboxRejectsMissingHostSessionCredentials(t *testing.T) {
+	plan := testPlan("codex-host-session")
+	plan.NetworkEnabled = true
+	plan.Mounts = []Mount{{
+		Source:   filepath.Join(t.TempDir(), "missing"),
+		Target:   "/mnt/battos-codex-host",
+		ReadOnly: true,
+	}}
+
+	_, err := (DockerSandbox{Image: "battos-runtime-agents:dev", WorkspacesDir: t.TempDir(), Runner: &fakeRunner{}}).Execute(context.Background(), plan, func(string, string) error { return nil })
+
+	if err == nil || !strings.Contains(err.Error(), "host_session mount source unavailable") {
+		t.Fatalf("err=%v, want unavailable host_session mount source", err)
+	}
+}
+
 func TestDockerSandboxRedactsKnownSecretsFromLogs(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "sk-test-secret-value")
 	runner := &fakeRunner{out: CommandOutput{Stdout: "token sk-test-secret-value"}}
@@ -601,9 +733,8 @@ func TestDockerSandboxCollectsWorkspaceArtifacts(t *testing.T) {
 }
 
 func testRun(runtimeID string) store.Run {
-	id := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 	return store.Run{
-		ID:               pgtype.UUID{Bytes: id, Valid: true},
+		ID:               "11111111-1111-1111-1111-111111111111",
 		ProjectID:        "web",
 		TaskID:           "task-1",
 		AgentID:          "agent-1",

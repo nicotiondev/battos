@@ -2,12 +2,12 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/nicotion/battos/apps/api/internal/store"
 )
 
@@ -126,7 +126,7 @@ func TestCreateTaskDefaultsToBacklogAndNullableGoal(t *testing.T) {
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusCreated, rec.Body.String())
 	}
-	if q.createTaskParams.Status != "backlog" || q.createTaskParams.GoalID != (pgtype.Text{}) {
+	if q.createTaskParams.Status != "backlog" || q.createTaskParams.GoalID != (sql.NullString{}) {
 		t.Fatalf("created task = %+v, want backlog without goal", q.createTaskParams)
 	}
 }
@@ -167,7 +167,7 @@ func TestUpdateTaskPreservesFieldsOmittedByPatch(t *testing.T) {
 		ID:            "task-1",
 		ProjectID:     "web",
 		Title:         "Preparar brief",
-		Description:   pgtype.Text{String: "No borrar", Valid: true},
+		Description:   sql.NullString{String: "No borrar", Valid: true},
 		Status:        "backlog",
 		BoardPosition: 7,
 	}}
