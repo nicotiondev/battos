@@ -18,9 +18,8 @@ BattOS es una capa agentic self-hosted que orquesta proyectos, agentes, skills, 
 
 - **Go 1.23** (backend + CLI + workers)
 - **Next.js 15 + TS** (frontend)
-- **PostgreSQL 16** + **sqlc** (no ORM)
-- **SQLite + FTS5** (Memory Core, embebido en el API)
-- **chi** (router), **goose** (migraciones), **cobra** (CLI), **viper** (config)
+- **SQLite + sqlc** (store unificado: registries + Memory Core, embebido en el binario; ver ADR-0021). PostgreSQL queda fuera del flujo normal de v0.1 (opcional/futuro para multi-usuario).
+- **chi** (router), **cobra** (CLI), **viper** (config)
 - **OpenAPI + oapi-codegen** (contratos tipados)
 - **SSE** para streaming al dashboard (no WebSockets)
 
@@ -108,7 +107,7 @@ docker compose -f infra/docker-compose.yml down
 ## Lo que NO se toca sin pensar
 
 - **`packages/openapi/openapi.yaml`** — fuente de verdad del contrato. Cambiar acá rompe server y client. Ciclo: editar → `./scripts/generate.ps1` → revisar diffs.
-- **`apps/api/migrations/*.sql`** — son append-only. Nunca editar una migración ya aplicada. Crear una nueva.
+- **`apps/api/internal/store/sqlite_schema.sql`** — fuente de verdad del schema SQLite. Es idempotente (`CREATE TABLE IF NOT EXISTS`); `OpenDB` lo aplica en cada arranque. Para cambios de schema: editar este archivo + regenerar con sqlc. Las migraciones históricas Postgres están archivadas en `apps/api/migrations/postgres-archive/` solo como referencia.
 - **`apps/api/queries/*.sql`** — los cambios disparan regeneración de `internal/store/`. No editar el código generado.
 - **`config/*.yaml`** — son contratos con el runtime. Romper formato rompe el boot.
 

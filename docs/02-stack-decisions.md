@@ -75,8 +75,8 @@ ADR: `adr/0004-memory-core-propio.md` (Fase 2).
 
 **Decision**: v0.1 ejecuta Claude Code y Codex mediante adapters aprobados,
 siempre en un contenedor efimero por run y con aprobacion humana. El estado de
-runs y sus aprobaciones vive en SQLite (`data/battos.db`); para la primera
-version el worker Go reclama trabajo desde esa base sin introducir Redis.
+runs y sus aprobaciones vive en SQLite (`data/battos.db`, ADR-0021); para la
+primera version el worker Go reclama trabajo desde esa base sin introducir Redis.
 
 **Razones**:
 1. Aisla el filesystem y limita el radio de una ejecucion.
