@@ -229,6 +229,11 @@ func (s DockerSandbox) dockerArgs(image, workspace string, plan ExecutionPlan) [
 			"-e", "HTTPS_PROXY=http://"+s.EgressProxyAddr,
 			"-e", "HTTP_PROXY=http://"+s.EgressProxyAddr,
 			"-e", "NO_PROXY=localhost,127.0.0.1",
+			// Las CLIs Node (claude) usan undici/fetch, que NO honra HTTP(S)_PROXY
+			// por defecto; este flag hace que lo respete. No-op para CLIs que ya
+			// lo honran (codex/Rust). Sin esto, claude-host-session falla cerrado
+			// (no llega al provider). Validar en el smoke real.
+			"-e", "NODE_USE_ENV_PROXY=1",
 		)
 	default:
 		// API-key run: bridge normal, no hay sesión expuesta.
