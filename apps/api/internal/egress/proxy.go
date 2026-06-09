@@ -223,11 +223,7 @@ func (p *Proxy) forwardHTTP(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	// Usar httputil.ReverseProxy para forwarding.
-	// Necesitamos limpiar headers de hop-by-hop antes de reenviar.
-	outReq := r.Clone(r.Context())
-	outReq.RequestURI = "" // no permitido en requests salientes
-
+	// Forwarding con httputil.ReverseProxy (limpia hop-by-hop headers internamente).
 	// Determinar el target del reverse proxy a partir de la URL.
 	targetURL := &url.URL{
 		Scheme: r.URL.Scheme,

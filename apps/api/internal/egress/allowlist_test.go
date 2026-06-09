@@ -47,6 +47,20 @@ func TestAllowed(t *testing.T) {
 			want:      true,
 		},
 		{
+			// Trailing-dot FQDN: el proxy falla CERRADO (rechaza) por seguridad.
+			// Lockea el comportamiento para que un cambio no lo abra por accidente.
+			name:      "trailing dot subdomain fails closed",
+			host:      "api.anthropic.com.",
+			allowlist: []string{"anthropic.com"},
+			want:      false,
+		},
+		{
+			name:      "trailing dot exact fails closed",
+			host:      "anthropic.com.",
+			allowlist: []string{"anthropic.com"},
+			want:      false,
+		},
+		{
 			name:      "subdomain with port stripped",
 			host:      "api.anthropic.com:443",
 			allowlist: []string{"anthropic.com"},

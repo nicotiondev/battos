@@ -92,6 +92,17 @@ Decisiones concretas (acordadas):
   `execution.egress_allowlist` / `egress_mode`, y un smoke que valide
   allow/deny.
 
+## Seguridad operativa (IMPORTANTE)
+
+- **`log_only` NO protege.** En `log_only` un intento de exfiltracion se tunelea
+  igual (solo se loguea). Es un modo de **descubrimiento** de dominios, no de
+  proteccion. Los runs `host_session` DEBEN correr el proxy en **`enforce`** —
+  la Etapa B lo fuerza en codigo (no usa la red de host_session sin enforce).
+- El proxy verificado (Etapa A): la allowlist no es bypasseable (matching
+  anclado al borde de dominio, host chequeado == host dialed, sin TOCTOU), falla
+  cerrado en casos ambiguos (FQDN con punto final), y `enforce`/`log_only` se
+  comportan correctamente. Validado por review de seguridad sobre `75ee863`.
+
 ## Related
 
 - ADR-0011 - ejecucion supervisada y aislamiento por contenedor.
