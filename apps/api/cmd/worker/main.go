@@ -50,8 +50,10 @@ func run() error {
 	sandbox := runworker.Sandbox(runworker.DryRunSandbox{})
 	if cfg.Execution.SandboxMode == "docker" {
 		sandbox = runworker.DockerSandbox{
-			Image:         cfg.Execution.DockerImage,
-			WorkspacesDir: cfg.Execution.WorkspacesDir,
+			Image:           cfg.Execution.DockerImage,
+			WorkspacesDir:   cfg.Execution.WorkspacesDir,
+			EgressNetwork:   cfg.Execution.EgressNetwork,
+			EgressProxyAddr: cfg.Execution.EgressProxyAddr,
 		}
 	}
 	w := runworker.New(store.New(db), sandbox, runworker.ApprovedAdapters(runworker.AdapterOptions{

@@ -688,7 +688,15 @@ func TestDockerSandboxMountsHostSessionCredentialsReadOnly(t *testing.T) {
 		ReadOnly: true,
 	}}
 
-	_, err := (DockerSandbox{Image: "battos-runtime-agents:dev", WorkspacesDir: t.TempDir(), Runner: runner}).Execute(context.Background(), plan, func(string, string) error { return nil })
+	// Egress config is required for host_session + network (ADR-0022).
+	sandbox := DockerSandbox{
+		Image:           "battos-runtime-agents:dev",
+		WorkspacesDir:   t.TempDir(),
+		Runner:          runner,
+		EgressNetwork:   "battos-egress",
+		EgressProxyAddr: "battos-egress-proxy:8888",
+	}
+	_, err := sandbox.Execute(context.Background(), plan, func(string, string) error { return nil })
 
 	if err != nil {
 		t.Fatalf("Execute returned error: %v", err)
@@ -793,6 +801,130 @@ func TestDockerSandboxCollectsWorkspaceArtifacts(t *testing.T) {
 	}
 	if !hasArtifact(result.Artifacts, "trace.diff", "diff", "diff --git a/x b/x") {
 		t.Fatalf("artifacts=%+v, want diff artifact", result.Artifacts)
+	}
+}
+
+// --- Egress proxy wiring tests (ADR-0022 Step B) ---
+
+func TestDockerSandboxEgressHostSessionNetworkUsesEgressNetwork(t *testing.T) {
+	// host_session + network → debe usar la red de egress y setear el proxy, NO bridge.
+	credentialsDir := t.TempDir()
+	runner := &fakeRunner{}
+	plan := testPlan("codex-host-session")
+	plan.NetworkEnabled = true
+	plan.Mounts = []Mount{{
+		Source:   credentialsDir,
+		Target:   "/mnt/battos-codex-host",
+		ReadOnly: true,
+	}}
+	sandbox := DockerSandbox{
+		Image:           "battos-runtime-agents:dev",
+		WorkspacesDir:   t.TempDir(),
+		Runner:          runner,
+		EgressNetwork:   "battos-egress",
+		EgressProxyAddr: "battos-egress-proxy:8888",
+	}
+
+	_, err := sandbox.Execute(context.Background(), plan, func(string, string) error { return nil })
+
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	joined := strings.Join(runner.args, " ")
+	if !strings.Contains(joined, "--network battos-egress") {
+		t.Fatalf("args=%q, want --network battos-egress for host_session+network", joined)
+	}
+	if !strings.Contains(joined, "HTTPS_PROXY=http://battos-egress-proxy:8888") {
+		t.Fatalf("args=%q, want HTTPS_PROXY set to egress proxy", joined)
+	}
+	if strings.Contains(joined, "--network bridge") {
+		t.Fatalf("args=%q, must NOT use bridge network for host_session+network", joined)
+	}
+}
+
+func TestDockerSandboxEgressAPIKeyNetworkUsesBridge(t *testing.T) {
+	// API-key run (no mounts) + network → bridge normal, sin proxy.
+	runner := &fakeRunner{}
+	plan := testPlan("codex")
+	plan.NetworkEnabled = true
+	// sin Mounts: no es host_session
+	sandbox := DockerSandbox{
+		Image:           "alpine:3.20",
+		WorkspacesDir:   t.TempDir(),
+		Runner:          runner,
+		EgressNetwork:   "battos-egress",
+		EgressProxyAddr: "battos-egress-proxy:8888",
+	}
+
+	_, err := sandbox.Execute(context.Background(), plan, func(string, string) error { return nil })
+
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	joined := strings.Join(runner.args, " ")
+	if !strings.Contains(joined, "--network bridge") {
+		t.Fatalf("args=%q, want --network bridge for API-key run", joined)
+	}
+	if strings.Contains(joined, "HTTPS_PROXY") {
+		t.Fatalf("args=%q, must NOT set HTTPS_PROXY for API-key run", joined)
+	}
+	if strings.Contains(joined, "battos-egress") {
+		t.Fatalf("args=%q, must NOT use egress network for API-key run", joined)
+	}
+}
+
+func TestDockerSandboxEgressNoNetworkRunUsesNone(t *testing.T) {
+	// Sin red → --network none, sin importar si hay mounts o no.
+	runner := &fakeRunner{}
+	plan := testPlan("codex")
+	plan.NetworkEnabled = false
+	sandbox := DockerSandbox{
+		Image:         "alpine:3.20",
+		WorkspacesDir: t.TempDir(),
+		Runner:        runner,
+	}
+
+	_, err := sandbox.Execute(context.Background(), plan, func(string, string) error { return nil })
+
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	joined := strings.Join(runner.args, " ")
+	if !strings.Contains(joined, "--network none") {
+		t.Fatalf("args=%q, want --network none for no-network run", joined)
+	}
+}
+
+func TestDockerSandboxEgressFailsClosedWhenProxyNotConfigured(t *testing.T) {
+	// host_session + network pero sin EgressNetwork/EgressProxyAddr → error fail-closed.
+	// NO debe caer a bridge ni invocar docker.
+	credentialsDir := t.TempDir()
+	runner := &fakeRunner{}
+	plan := testPlan("codex-host-session")
+	plan.NetworkEnabled = true
+	plan.Mounts = []Mount{{
+		Source:   credentialsDir,
+		Target:   "/mnt/battos-codex-host",
+		ReadOnly: true,
+	}}
+	sandbox := DockerSandbox{
+		Image:         "battos-runtime-agents:dev",
+		WorkspacesDir: t.TempDir(),
+		Runner:        runner,
+		// EgressNetwork y EgressProxyAddr vacíos — no configurados.
+	}
+
+	_, err := sandbox.Execute(context.Background(), plan, func(string, string) error { return nil })
+
+	if err == nil {
+		t.Fatal("Execute must return error when egress proxy is not configured for host_session+network")
+	}
+	if !strings.Contains(err.Error(), "egress proxy configured") {
+		t.Fatalf("err=%v, want egress proxy configured error", err)
+	}
+	// El runner NO debe haber sido invocado (fail-closed antes de docker run).
+	if runner.name != "" {
+		t.Fatalf("docker runner was invoked, want fail-closed before docker run")
 	}
 }
 

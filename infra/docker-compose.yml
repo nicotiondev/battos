@@ -1,14 +1,19 @@
 # BattOS - Docker Compose para dev local y VPS.
 #
 # Servicios:
-#   battos-api     API Go
-#   battos-worker  Worker de runs, opcional con perfil worker
+#   battos-api          API Go
+#   battos-worker       Worker de runs, opcional con perfil "worker"
+#   battos-egress-proxy Proxy de egress para runs host_session, perfil "egress"
+#                       (ADR-0022 — requerido cuando host_session_enabled=true y
+#                        se aprueban runs con network)
 #
 # Uso:
 #   cp infra/.env.example infra/.env
 #   docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
 #   docker compose -f infra/docker-compose.yml logs -f battos-api
 #   docker compose -f infra/docker-compose.yml --env-file infra/.env --profile worker up -d battos-worker
+#   # Para habilitar egress (necesario junto a "worker" cuando host_session está activo):
+#   docker compose -f infra/docker-compose.yml --env-file infra/.env --profile worker --profile egress up -d
 
 name: battos
 
@@ -82,5 +87,37 @@ services:
       battos-api:
         condition: service_healthy
 
+  battos-egress-proxy:
+    profiles: ["egress"]
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.egress-proxy
+    container_name: battos-egress-proxy
+    restart: unless-stopped
+    environment:
+      # enforce: bloquea todo lo que no esté en la allowlist (recomendado para producción).
+      # log_only: permite todo pero loguea cada destino (usar para descubrir dominios
+      #           con un run real antes de pasar a enforce). NOTA: log_only NO protege.
+      BATTOS_EGRESS_MODE: ${BATTOS_EGRESS_MODE:-enforce}
+      # Dominios permitidos separados por coma. Incluye los endpoints de API y auth
+      # de los providers principales. Agregar dominios de auth/telemetría adicionales
+      # tras un run de descubrimiento en modo log_only (p.ej. auth0, sentry, etc.).
+      BATTOS_EGRESS_ALLOWLIST: ${BATTOS_EGRESS_ALLOWLIST:-api.openai.com,api.anthropic.com}
+      BATTOS_EGRESS_ADDR: "0.0.0.0:8888"
+    networks:
+      # battos-egress: red interna que comparte con los contenedores de runs.
+      - battos-egress
+      # default: red con salida a internet — el proxy es el único peer que la tiene.
+      - default
+
 volumes:
   battos_data:
+
+networks:
+  # battos-egress: red Docker interna (sin ruta a internet).
+  # Los contenedores de runs host_session se conectan SOLO a esta red.
+  # El proxy tiene además la red default, siendo el único camino al exterior.
+  # Esto implementa la garantía de fail-closed de ADR-0022: aunque el agente
+  # ignore HTTPS_PROXY e intente conexión directa, falla por falta de ruta.
+  battos-egress:
+    internal: true

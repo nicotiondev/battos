@@ -41,6 +41,12 @@ type DockerSandbox struct {
 	Image         string
 	WorkspacesDir string
 	Runner        CommandRunner
+	// EgressNetwork y EgressProxyAddr configuran la red Docker interna y el proxy
+	// de egress que se usan para runs host_session+network (ADR-0022).
+	// Obligatorios cuando el run tiene Mounts y NetworkEnabled; si están vacíos y
+	// el run los necesita, Execute falla cerrado en vez de caer a bridge.
+	EgressNetwork   string
+	EgressProxyAddr string
 }
 
 func (s DockerSandbox) Execute(ctx context.Context, plan ExecutionPlan, log LogFunc) (Result, error) {
@@ -83,10 +89,20 @@ func (s DockerSandbox) Execute(ctx context.Context, plan ExecutionPlan, log LogF
 		return Result{}, err
 	}
 
+	// Fail-closed (ADR-0022): un run host_session con red DEBE pasar por el proxy
+	// de egress. Si la config del proxy está vacía, rechazamos en vez de caer a
+	// bridge (que expondría el token montado a internet abierto).
+	isHostSession := len(plan.Mounts) > 0
+	if plan.NetworkEnabled && isHostSession {
+		if strings.TrimSpace(s.EgressNetwork) == "" || strings.TrimSpace(s.EgressProxyAddr) == "" {
+			return Result{}, fmt.Errorf("host_session network requires egress proxy configured (execution.egress_network/egress_proxy_addr)")
+		}
+	}
+
 	runCtx, cancel := context.WithTimeout(ctx, plan.Timeout)
 	defer cancel()
 
-	args := dockerArgs(image, workspace, plan)
+	args := s.dockerArgs(image, workspace, plan)
 	if err := log("system", "sandbox docker: starting ephemeral container"); err != nil {
 		return Result{}, err
 	}
@@ -184,21 +200,46 @@ func (s DockerSandbox) Execute(ctx context.Context, plan ExecutionPlan, log LogF
 	return Result{Summary: "docker sandbox completed", Artifacts: artifacts}, nil
 }
 
-func dockerArgs(image, workspace string, plan ExecutionPlan) []string {
-	network := "none"
-	if plan.NetworkEnabled {
-		network = "bridge"
-	}
+// dockerArgs construye los argumentos para `docker run`.
+//
+// Selección de red (ADR-0022):
+//   - !NetworkEnabled            → --network none   (aislamiento total)
+//   - NetworkEnabled + Mounts    → --network <EgressNetwork> + proxy env
+//     (host_session: la red es internal, el proxy es la única salida)
+//   - NetworkEnabled + sin Mounts → --network bridge  (run con API key, sin sesión montada)
+func (s DockerSandbox) dockerArgs(image, workspace string, plan ExecutionPlan) []string {
+	isHostSession := len(plan.Mounts) > 0
+
 	name := "battos-run-" + safeContainerSuffix(plan.RuntimeID) + "-" + time.Now().UTC().Format("20060102150405")
 	args := []string{
 		"run",
 		"--rm",
 		"--name", name,
-		"--network", network,
-		"-v", filepath.Clean(workspace) + ":/workspace",
+	}
+
+	switch {
+	case !plan.NetworkEnabled:
+		args = append(args, "--network", "none")
+	case isHostSession:
+		// host_session + red: red interna dedicada + proxy de egress como única salida.
+		// La red es internal:true, por lo que cualquier conexión directa falla por
+		// falta de ruta; el proxy es el único peer con internet y aplica la allowlist.
+		args = append(args,
+			"--network", s.EgressNetwork,
+			"-e", "HTTPS_PROXY=http://"+s.EgressProxyAddr,
+			"-e", "HTTP_PROXY=http://"+s.EgressProxyAddr,
+			"-e", "NO_PROXY=localhost,127.0.0.1",
+		)
+	default:
+		// API-key run: bridge normal, no hay sesión expuesta.
+		args = append(args, "--network", "bridge")
+	}
+
+	args = append(args,
+		"-v", filepath.Clean(workspace)+":/workspace",
 		"-w", "/workspace",
 		"-e", "BATTOS_PROMPT_FILE=/workspace/BATTOS_PROMPT.md",
-	}
+	)
 	for _, mount := range plan.Mounts {
 		source := filepath.Clean(mount.Source)
 		target := mount.Target

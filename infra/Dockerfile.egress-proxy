@@ -1,0 +1,50 @@
+# BattOS egress proxy - multi-stage build (ADR-0022).
+#
+# Stage 1: compila el binario estático desde apps/api/cmd/egress-proxy.
+# Stage 2: imagen mínima Alpine que solo corre el proxy.
+#
+# Uso (build context: raíz del repo):
+#   docker build -f infra/Dockerfile.egress-proxy -t battos-egress-proxy .
+
+# ---------- Stage 1: build ----------
+FROM golang:1.26-alpine AS builder
+
+RUN apk add --no-cache git
+
+WORKDIR /src
+
+# Copiar los archivos de módulo primero para cachear descargas.
+COPY go.work go.work.sum* ./
+COPY apps/api/go.mod apps/api/go.sum apps/api/
+COPY apps/cli/go.mod apps/cli/go.sum apps/cli/
+COPY packages/core/go.mod packages/core/go.sum* packages/core/
+
+RUN cd apps/api && go mod download
+
+COPY apps/api apps/api
+COPY packages/core packages/core
+
+RUN cd apps/api && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build \
+      -ldflags="-s -w" \
+      -o /out/battos-egress-proxy \
+      ./cmd/egress-proxy
+
+# ---------- Stage 2: runtime ----------
+FROM alpine:3.20
+
+# ca-certs es necesario para que el proxy pueda establecer TLS hacia internet.
+RUN apk add --no-cache ca-certificates tzdata && \
+    addgroup -g 10002 egress && \
+    adduser -u 10002 -G egress -D -h /app egress
+
+WORKDIR /app
+
+COPY --from=builder --chown=egress:egress /out/battos-egress-proxy /app/battos-egress-proxy
+
+USER egress
+
+EXPOSE 8888
+
+ENTRYPOINT ["/app/battos-egress-proxy"]

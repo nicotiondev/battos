@@ -80,6 +80,11 @@ type ExecutionConfig struct {
 	HostSessionEnabled   bool   `mapstructure:"host_session_enabled"`
 	CodexCredentialsDir  string `mapstructure:"codex_credentials_dir"`
 	ClaudeCredentialsDir string `mapstructure:"claude_credentials_dir"`
+	// EgressNetwork es la red Docker interna por la que corren los runs host_session+network.
+	// La red es internal:true, el contenedor no tiene ruta directa a internet.
+	// Ver ADR-0022.
+	EgressNetwork   string `mapstructure:"egress_network"`
+	EgressProxyAddr string `mapstructure:"egress_proxy_addr"`
 }
 
 type NovaCoreConfig struct {
@@ -135,6 +140,8 @@ func Load() (*Config, error) {
 		"execution.host_session_enabled",
 		"execution.codex_credentials_dir",
 		"execution.claude_credentials_dir",
+		"execution.egress_network",
+		"execution.egress_proxy_addr",
 		"novacore.enabled",
 		"novacore.provider",
 		"novacore.model",
@@ -196,6 +203,12 @@ func Load() (*Config, error) {
 	}
 	if strings.TrimSpace(cfg.Execution.RepositoriesDir) == "" {
 		cfg.Execution.RepositoriesDir = "data/repositories"
+	}
+	if strings.TrimSpace(cfg.Execution.EgressNetwork) == "" {
+		cfg.Execution.EgressNetwork = "battos-egress"
+	}
+	if strings.TrimSpace(cfg.Execution.EgressProxyAddr) == "" {
+		cfg.Execution.EgressProxyAddr = "battos-egress-proxy:8888"
 	}
 	if strings.TrimSpace(cfg.NovaCore.Provider) == "" {
 		cfg.NovaCore.Provider = "anthropic"

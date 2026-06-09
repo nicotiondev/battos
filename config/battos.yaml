@@ -58,14 +58,20 @@ execution:
   workspaces_dir: "data/runs/workspaces"
   repositories_dir: "data/repositories"
   # host_session monta credenciales OAuth de CLIs oficiales dentro del
-  # contenedor (ADR-0020). Apagado por defecto.
-  # ADVERTENCIA: implementacion parcial. Faltan la allowlist de red y el approval
-  # dedicado, asi que con `network` aprobado un prompt malicioso puede exfiltrar
-  # el token de sesion. Habilitar SOLO en una maquina dedicada single-user con
-  # prompts confiables. Nunca en multi-tenant/expuesto. Ver docs/adr/0020.
+  # contenedor (ADR-0020). Requiere el proxy de egress activo (ADR-0022)
+  # cuando se aprueba network; sin el proxy los runs host_session+network
+  # son rechazados en código (fail-closed). Apagado por defecto.
   host_session_enabled: false
   codex_credentials_dir: ""
   claude_credentials_dir: ""
+  # Proxy de egress para runs host_session+network (ADR-0022).
+  # Los runs con mounts (host_session) y network aprobado corren en la red
+  # interna `egress_network` y salen a internet SOLO a través del proxy, que
+  # aplica la allowlist de dominios en modo enforce. Esto cierra el riesgo C1
+  # de ADR-0020: el token montado no puede exfiltrarse fuera de los dominios
+  # permitidos. Ver infra/docker-compose.yml (perfil "egress") y ADR-0022.
+  egress_network: "battos-egress"
+  egress_proxy_addr: "battos-egress-proxy:8888"
 
 # Asistente conversacional de BattOS
 novacore:
