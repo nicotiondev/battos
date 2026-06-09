@@ -83,6 +83,16 @@ adopta un ORM (sigue vigente el espiritu de ADR-0005).
 - Mantener un camino de import desde un Postgres existente para no perder datos
   de quien ya lo use.
 
+### Decision sobre el import desde Postgres (2026-06-08)
+
+BattOS esta **pre-v0.1**, sin instalaciones en produccion ni datos reales en
+PostgreSQL (el schema Postgres nunca llego a usarse con datos de usuario). Por
+lo tanto **no se construye un path de import para v0.1**: no hay datos que
+migrar. Si en el futuro existiera un despliegue con datos Postgres reales, se
+agregaria un comando `battos db import-postgres` (dump -> insert via sqlc) como
+tarea propia. Las migraciones Postgres historicas quedan archivadas en
+`apps/api/migrations/postgres-archive/` como referencia.
+
 ## Related
 
 - ADR-0004 - Memory Core propio (SQLite + FTS5).

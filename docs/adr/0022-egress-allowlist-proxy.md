@@ -102,6 +102,17 @@ Decisiones concretas (acordadas):
   anclado al borde de dominio, host chequeado == host dialed, sin TOCTOU), falla
   cerrado en casos ambiguos (FQDN con punto final), y `enforce`/`log_only` se
   comportan correctamente. Validado por review de seguridad sobre `75ee863`.
+- **C1 CERRADO (Etapas B+C, `023ef23`, review aprobado):** los runs
+  host_session+network corren en la red **interna** `battos-egress` (sin ruta
+  directa a internet) y salen solo por el proxy en `enforce`. Aunque un script
+  ignore `HTTPS_PROXY`, no tiene ruta directa -> falla cerrado. Si el proxy no
+  esta configurado, el run se rechaza antes de tocar Docker. El token montado no
+  puede exfiltrarse fuera de los dominios permitidos.
+- **Disponibilidad (no seguridad):** las CLIs de agente son Node y `fetch`/undici
+  NO honran `HTTPS_PROXY` automaticamente. Si la CLI lo ignora, el run **falla
+  cerrado** (no llega al provider; no fuga). Para que host_session *funcione*,
+  puede hacer falta config explicita de proxy en la CLI (`--proxy`,
+  `NODE_USE_ENV_PROXY`, global agent). Pendiente de validar en el smoke real.
 
 ## Related
 
