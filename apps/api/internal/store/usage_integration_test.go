@@ -54,6 +54,33 @@ func TestCreateUsageEventRoundTrip(t *testing.T) {
 	}
 }
 
+// TestCreateUsageEventWithSeededModel verifica que, con `models` ahora seedeado
+// (gpt-4o, claude-3-5-sonnet), un usage_event con model_id ya NO viola la FK —
+// que era el bug que el worker.recordUsage disparaba en cada run real.
+func TestCreateUsageEventWithSeededModel(t *testing.T) {
+	ctx := context.Background()
+	q, done := openTestDB(t)
+	defer done()
+
+	event, err := q.CreateUsageEvent(ctx, CreateUsageEventParams{
+		ProviderID:       sql.NullString{String: "openai", Valid: true},
+		ModelID:          sql.NullString{String: "gpt-4o", Valid: true},
+		InputTokens:      120,
+		OutputTokens:     40,
+		RequestCount:     1,
+		EstimatedCostUsd: 0.002,
+	})
+	if err != nil {
+		t.Fatalf("CreateUsageEvent con model seeded: %v", err)
+	}
+	if !event.ModelID.Valid || event.ModelID.String != "gpt-4o" {
+		t.Errorf("model_id = %v, want gpt-4o", event.ModelID)
+	}
+	if !event.ProviderID.Valid || event.ProviderID.String != "openai" {
+		t.Errorf("provider_id = %v, want openai", event.ProviderID)
+	}
+}
+
 func TestGetUsageOverviewAggregateSanity(t *testing.T) {
 	ctx := context.Background()
 	q, done := openTestDB(t)

@@ -470,8 +470,10 @@ func (w *Worker) recordUsage(ctx context.Context, run store.Run, res Result) {
 			providerID = "openai"
 			modelID = "gpt-4o"
 		} else {
-			providerID = "unknown"
-			modelID = "unknown"
+			// Runtime desconocido: dejar provider/model en NULL para no violar
+			// la FK de usage_events (provider_id/model_id REFERENCES ...).
+			providerID = ""
+			modelID = ""
 		}
 	}
 

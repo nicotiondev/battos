@@ -425,6 +425,13 @@ INSERT INTO providers (id, name, kind, env_key, docs_url) VALUES
   ('openrouter', 'OpenRouter',     'gateway', 'OPENROUTER_API_KEY', 'https://openrouter.ai/docs')
 ON CONFLICT (id) DO NOTHING;
 
+-- Modelos que el worker referencia al registrar usage (recordUsage). Sin estos
+-- el INSERT de usage_events fallaba por FK (models no estaba seeded).
+INSERT INTO models (id, provider_id, name, tier) VALUES
+  ('claude-3-5-sonnet', 'anthropic', 'Claude 3.5 Sonnet', 1),
+  ('gpt-4o',            'openai',    'GPT-4o',             1)
+ON CONFLICT (id) DO NOTHING;
+
 INSERT INTO agents (id, slug, name, role, description, runtime_id, is_lead, is_meta, status)
 VALUES ('novacore', 'novacore', 'NovaCore', 'System Orchestrator', 'Asistente de sistema de BattOS que te ayuda a administrar y diagnosticar el OS.', 'direct-api', 1, 1, 'active')
 ON CONFLICT (id) DO NOTHING;
