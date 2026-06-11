@@ -961,23 +961,9 @@ func TestSandboxSelectorReturnsDockerForSandboxMode(t *testing.T) {
 	}
 }
 
-func TestDirectSandboxStubReturnsNotImplementedError(t *testing.T) {
-	var logs []string
-	_, err := DirectSandbox{}.Execute(context.Background(), testPlan("codex"), func(stream, message string) error {
-		logs = append(logs, stream+":"+message)
-		return nil
-	})
-
-	if err == nil {
-		t.Fatal("DirectSandbox.Execute must return an error (stub not yet implemented)")
-	}
-	if !strings.Contains(err.Error(), "not implemented") {
-		t.Fatalf("err=%v, want 'not implemented' message", err)
-	}
-	if len(logs) == 0 || !strings.Contains(strings.Join(logs, "\n"), "direct") {
-		t.Fatalf("logs=%v, want at least one log mentioning direct", logs)
-	}
-}
+// DirectSandbox is now implemented (Fase A2); its behaviour is covered end-to-end
+// in sandbox_direct_test.go (real host exec, artifacts, timeout). The former stub
+// assertion lived here and was removed when the stub was replaced.
 
 func TestConnectedSandboxStubReturnsNotImplementedError(t *testing.T) {
 	var logs []string
@@ -997,15 +983,18 @@ func TestConnectedSandboxStubReturnsNotImplementedError(t *testing.T) {
 	}
 }
 
-func TestProcessOneDispatchesDirectRunToDirectSandboxAndFails(t *testing.T) {
-	// A run with execution_mode=direct must hit the DirectSandbox stub and be
-	// recorded as failed with the "not implemented" message.
+func TestProcessOneDispatchesDirectRunToDirectSandbox(t *testing.T) {
+	// A run with execution_mode=direct must be dispatched to whatever sandbox the
+	// selector returns for "direct" — not to the default. We inject a recording
+	// fakeSandbox for "direct" and assert it received the run.
 	run := testRunWithMode("codex", "direct")
 	st := &fakeStore{run: run}
-	directStub := DirectSandbox{}
+	directSandbox := &fakeSandbox{result: Result{Summary: "direct ran"}}
+	var dispatchedMode string
 	selector := func(mode string) Sandbox {
+		dispatchedMode = mode
 		if mode == "direct" {
-			return directStub
+			return directSandbox
 		}
 		return DryRunSandbox{}
 	}
@@ -1019,11 +1008,17 @@ func TestProcessOneDispatchesDirectRunToDirectSandboxAndFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ProcessOne returned error: %v", err)
 	}
-	if !processed || !st.failOK {
-		t.Fatalf("processed=%v failOK=%v, want failed run for direct stub", processed, st.failOK)
+	if !processed {
+		t.Fatal("expected the run to be processed")
 	}
-	if !strings.Contains(st.failed.ErrorMessage.String, "not implemented") {
-		t.Fatalf("error message=%q, want 'not implemented'", st.failed.ErrorMessage.String)
+	if dispatchedMode != "direct" {
+		t.Fatalf("selector called with mode=%q, want 'direct'", dispatchedMode)
+	}
+	if directSandbox.plan.RuntimeID == "" {
+		t.Fatal("DirectSandbox was not invoked with the execution plan")
+	}
+	if !st.completeOK {
+		t.Fatalf("run should have completed via the direct sandbox; failOK=%v", st.failOK)
 	}
 }
 

@@ -63,7 +63,7 @@ func run() error {
 		selector = func(executionMode string) runworker.Sandbox {
 			switch executionMode {
 			case "direct":
-				return runworker.DirectSandbox{}
+				return runworker.DirectSandbox{WorkspacesDir: cfg.Execution.WorkspacesDir}
 			case "connected":
 				return runworker.ConnectedSandbox{}
 			default: // "sandbox" or any unrecognised value
