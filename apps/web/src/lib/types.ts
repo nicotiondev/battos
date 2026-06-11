@@ -145,6 +145,8 @@ export interface Provider {
   status: string;
 }
 
+export type ExecutionMode = 'sandbox' | 'direct' | 'connected';
+
 export interface Run {
   id: string;
   projectId: string;
@@ -156,6 +158,8 @@ export interface Run {
   prompt: string;
   requestedNetwork: boolean;
   networkEnabled: boolean;
+  hostSessionEnabled: boolean;
+  executionMode: ExecutionMode;
   status: string;
   branchName?: string;
   resultSummary?: string;

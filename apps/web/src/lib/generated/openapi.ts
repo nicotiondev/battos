@@ -1011,6 +1011,15 @@ export interface components {
         RepositoryList: components["schemas"]["Repository"][];
         /** @enum {string} */
         RunStatus: "draft" | "awaiting_approval" | "queued" | "running" | "succeeded" | "failed" | "cancelled";
+        /**
+         * @description Trust tier for this run.
+         *     sandbox = isolated Docker container (default, most restrictive);
+         *     direct = host process, trusted environment;
+         *     connected = always-on service with persistent session.
+         * @default sandbox
+         * @enum {string}
+         */
+        ExecutionMode: "sandbox" | "direct" | "connected";
         RunProposal: {
             project_id: string;
             task_id: string;
@@ -1022,12 +1031,15 @@ export interface components {
             prompt: string;
             /** @default false */
             requested_network: boolean;
+            execution_mode?: components["schemas"]["ExecutionMode"];
         };
         Run: components["schemas"]["RunProposal"] & components["schemas"]["Timestamps"] & {
             /** Format: uuid */
             id: string;
             status: components["schemas"]["RunStatus"];
             network_enabled: boolean;
+            host_session_enabled: boolean;
+            execution_mode: components["schemas"]["ExecutionMode"];
             branch_name?: string;
             result_summary?: string;
             error_message?: string;
@@ -1040,7 +1052,7 @@ export interface components {
         RunList: components["schemas"]["Run"][];
         ApprovalInput: {
             /** @enum {string} */
-            kind: "execute" | "network" | "commit" | "push" | "remember";
+            kind: "execute" | "network" | "host_session" | "commit" | "push" | "remember";
             /** @enum {string} */
             decision: "approved" | "rejected";
             reason?: string;

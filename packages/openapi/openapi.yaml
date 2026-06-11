@@ -1413,6 +1413,15 @@ components:
     RunStatus:
       type: string
       enum: [draft, awaiting_approval, queued, running, succeeded, failed, cancelled]
+    ExecutionMode:
+      type: string
+      description: |
+        Trust tier for this run.
+        sandbox = isolated Docker container (default, most restrictive);
+        direct = host process, trusted environment;
+        connected = always-on service with persistent session.
+      enum: [sandbox, direct, connected]
+      default: sandbox
     RunProposal:
       type: object
       required: [project_id, task_id, agent_id, runtime_adapter_id, prompt]
@@ -1429,18 +1438,22 @@ components:
         requested_network:
           type: boolean
           default: false
+        execution_mode:
+          $ref: "#/components/schemas/ExecutionMode"
     Run:
       allOf:
         - $ref: "#/components/schemas/RunProposal"
         - $ref: "#/components/schemas/Timestamps"
         - type: object
-          required: [id, status, network_enabled, host_session_enabled]
+          required: [id, status, network_enabled, host_session_enabled, execution_mode]
           properties:
             id: { type: string, format: uuid }
             status:
               $ref: "#/components/schemas/RunStatus"
             network_enabled: { type: boolean }
             host_session_enabled: { type: boolean }
+            execution_mode:
+              $ref: "#/components/schemas/ExecutionMode"
             branch_name: { type: string }
             result_summary: { type: string }
             error_message: { type: string }

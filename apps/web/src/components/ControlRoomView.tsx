@@ -3,11 +3,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ApiError, apiClient } from '../lib/api';
 import { connectSSE } from '../lib/sse';
-import { Run, Project, Task, Agent, AgentRuntime, RunLog, Repository } from '../lib/types';
-import { 
+import { Run, Project, Task, Agent, AgentRuntime, RunLog, Repository, ExecutionMode } from '../lib/types';
+import {
   Play, StopCircle, Terminal, Check, X, Plus,
   Clock, GitBranch, RefreshCw, Cpu, Globe, Database, CheckSquare, AlertTriangle
 } from 'lucide-react';
+import RuntimesPanel from './RuntimesPanel';
 
 function errorMessage(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
@@ -33,8 +34,18 @@ export default function ControlRoomView() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [runtimes, setRuntimes] = useState<AgentRuntime[]>([]);
   const [repositories, setRepositories] = useState<Repository[]>([]);
-  const [newRunForm, setNewRunForm] = useState({
-    projectId: '', taskId: '', agentId: '', skillId: '', runtimeAdapterId: '', repositoryId: '', prompt: '', requestedNetwork: false
+  const [newRunForm, setNewRunForm] = useState<{
+    projectId: string;
+    taskId: string;
+    agentId: string;
+    skillId: string;
+    runtimeAdapterId: string;
+    repositoryId: string;
+    prompt: string;
+    requestedNetwork: boolean;
+    executionMode: ExecutionMode;
+  }>({
+    projectId: '', taskId: '', agentId: '', skillId: '', runtimeAdapterId: '', repositoryId: '', prompt: '', requestedNetwork: false, executionMode: 'sandbox'
   });
 
   const [errorMsg, setErrorMsg] = useState('');
@@ -192,7 +203,8 @@ export default function ControlRoomView() {
         runtimeAdapterId: newRunForm.runtimeAdapterId,
         repositoryId: newRunForm.repositoryId || undefined,
         prompt: newRunForm.prompt,
-        requestedNetwork: newRunForm.requestedNetwork
+        requestedNetwork: newRunForm.requestedNetwork,
+        executionMode: newRunForm.executionMode,
       }) as Run;
       setShowNewRunModal(false);
       setNewRunForm({
@@ -203,7 +215,8 @@ export default function ControlRoomView() {
         runtimeAdapterId: runtimes[0]?.id || '',
         repositoryId: '',
         prompt: '',
-        requestedNetwork: false
+        requestedNetwork: false,
+        executionMode: 'sandbox',
       });
       fetchRuns();
       setSelectedRun(res);
@@ -258,6 +271,30 @@ export default function ControlRoomView() {
     }
   };
 
+  const getExecutionModeBadge = (mode: string | undefined) => {
+    switch (mode) {
+      case 'direct':
+        return (
+          <span className="px-1.5 py-0.5 rounded text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20 font-semibold uppercase tracking-wide">
+            Direct
+          </span>
+        );
+      case 'connected':
+        return (
+          <span className="px-1.5 py-0.5 rounded text-[9px] bg-blue-500/10 text-blue-400 border border-blue-500/20 font-semibold uppercase tracking-wide">
+            Connected
+          </span>
+        );
+      case 'sandbox':
+      default:
+        return (
+          <span className="px-1.5 py-0.5 rounded text-[9px] bg-gray-500/10 text-gray-400 border border-gray-500/20 font-semibold uppercase tracking-wide">
+            Sandbox
+          </span>
+        );
+    }
+  };
+
   const uniqueProjects = Array.from(new Map(projects.map(p => [p.id, p])).values());
 
   return (
@@ -296,10 +333,12 @@ export default function ControlRoomView() {
                 {getStatusBadge(r.status)}
               </div>
               <h4 className="text-xs font-bold text-white mt-1.5 truncate">{r.prompt}</h4>
-              <div className="flex items-center gap-1.5 mt-2 text-[9px] text-muted-foreground">
-                <span className="px-1 py-0.2 rounded bg-gray-900">{r.projectId}</span>
+              <div className="flex items-center gap-1.5 mt-2 text-[9px] text-muted-foreground flex-wrap">
+                <span className="px-1 py-0.5 rounded bg-gray-900">{r.projectId}</span>
                 <span>•</span>
                 <span>{r.agentId}</span>
+                <span>•</span>
+                {getExecutionModeBadge(r.executionMode)}
               </div>
             </div>
           ))}
@@ -347,9 +386,10 @@ export default function ControlRoomView() {
             {/* Header Detalle Run */}
             <div className="glass-panel p-4 rounded-xl border border-gray-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-mono bg-gray-950 px-2 py-0.5 rounded text-gray-300">Run: {selectedRun.id}</span>
                   {getStatusBadge(selectedRun.status)}
+                  {getExecutionModeBadge(selectedRun.executionMode)}
                 </div>
                 <h3 className="text-sm font-bold text-white mt-2">&quot;{selectedRun.prompt}&quot;</h3>
                 <div className="flex flex-wrap items-center gap-3 mt-1.5 text-[10px] text-muted-foreground">
@@ -490,16 +530,22 @@ export default function ControlRoomView() {
                     </div>
                   </div>
                 )}
+
+                {/* Runtimes Panel */}
+                <RuntimesPanel runtimes={runtimes} />
               </div>
             </div>
           </div>
         ) : (
-          <div className="flex-1 glass-panel rounded-xl border border-gray-800 flex flex-col items-center justify-center text-center p-8">
-            <Cpu size={48} className="text-muted-foreground mb-4" />
-            <h4 className="text-sm font-bold text-white">Ningún Run Seleccionado</h4>
-            <p className="text-xs text-muted-foreground max-w-sm mt-1">
-              Selecciona una ejecución de run de la lista izquierda para visualizar su estado, logs SSE en vivo y aprobaciones HITL.
-            </p>
+          <div className="flex-1 flex flex-col overflow-hidden space-y-4">
+            <div className="flex-1 glass-panel rounded-xl border border-gray-800 flex flex-col items-center justify-center text-center p-8">
+              <Cpu size={48} className="text-muted-foreground mb-4" />
+              <h4 className="text-sm font-bold text-white">Ningún Run Seleccionado</h4>
+              <p className="text-xs text-muted-foreground max-w-sm mt-1">
+                Selecciona una ejecución de run de la lista izquierda para visualizar su estado, logs SSE en vivo y aprobaciones HITL.
+              </p>
+            </div>
+            <RuntimesPanel runtimes={runtimes} />
           </div>
         )}
       </div>
@@ -573,6 +619,50 @@ export default function ControlRoomView() {
                   </select>
                 </div>
               </div>
+              {/* Trust Tier Selector */}
+              <div>
+                <label className="block text-[10px] text-muted-foreground uppercase font-semibold mb-2">
+                  Trust Tier (Modo de Ejecución)
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    {
+                      value: 'sandbox' as ExecutionMode,
+                      label: 'Sandbox',
+                      description: 'Docker aislado. Sin acceso al host.',
+                      colorActive: 'border-gray-500 bg-gray-500/10 text-gray-300',
+                      colorInactive: 'border-gray-800 hover:border-gray-700 text-muted-foreground',
+                    },
+                    {
+                      value: 'direct' as ExecutionMode,
+                      label: 'Direct',
+                      description: 'Proceso en el host. Entorno confiable.',
+                      colorActive: 'border-amber-500 bg-amber-500/10 text-amber-300',
+                      colorInactive: 'border-gray-800 hover:border-amber-800/50 text-muted-foreground',
+                    },
+                    {
+                      value: 'connected' as ExecutionMode,
+                      label: 'Connected',
+                      description: 'Servicio always-on con sesión persistente.',
+                      colorActive: 'border-blue-500 bg-blue-500/10 text-blue-300',
+                      colorInactive: 'border-gray-800 hover:border-blue-800/50 text-muted-foreground',
+                    },
+                  ] as const).map(({ value, label, description, colorActive, colorInactive }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setNewRunForm({ ...newRunForm, executionMode: value })}
+                      className={`flex flex-col items-center gap-1 p-2.5 rounded-lg border text-center transition-all ${
+                        newRunForm.executionMode === value ? colorActive : colorInactive
+                      }`}
+                    >
+                      <span className="text-[11px] font-bold">{label}</span>
+                      <span className="text-[9px] leading-tight opacity-70">{description}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-[10px] text-muted-foreground uppercase font-semibold mb-1">Repositorio Opcional</label>
                 <select

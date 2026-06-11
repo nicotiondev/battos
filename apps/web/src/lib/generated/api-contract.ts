@@ -39,6 +39,7 @@ export type ApiAgentInput = Camelize<ApiSchema<'AgentInput'>>;
 export type ApiSkill = Camelize<ApiSchema<'Skill'>>;
 export type ApiRuntimeAdapter = Camelize<ApiSchema<'RuntimeAdapter'>>;
 export type ApiProvider = Camelize<ApiSchema<'Provider'>>;
+export type ApiExecutionMode = ApiSchema<'ExecutionMode'>;
 export type ApiRun = Camelize<ApiSchema<'Run'>>;
 export type ApiRunProposal = Camelize<ApiSchema<'RunProposal'>>;
 export type ApiApprovalInput = Camelize<ApiSchema<'ApprovalInput'>>;
