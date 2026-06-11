@@ -151,6 +151,16 @@ Keep the run short. Do not inspect host files. Do not install dependencies.
     if (-not $networkApproval.run.network_enabled) {
         throw "Network approval did not enable network"
     }
+    # host_session approval dedicado (ADR-0020 §5): montar la sesión del host
+    # requiere su propio consentimiento, separado de network.
+    $hostSessionApproval = Invoke-BattOSPost -Path "/runs/$runId/approvals" -Body @{
+        kind = "host_session"
+        decision = "approved"
+        reason = "codex host_session monta la sesión OAuth del host"
+    }
+    if (-not $hostSessionApproval.run.host_session_enabled) {
+        throw "host_session approval did not enable host_session"
+    }
     $executeApproval = Invoke-BattOSPost -Path "/runs/$runId/approvals" -Body @{
         kind = "execute"
         decision = "approved"

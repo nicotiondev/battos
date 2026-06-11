@@ -99,10 +99,14 @@ services:
       # log_only: permite todo pero loguea cada destino (usar para descubrir dominios
       #           con un run real antes de pasar a enforce). NOTA: log_only NO protege.
       BATTOS_EGRESS_MODE: ${BATTOS_EGRESS_MODE:-enforce}
-      # Dominios permitidos separados por coma. Incluye los endpoints de API y auth
-      # de los providers principales. Agregar dominios de auth/telemetría adicionales
-      # tras un run de descubrimiento en modo log_only (p.ej. auth0, sentry, etc.).
-      BATTOS_EGRESS_ALLOWLIST: ${BATTOS_EGRESS_ALLOWLIST:-api.openai.com,api.anthropic.com}
+      # Dominios permitidos separados por coma. Cubre dos modos:
+      #  - API key: api.openai.com / api.anthropic.com
+      #  - host_session (suscripción): chatgpt.com + oaiusercontent.com para Codex
+      #    (DESCUBIERTOS con un run real en log_only el 2026-06-09 — codex NO usa
+      #    api.openai.com con la suscripción, usa chatgpt.com). claude.ai/anthropic
+      #    para Claude se agregan al descubrir su host_session.
+      # Ajustar tras nuevos runs de descubrimiento (log_only). Ver ADR-0022.
+      BATTOS_EGRESS_ALLOWLIST: ${BATTOS_EGRESS_ALLOWLIST:-api.openai.com,api.anthropic.com,chatgpt.com,oaiusercontent.com}
       BATTOS_EGRESS_ADDR: "0.0.0.0:8888"
     networks:
       # battos-egress: red interna que comparte con los contenedores de runs.

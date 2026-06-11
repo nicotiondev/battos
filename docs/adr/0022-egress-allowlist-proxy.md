@@ -114,6 +114,22 @@ Decisiones concretas (acordadas):
   puede hacer falta config explicita de proxy en la CLI (`--proxy`,
   `NODE_USE_ENV_PROXY`, global agent). Pendiente de validar en el smoke real.
 
+## Validación end-to-end (2026-06-09) — VALIDADO EN VIVO
+
+Smoke real con codex host_session (suscripción ChatGPT, sin API key):
+- **log_only** reveló que codex con la suscripción usa `chatgpt.com` (no
+  `api.openai.com`), `oaiusercontent.com`, y toca `github.com`/`files.openai.com`
+  (no esenciales). La allowlist por defecto habría bloqueado codex — el
+  descubrimiento lo evitó.
+- **enforce** con allowlist `chatgpt.com,oaiusercontent.com`: el run **pasó**
+  (`succeeded`, artifact real generado) y el proxy **bloqueó** 3 dominios
+  (`github.com`, `api.github.com`, `files.openai.com` → `block CONNECT, not in
+  allowlist`) sin romper a codex.
+- Confirma: host_session por suscripción funciona, el egress filtra de verdad, y
+  el token montado no puede salir fuera de la allowlist. usage se registró OK.
+- **NODE_USE_ENV_PROXY:** codex (Rust/reqwest) honró `HTTPS_PROXY` sin necesitarlo;
+  el flag queda para las CLIs Node (claude), a validar al correr su host_session.
+
 ## Related
 
 - ADR-0011 - ejecucion supervisada y aislamiento por contenedor.
