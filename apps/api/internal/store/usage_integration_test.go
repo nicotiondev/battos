@@ -188,6 +188,7 @@ func TestGetUsageByRun(t *testing.T) {
 		RuntimeAdapterID: "sandbox-smoke",
 		Prompt:           "usage by run test",
 		RequestedNetwork: 0,
+		ExecutionMode:    "sandbox",
 	})
 	if err != nil {
 		t.Fatalf("CreateRun: %v", err)

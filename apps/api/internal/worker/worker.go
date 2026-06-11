@@ -82,13 +82,16 @@ type Result struct {
 type Worker struct {
 	store           Store
 	adapters        map[string]Adapter
-	sandbox         Sandbox
+	SandboxFor      func(executionMode string) Sandbox
 	ArtifactsDir    string
 	WorkspacesDir   string
 	RepositoriesDir string
 	Memory          MemoryContextProvider
 }
 
+// New creates a Worker that uses sandbox for every run regardless of
+// execution_mode. This preserves backwards-compatibility for existing callers
+// and tests. Use NewWithSelector to wire per-mode dispatch.
 func New(store Store, sandbox Sandbox, adapters map[string]Adapter) *Worker {
 	if adapters == nil {
 		adapters = map[string]Adapter{}
@@ -96,10 +99,30 @@ func New(store Store, sandbox Sandbox, adapters map[string]Adapter) *Worker {
 	if sandbox == nil {
 		sandbox = DryRunSandbox{}
 	}
+	fixed := sandbox
 	return &Worker{
 		store:           store,
 		adapters:        adapters,
-		sandbox:         sandbox,
+		SandboxFor:      func(_ string) Sandbox { return fixed },
+		ArtifactsDir:    "data/artifacts",
+		WorkspacesDir:   "data/runs/workspaces",
+		RepositoriesDir: "data/repositories",
+	}
+}
+
+// NewWithSelector creates a Worker that calls selector to pick the right
+// sandbox for each run's execution_mode.
+func NewWithSelector(store Store, selector func(executionMode string) Sandbox, adapters map[string]Adapter) *Worker {
+	if adapters == nil {
+		adapters = map[string]Adapter{}
+	}
+	if selector == nil {
+		selector = func(_ string) Sandbox { return DryRunSandbox{} }
+	}
+	return &Worker{
+		store:           store,
+		adapters:        adapters,
+		SandboxFor:      selector,
 		ArtifactsDir:    "data/artifacts",
 		WorkspacesDir:   "data/runs/workspaces",
 		RepositoriesDir: "data/repositories",
@@ -264,7 +287,7 @@ func (w *Worker) processClaimedRun(ctx context.Context, run store.Run) (bool, er
 		}
 	}
 
-	result, err := w.sandbox.Execute(ctx, plan, func(stream, message string) error {
+	result, err := w.SandboxFor(run.ExecutionMode).Execute(ctx, plan, func(stream, message string) error {
 		return w.log(ctx, run.ID, normalizeStream(stream), message)
 	})
 	if err != nil {

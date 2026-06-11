@@ -43,7 +43,7 @@ WHERE id = ?
   AND status IN ('draft', 'awaiting_approval', 'queued', 'running')
 RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
           repository_id, prompt, requested_network, network_enabled, host_session_enabled,
-          status, branch_name, result_summary, error_message, estimated_cost_usd,
+          execution_mode, status, branch_name, result_summary, error_message, estimated_cost_usd,
           metadata, started_at, completed_at, created_at, updated_at
 `
 
@@ -62,6 +62,7 @@ func (q *Queries) CancelRun(ctx context.Context, id string) (Run, error) {
 		&i.RequestedNetwork,
 		&i.NetworkEnabled,
 		&i.HostSessionEnabled,
+		&i.ExecutionMode,
 		&i.Status,
 		&i.BranchName,
 		&i.ResultSummary,
@@ -90,7 +91,7 @@ WHERE id = (
   AND status = 'queued'
 RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
           repository_id, prompt, requested_network, network_enabled, host_session_enabled,
-          status, branch_name, result_summary, error_message, estimated_cost_usd,
+          execution_mode, status, branch_name, result_summary, error_message, estimated_cost_usd,
           metadata, started_at, completed_at, created_at, updated_at
 `
 
@@ -109,6 +110,7 @@ func (q *Queries) ClaimNextQueuedRun(ctx context.Context) (Run, error) {
 		&i.RequestedNetwork,
 		&i.NetworkEnabled,
 		&i.HostSessionEnabled,
+		&i.ExecutionMode,
 		&i.Status,
 		&i.BranchName,
 		&i.ResultSummary,
@@ -131,7 +133,7 @@ WHERE id = ?
   AND status = 'queued'
 RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
           repository_id, prompt, requested_network, network_enabled, host_session_enabled,
-          status, branch_name, result_summary, error_message, estimated_cost_usd,
+          execution_mode, status, branch_name, result_summary, error_message, estimated_cost_usd,
           metadata, started_at, completed_at, created_at, updated_at
 `
 
@@ -150,6 +152,7 @@ func (q *Queries) ClaimQueuedRunByID(ctx context.Context, id string) (Run, error
 		&i.RequestedNetwork,
 		&i.NetworkEnabled,
 		&i.HostSessionEnabled,
+		&i.ExecutionMode,
 		&i.Status,
 		&i.BranchName,
 		&i.ResultSummary,
@@ -173,7 +176,7 @@ SET status = 'succeeded',
 WHERE id = ?
 RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
           repository_id, prompt, requested_network, network_enabled, host_session_enabled,
-          status, branch_name, result_summary, error_message, estimated_cost_usd,
+          execution_mode, status, branch_name, result_summary, error_message, estimated_cost_usd,
           metadata, started_at, completed_at, created_at, updated_at
 `
 
@@ -197,6 +200,7 @@ func (q *Queries) CompleteRun(ctx context.Context, arg CompleteRunParams) (Run, 
 		&i.RequestedNetwork,
 		&i.NetworkEnabled,
 		&i.HostSessionEnabled,
+		&i.ExecutionMode,
 		&i.Status,
 		&i.BranchName,
 		&i.ResultSummary,
@@ -215,12 +219,12 @@ const createRun = `-- name: CreateRun :one
 
 INSERT INTO runs (
     id, project_id, task_id, agent_id, skill_id, runtime_adapter_id, repository_id,
-    prompt, requested_network, network_enabled, host_session_enabled, status, metadata
+    prompt, requested_network, network_enabled, host_session_enabled, execution_mode, status, metadata
 )
-VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 'awaiting_approval', '{}')
+VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, 'awaiting_approval', '{}')
 RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
           repository_id, prompt, requested_network, network_enabled, host_session_enabled,
-          status, branch_name, result_summary, error_message, estimated_cost_usd,
+          execution_mode, status, branch_name, result_summary, error_message, estimated_cost_usd,
           metadata, started_at, completed_at, created_at, updated_at
 `
 
@@ -233,6 +237,7 @@ type CreateRunParams struct {
 	RepositoryID     sql.NullString `json:"repository_id"`
 	Prompt           string         `json:"prompt"`
 	RequestedNetwork int64          `json:"requested_network"`
+	ExecutionMode    string         `json:"execution_mode"`
 }
 
 // Run proposal and approval queries.
@@ -246,6 +251,7 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (Run, erro
 		arg.RepositoryID,
 		arg.Prompt,
 		arg.RequestedNetwork,
+		arg.ExecutionMode,
 	)
 	var i Run
 	err := row.Scan(
@@ -260,6 +266,7 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (Run, erro
 		&i.RequestedNetwork,
 		&i.NetworkEnabled,
 		&i.HostSessionEnabled,
+		&i.ExecutionMode,
 		&i.Status,
 		&i.BranchName,
 		&i.ResultSummary,
@@ -312,7 +319,7 @@ SET host_session_enabled = 1
 WHERE id = ?
 RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
           repository_id, prompt, requested_network, network_enabled, host_session_enabled,
-          status, branch_name, result_summary, error_message, estimated_cost_usd,
+          execution_mode, status, branch_name, result_summary, error_message, estimated_cost_usd,
           metadata, started_at, completed_at, created_at, updated_at
 `
 
@@ -331,6 +338,7 @@ func (q *Queries) EnableRunHostSession(ctx context.Context, id string) (Run, err
 		&i.RequestedNetwork,
 		&i.NetworkEnabled,
 		&i.HostSessionEnabled,
+		&i.ExecutionMode,
 		&i.Status,
 		&i.BranchName,
 		&i.ResultSummary,
@@ -351,7 +359,7 @@ SET network_enabled = 1
 WHERE id = ?
 RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
           repository_id, prompt, requested_network, network_enabled, host_session_enabled,
-          status, branch_name, result_summary, error_message, estimated_cost_usd,
+          execution_mode, status, branch_name, result_summary, error_message, estimated_cost_usd,
           metadata, started_at, completed_at, created_at, updated_at
 `
 
@@ -370,6 +378,7 @@ func (q *Queries) EnableRunNetwork(ctx context.Context, id string) (Run, error) 
 		&i.RequestedNetwork,
 		&i.NetworkEnabled,
 		&i.HostSessionEnabled,
+		&i.ExecutionMode,
 		&i.Status,
 		&i.BranchName,
 		&i.ResultSummary,
@@ -393,7 +402,7 @@ SET status = 'failed',
 WHERE id = ?
 RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
           repository_id, prompt, requested_network, network_enabled, host_session_enabled,
-          status, branch_name, result_summary, error_message, estimated_cost_usd,
+          execution_mode, status, branch_name, result_summary, error_message, estimated_cost_usd,
           metadata, started_at, completed_at, created_at, updated_at
 `
 
@@ -418,6 +427,7 @@ func (q *Queries) FailRun(ctx context.Context, arg FailRunParams) (Run, error) {
 		&i.RequestedNetwork,
 		&i.NetworkEnabled,
 		&i.HostSessionEnabled,
+		&i.ExecutionMode,
 		&i.Status,
 		&i.BranchName,
 		&i.ResultSummary,
@@ -435,7 +445,7 @@ func (q *Queries) FailRun(ctx context.Context, arg FailRunParams) (Run, error) {
 const getRun = `-- name: GetRun :one
 SELECT id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
        repository_id, prompt, requested_network, network_enabled, host_session_enabled,
-       status, branch_name, result_summary, error_message, estimated_cost_usd,
+       execution_mode, status, branch_name, result_summary, error_message, estimated_cost_usd,
        metadata, started_at, completed_at, created_at, updated_at FROM runs WHERE id = ?
 `
 
@@ -454,6 +464,7 @@ func (q *Queries) GetRun(ctx context.Context, id string) (Run, error) {
 		&i.RequestedNetwork,
 		&i.NetworkEnabled,
 		&i.HostSessionEnabled,
+		&i.ExecutionMode,
 		&i.Status,
 		&i.BranchName,
 		&i.ResultSummary,
@@ -506,7 +517,7 @@ func (q *Queries) ListRunLogs(ctx context.Context, runID string) ([]RunLog, erro
 const listRuns = `-- name: ListRuns :many
 SELECT id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
        repository_id, prompt, requested_network, network_enabled, host_session_enabled,
-       status, branch_name, result_summary, error_message, estimated_cost_usd,
+       execution_mode, status, branch_name, result_summary, error_message, estimated_cost_usd,
        metadata, started_at, completed_at, created_at, updated_at FROM runs
 ORDER BY created_at DESC
 `
@@ -532,6 +543,7 @@ func (q *Queries) ListRuns(ctx context.Context) ([]Run, error) {
 			&i.RequestedNetwork,
 			&i.NetworkEnabled,
 			&i.HostSessionEnabled,
+			&i.ExecutionMode,
 			&i.Status,
 			&i.BranchName,
 			&i.ResultSummary,
@@ -559,7 +571,7 @@ func (q *Queries) ListRuns(ctx context.Context) ([]Run, error) {
 const listRunsByProject = `-- name: ListRunsByProject :many
 SELECT id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
        repository_id, prompt, requested_network, network_enabled, host_session_enabled,
-       status, branch_name, result_summary, error_message, estimated_cost_usd,
+       execution_mode, status, branch_name, result_summary, error_message, estimated_cost_usd,
        metadata, started_at, completed_at, created_at, updated_at FROM runs
 WHERE project_id = ?
 ORDER BY created_at DESC
@@ -586,6 +598,7 @@ func (q *Queries) ListRunsByProject(ctx context.Context, projectID string) ([]Ru
 			&i.RequestedNetwork,
 			&i.NetworkEnabled,
 			&i.HostSessionEnabled,
+			&i.ExecutionMode,
 			&i.Status,
 			&i.BranchName,
 			&i.ResultSummary,
@@ -617,7 +630,7 @@ SET branch_name = ?,
 WHERE id = ?
 RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
           repository_id, prompt, requested_network, network_enabled, host_session_enabled,
-          status, branch_name, result_summary, error_message, estimated_cost_usd,
+          execution_mode, status, branch_name, result_summary, error_message, estimated_cost_usd,
           metadata, started_at, completed_at, created_at, updated_at
 `
 
@@ -642,6 +655,7 @@ func (q *Queries) UpdateRunBranchAndMetadata(ctx context.Context, arg UpdateRunB
 		&i.RequestedNetwork,
 		&i.NetworkEnabled,
 		&i.HostSessionEnabled,
+		&i.ExecutionMode,
 		&i.Status,
 		&i.BranchName,
 		&i.ResultSummary,
@@ -662,7 +676,7 @@ SET status = ?
 WHERE id = ?
 RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
           repository_id, prompt, requested_network, network_enabled, host_session_enabled,
-          status, branch_name, result_summary, error_message, estimated_cost_usd,
+          execution_mode, status, branch_name, result_summary, error_message, estimated_cost_usd,
           metadata, started_at, completed_at, created_at, updated_at
 `
 
@@ -686,6 +700,7 @@ func (q *Queries) UpdateRunStatus(ctx context.Context, arg UpdateRunStatusParams
 		&i.RequestedNetwork,
 		&i.NetworkEnabled,
 		&i.HostSessionEnabled,
+		&i.ExecutionMode,
 		&i.Status,
 		&i.BranchName,
 		&i.ResultSummary,

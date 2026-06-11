@@ -252,6 +252,7 @@ CREATE TABLE IF NOT EXISTS runs (
     requested_network INTEGER NOT NULL DEFAULT 0,
     network_enabled INTEGER NOT NULL DEFAULT 0,
     host_session_enabled INTEGER NOT NULL DEFAULT 0,
+    execution_mode TEXT NOT NULL DEFAULT 'sandbox' CHECK (execution_mode IN ('sandbox', 'direct', 'connected')),
     status TEXT NOT NULL DEFAULT 'awaiting_approval' CHECK (status IN ('draft', 'awaiting_approval', 'queued', 'running', 'succeeded', 'failed', 'cancelled')),
     branch_name TEXT,
     result_summary TEXT,

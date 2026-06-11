@@ -263,6 +263,7 @@ type Run struct {
 	RequestedNetwork   int64          `json:"requested_network"`
 	NetworkEnabled     int64          `json:"network_enabled"`
 	HostSessionEnabled int64          `json:"host_session_enabled"`
+	ExecutionMode      string         `json:"execution_mode"`
 	Status             string         `json:"status"`
 	BranchName         sql.NullString `json:"branch_name"`
 	ResultSummary      sql.NullString `json:"result_summary"`

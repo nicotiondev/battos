@@ -47,16 +47,31 @@ func run() error {
 	}
 	defer memCore.Close()
 
-	sandbox := runworker.Sandbox(runworker.DryRunSandbox{})
-	if cfg.Execution.SandboxMode == "docker" {
-		sandbox = runworker.DockerSandbox{
+	// selector picks the right sandbox per run execution_mode.
+	// When cfg.Execution.SandboxMode == "dry_run" it acts as a master off-switch:
+	// every run uses DryRunSandbox regardless of the requested mode.
+	var selector func(executionMode string) runworker.Sandbox
+	if cfg.Execution.SandboxMode == "dry_run" {
+		selector = func(_ string) runworker.Sandbox { return runworker.DryRunSandbox{} }
+	} else {
+		dockerSandbox := runworker.DockerSandbox{
 			Image:           cfg.Execution.DockerImage,
 			WorkspacesDir:   cfg.Execution.WorkspacesDir,
 			EgressNetwork:   cfg.Execution.EgressNetwork,
 			EgressProxyAddr: cfg.Execution.EgressProxyAddr,
 		}
+		selector = func(executionMode string) runworker.Sandbox {
+			switch executionMode {
+			case "direct":
+				return runworker.DirectSandbox{}
+			case "connected":
+				return runworker.ConnectedSandbox{}
+			default: // "sandbox" or any unrecognised value
+				return dockerSandbox
+			}
+		}
 	}
-	w := runworker.New(store.New(db), sandbox, runworker.ApprovedAdapters(runworker.AdapterOptions{
+	w := runworker.NewWithSelector(store.New(db), selector, runworker.ApprovedAdapters(runworker.AdapterOptions{
 		HostSessionEnabled:   cfg.Execution.HostSessionEnabled,
 		CodexCredentialsDir:  cfg.Execution.CodexCredentialsDir,
 		ClaudeCredentialsDir: cfg.Execution.ClaudeCredentialsDir,

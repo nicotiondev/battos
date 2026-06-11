@@ -37,7 +37,9 @@ func (f *fakeRunStore) GetRepository(_ context.Context, id string) (store.Reposi
 
 func (f *fakeRunStore) CreateRun(_ context.Context, arg store.CreateRunParams) (store.Run, error) {
 	f.createRunParams = arg
-	return testRun("awaiting_approval", arg.RequestedNetwork != 0), nil
+	run := testRun("awaiting_approval", arg.RequestedNetwork != 0)
+	run.ExecutionMode = arg.ExecutionMode
+	return run, nil
 }
 
 func (f *fakeRunStore) ListRuns(context.Context) ([]store.Run, error) {
@@ -271,6 +273,7 @@ func testRun(status string, requestedNetwork bool) store.Run {
 		RuntimeAdapterID: "codex",
 		Prompt:           "build it",
 		RequestedNetwork: boolInt(requestedNetwork),
+		ExecutionMode:    "sandbox",
 		Status:           status,
 		CreatedAt:        now,
 		UpdatedAt:        now,
@@ -473,6 +476,60 @@ func setupTestGitRepo(t *testing.T, dir string) {
 	cmdCommit.Dir = dir
 	if err := cmdCommit.Run(); err != nil {
 		t.Fatalf("failed to commit: %v", err)
+	}
+}
+
+func TestCreateRunExecutionModeDirectAccepted(t *testing.T) {
+	q := &fakeRunStore{}
+	h := NewRunHandler(q, nil)
+	req := httptest.NewRequest(http.MethodPost, "/runs", strings.NewReader(`{"project_id":"web","task_id":"task-1","agent_id":"agent-1","runtime_adapter_id":"codex","prompt":"build it","execution_mode":"direct"}`))
+	rec := httptest.NewRecorder()
+
+	h.CreateRun(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusCreated, rec.Body.String())
+	}
+	if q.createRunParams.ExecutionMode != "direct" {
+		t.Fatalf("execution_mode = %q, want direct", q.createRunParams.ExecutionMode)
+	}
+	if !strings.Contains(rec.Body.String(), `"execution_mode":"direct"`) {
+		t.Fatalf("response missing execution_mode=direct: %s", rec.Body.String())
+	}
+}
+
+func TestCreateRunExecutionModeInvalidRejected(t *testing.T) {
+	q := &fakeRunStore{}
+	h := NewRunHandler(q, nil)
+	req := httptest.NewRequest(http.MethodPost, "/runs", strings.NewReader(`{"project_id":"web","task_id":"task-1","agent_id":"agent-1","runtime_adapter_id":"codex","prompt":"build it","execution_mode":"unknown_mode"}`))
+	rec := httptest.NewRecorder()
+
+	h.CreateRun(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "execution_mode") {
+		t.Fatalf("expected execution_mode error in body: %s", rec.Body.String())
+	}
+}
+
+func TestCreateRunExecutionModeDefaultsSandbox(t *testing.T) {
+	q := &fakeRunStore{}
+	h := NewRunHandler(q, nil)
+	req := httptest.NewRequest(http.MethodPost, "/runs", strings.NewReader(`{"project_id":"web","task_id":"task-1","agent_id":"agent-1","runtime_adapter_id":"codex","prompt":"build it"}`))
+	rec := httptest.NewRecorder()
+
+	h.CreateRun(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusCreated, rec.Body.String())
+	}
+	if q.createRunParams.ExecutionMode != "sandbox" {
+		t.Fatalf("execution_mode = %q, want sandbox (default)", q.createRunParams.ExecutionMode)
+	}
+	if !strings.Contains(rec.Body.String(), `"execution_mode":"sandbox"`) {
+		t.Fatalf("response missing execution_mode=sandbox: %s", rec.Body.String())
 	}
 }
 

@@ -928,6 +928,123 @@ func TestDockerSandboxEgressFailsClosedWhenProxyNotConfigured(t *testing.T) {
 	}
 }
 
+// --- execution_mode / sandbox selector tests ---
+
+func TestSandboxSelectorReturnsDockerForSandboxMode(t *testing.T) {
+	docker := &fakeSandbox{result: Result{Summary: "docker"}}
+	direct := &fakeSandbox{result: Result{Summary: "direct"}}
+	connected := &fakeSandbox{result: Result{Summary: "connected"}}
+
+	selector := func(mode string) Sandbox {
+		switch mode {
+		case "direct":
+			return direct
+		case "connected":
+			return connected
+		default:
+			return docker
+		}
+	}
+
+	if selector("sandbox") != docker {
+		t.Fatal("selector('sandbox') should return DockerSandbox")
+	}
+	if selector("direct") != direct {
+		t.Fatal("selector('direct') should return DirectSandbox")
+	}
+	if selector("connected") != connected {
+		t.Fatal("selector('connected') should return ConnectedSandbox")
+	}
+	// Unknown/empty value falls back to docker (default case)
+	if selector("") != docker {
+		t.Fatal("selector('') should fall back to DockerSandbox")
+	}
+}
+
+func TestDirectSandboxStubReturnsNotImplementedError(t *testing.T) {
+	var logs []string
+	_, err := DirectSandbox{}.Execute(context.Background(), testPlan("codex"), func(stream, message string) error {
+		logs = append(logs, stream+":"+message)
+		return nil
+	})
+
+	if err == nil {
+		t.Fatal("DirectSandbox.Execute must return an error (stub not yet implemented)")
+	}
+	if !strings.Contains(err.Error(), "not implemented") {
+		t.Fatalf("err=%v, want 'not implemented' message", err)
+	}
+	if len(logs) == 0 || !strings.Contains(strings.Join(logs, "\n"), "direct") {
+		t.Fatalf("logs=%v, want at least one log mentioning direct", logs)
+	}
+}
+
+func TestConnectedSandboxStubReturnsNotImplementedError(t *testing.T) {
+	var logs []string
+	_, err := ConnectedSandbox{}.Execute(context.Background(), testPlan("codex"), func(stream, message string) error {
+		logs = append(logs, stream+":"+message)
+		return nil
+	})
+
+	if err == nil {
+		t.Fatal("ConnectedSandbox.Execute must return an error (stub not yet implemented)")
+	}
+	if !strings.Contains(err.Error(), "not implemented") {
+		t.Fatalf("err=%v, want 'not implemented' message", err)
+	}
+	if len(logs) == 0 || !strings.Contains(strings.Join(logs, "\n"), "connected") {
+		t.Fatalf("logs=%v, want at least one log mentioning connected", logs)
+	}
+}
+
+func TestProcessOneDispatchesDirectRunToDirectSandboxAndFails(t *testing.T) {
+	// A run with execution_mode=direct must hit the DirectSandbox stub and be
+	// recorded as failed with the "not implemented" message.
+	run := testRunWithMode("codex", "direct")
+	st := &fakeStore{run: run}
+	directStub := DirectSandbox{}
+	selector := func(mode string) Sandbox {
+		if mode == "direct" {
+			return directStub
+		}
+		return DryRunSandbox{}
+	}
+	worker := NewWithSelector(st, selector, map[string]Adapter{
+		"codex": fakeAdapter{plan: testPlan("codex")},
+	})
+	worker.ArtifactsDir = t.TempDir()
+
+	processed, err := worker.ProcessOne(context.Background())
+
+	if err != nil {
+		t.Fatalf("ProcessOne returned error: %v", err)
+	}
+	if !processed || !st.failOK {
+		t.Fatalf("processed=%v failOK=%v, want failed run for direct stub", processed, st.failOK)
+	}
+	if !strings.Contains(st.failed.ErrorMessage.String, "not implemented") {
+		t.Fatalf("error message=%q, want 'not implemented'", st.failed.ErrorMessage.String)
+	}
+}
+
+func TestNewWithSelectorNilSelectorFallsToDryRun(t *testing.T) {
+	run := testRun("codex")
+	st := &fakeStore{run: run}
+	worker := NewWithSelector(st, nil, map[string]Adapter{
+		"codex": fakeAdapter{plan: testPlan("codex")},
+	})
+	worker.ArtifactsDir = t.TempDir()
+
+	processed, err := worker.ProcessOne(context.Background())
+
+	if err != nil {
+		t.Fatalf("ProcessOne returned error: %v", err)
+	}
+	if !processed || !st.completeOK {
+		t.Fatalf("processed=%v completeOK=%v, want completed run via DryRunSandbox fallback", processed, st.completeOK)
+	}
+}
+
 func testRun(runtimeID string) store.Run {
 	return store.Run{
 		ID:               "11111111-1111-1111-1111-111111111111",
@@ -937,7 +1054,14 @@ func testRun(runtimeID string) store.Run {
 		RuntimeAdapterID: runtimeID,
 		Prompt:           "build it",
 		Status:           "running",
+		ExecutionMode:    "sandbox",
 	}
+}
+
+func testRunWithMode(runtimeID, execMode string) store.Run {
+	r := testRun(runtimeID)
+	r.ExecutionMode = execMode
+	return r
 }
 
 func testPlan(runtimeID string) ExecutionPlan {

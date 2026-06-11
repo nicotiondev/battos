@@ -54,6 +54,7 @@ type runProposalInput struct {
 	RepositoryID     string `json:"repository_id"`
 	Prompt           string `json:"prompt"`
 	RequestedNetwork bool   `json:"requested_network"`
+	ExecutionMode    string `json:"execution_mode"`
 }
 
 type runApprovalInput struct {
@@ -74,6 +75,7 @@ type runResponse struct {
 	RequestedNetwork   bool      `json:"requested_network"`
 	NetworkEnabled     bool      `json:"network_enabled"`
 	HostSessionEnabled bool      `json:"host_session_enabled"`
+	ExecutionMode      string    `json:"execution_mode"`
 	Status             string    `json:"status"`
 	BranchName         string    `json:"branch_name,omitempty"`
 	ResultSummary      string    `json:"result_summary,omitempty"`
@@ -134,6 +136,14 @@ func (h *RunHandler) CreateRun(w http.ResponseWriter, r *http.Request) {
 		!required(w, in.Prompt, "prompt") {
 		return
 	}
+	execMode := strings.ToLower(strings.TrimSpace(in.ExecutionMode))
+	if execMode == "" {
+		execMode = "sandbox"
+	}
+	if !validExecutionMode(execMode) {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"message": "execution_mode invalido; valores permitidos: sandbox, direct, connected", "code": 400}})
+		return
+	}
 	item, err := h.store.CreateRun(r.Context(), store.CreateRunParams{
 		ProjectID:        strings.TrimSpace(in.ProjectID),
 		TaskID:           strings.TrimSpace(in.TaskID),
@@ -143,6 +153,7 @@ func (h *RunHandler) CreateRun(w http.ResponseWriter, r *http.Request) {
 		RepositoryID:     nullableText(in.RepositoryID),
 		Prompt:           strings.TrimSpace(in.Prompt),
 		RequestedNetwork: boolInt(in.RequestedNetwork),
+		ExecutionMode:    execMode,
 	})
 	if err != nil {
 		writeWorkError(w, err)
@@ -549,6 +560,15 @@ func validApprovalKind(value string) bool {
 	}
 }
 
+func validExecutionMode(value string) bool {
+	switch value {
+	case "sandbox", "direct", "connected":
+		return true
+	default:
+		return false
+	}
+}
+
 func validApprovalDecision(value string) bool {
 	return value == "approved" || value == "rejected"
 }
@@ -602,6 +622,7 @@ func runDTO(item store.Run) runResponse {
 		RequestedNetwork:   item.RequestedNetwork != 0,
 		NetworkEnabled:     item.NetworkEnabled != 0,
 		HostSessionEnabled: item.HostSessionEnabled != 0,
+		ExecutionMode:      item.ExecutionMode,
 		Status:             item.Status,
 		BranchName:         textValue(item.BranchName),
 		ResultSummary:      textValue(item.ResultSummary),

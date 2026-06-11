@@ -83,6 +83,7 @@ func TestCreateRunAndGetRun(t *testing.T) {
 		RuntimeAdapterID: "sandbox-smoke",
 		Prompt:           "Do the thing",
 		RequestedNetwork: 1,
+		ExecutionMode:    "sandbox",
 	})
 	if err != nil {
 		t.Fatalf("CreateRun: %v", err)
@@ -156,6 +157,7 @@ func TestEnableRunNetworkFlipsFlag(t *testing.T) {
 		RuntimeAdapterID: "sandbox-smoke",
 		Prompt:           "Enable network test",
 		RequestedNetwork: 1,
+		ExecutionMode:    "sandbox",
 	})
 	if err != nil {
 		t.Fatalf("CreateRun: %v", err)
@@ -198,6 +200,7 @@ func TestEnableRunHostSessionFlipsFlag(t *testing.T) {
 		RuntimeAdapterID: "sandbox-smoke",
 		Prompt:           "Enable host session test",
 		RequestedNetwork: 0,
+		ExecutionMode:    "sandbox",
 	})
 	if err != nil {
 		t.Fatalf("CreateRun: %v", err)
@@ -240,6 +243,7 @@ func TestUpdateRunStatus(t *testing.T) {
 		RuntimeAdapterID: "sandbox-smoke",
 		Prompt:           "Status update test",
 		RequestedNetwork: 0,
+		ExecutionMode:    "sandbox",
 	})
 	if err != nil {
 		t.Fatalf("CreateRun: %v", err)
@@ -281,6 +285,7 @@ func TestClaimNextQueuedRunAndDoubleClaimGuard(t *testing.T) {
 		RuntimeAdapterID: "sandbox-smoke",
 		Prompt:           "Claim test run",
 		RequestedNetwork: 0,
+		ExecutionMode:    "sandbox",
 	})
 	if err != nil {
 		t.Fatalf("CreateRun: %v", err)
@@ -325,6 +330,7 @@ func TestCreateRunApprovalAndAppendAndListRunLogs(t *testing.T) {
 		RuntimeAdapterID: "sandbox-smoke",
 		Prompt:           "Approval and log test",
 		RequestedNetwork: 0,
+		ExecutionMode:    "sandbox",
 	})
 	if err != nil {
 		t.Fatalf("CreateRun: %v", err)
