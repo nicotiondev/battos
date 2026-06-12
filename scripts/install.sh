@@ -2,7 +2,7 @@
 # install.sh — instalador de BattOS
 #
 # Uso:
-#   curl -fsSL https://raw.githubusercontent.com/nicotiondev/battos/main/scripts/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/nicotiondev/battos/master/scripts/install.sh | sh
 #
 # Variables opcionales:
 #   INSTALL_DIR   directorio donde instalar los binarios (default: ~/.local/bin)

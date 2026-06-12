@@ -1,7 +1,7 @@
 # install.ps1 — instalador de BattOS para Windows
 #
 # Uso (desde PowerShell elevado o normal):
-#   iwr -useb https://raw.githubusercontent.com/nicotiondev/battos/main/scripts/install.ps1 | iex
+#   iwr -useb https://raw.githubusercontent.com/nicotiondev/battos/master/scripts/install.ps1 | iex
 #
 # Variables opcionales (setear antes de correr):
 #   $env:BATTOS_VERSION    versión específica, ej. "v1.0.0"  (default: última release)
