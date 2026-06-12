@@ -13,12 +13,29 @@ Git conserva los cambios.
 BattOS administra trabajo, agentes, memoria, ejecucion y aprobaciones.
 ```
 
+## Instalación rápida
+
+```bash
+# Linux / macOS
+curl -sL https://raw.githubusercontent.com/nicotiondev/battos/main/scripts/install.sh | sh
+
+# O con Go instalado:
+go install github.com/nicotion/battos/apps/cli/cmd/battos@latest
+```
+
+## Arranque
+
+```bash
+battos serve        # API + dashboard en http://localhost:8000
+battos serve --open # Abre el browser automáticamente
+```
+
 ## Estado actual
 
-**v0.1.0 - en construccion.** Las Fases 0, 1, 2, 3A, 3B, 4A, 4B, 4C, 4D y
-5A tienen base implementada. La Fase 5B esta en curso con dashboard Next.js,
-usage base, SSE y smokes locales consolidados. Queda correr smokes reales con
-credenciales de providers, hardening y release.
+**v1.0.0 — 2026-06-12.** Todas las etapas completadas. BattOS es un control
+plane self-hosted de orquestación multi-agente: corre equipos de agentes
+(Claude Code, Codex, Gemini, Pi) como jobs gobernados, con sandbox/tiers/
+approvals/dashboard/memoria/distribución en un binario único.
 
 Implementado actualmente:
 
