@@ -72,6 +72,24 @@ execution:
   # permitidos. Ver infra/docker-compose.yml (perfil "egress") y ADR-0022.
   egress_network: "battos-egress"
   egress_proxy_addr: "battos-egress-proxy:8888"
+  # Tier "connected" (Fase A3): reenvía un run a un servicio always-on en
+  # localhost (Hermes, OpenClaw, …) en vez de containerizarlo. Cada entrada
+  # registra el runtime adapter y le dice al ConnectedSandbox cómo alcanzarlo.
+  #   kind: "local-cli" → corre `command` con `args` en el host. Placeholders
+  #         {{prompt}} y {{prompt_file}} se sustituyen; el prompt también va en
+  #         la env var BATTOS_PROMPT_FILE. Streamea stdout/stderr y junta los
+  #         artifacts del workspace (igual que el tier direct).
+  #   kind: "http" → POST {prompt, runtime_id} (JSON) a `endpoint`.
+  # Vacío por defecto: el tier connected sólo funciona para los runtimes que
+  # declares acá. Ejemplo (descomentar y ajustar a tus servicios):
+  connected_runtimes: {}
+  #   hermes:
+  #     kind: "local-cli"
+  #     command: "hermes"
+  #     args: ["-z", "{{prompt}}"]
+  #   openclaw:
+  #     kind: "http"
+  #     endpoint: "http://127.0.0.1:8787/v1/run"
 
 # Asistente conversacional de BattOS
 novacore:

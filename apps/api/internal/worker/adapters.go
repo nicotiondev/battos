@@ -55,10 +55,34 @@ func (a CommandAdapter) Plan(_ context.Context, run store.Run) (ExecutionPlan, e
 	}, nil
 }
 
+// ConnectedAdapter produces a minimal plan for a "connected" runtime: the actual
+// command/endpoint lives in the ConnectedSandbox service config, so the plan only
+// carries the runtime id and the prompt. Command is intentionally empty —
+// validatePlan permits that for the connected tier.
+type ConnectedAdapter struct {
+	RuntimeID string
+	Timeout   time.Duration
+}
+
+func (a ConnectedAdapter) Plan(_ context.Context, run store.Run) (ExecutionPlan, error) {
+	timeout := a.Timeout
+	if timeout <= 0 {
+		timeout = defaultRunTimeout
+	}
+	return ExecutionPlan{
+		RuntimeID: a.RuntimeID,
+		Prompt:    run.Prompt,
+		Timeout:   timeout,
+	}, nil
+}
+
 type AdapterOptions struct {
 	HostSessionEnabled   bool
 	CodexCredentialsDir  string
 	ClaudeCredentialsDir string
+	// ConnectedRuntimeIDs are the runtime adapter ids configured as connected
+	// services (config.execution.connected_runtimes); each gets a ConnectedAdapter.
+	ConnectedRuntimeIDs []string
 }
 
 func ApprovedDryRunAdapters() map[string]Adapter {
@@ -115,6 +139,16 @@ func ApprovedAdapters(options AdapterOptions) map[string]Adapter {
 			HostCredentialPath:      claudeCredentialsDir,
 			ContainerCredentialPath: "/mnt/battos-claude-host",
 		}
+	}
+	// Connected runtimes (Hermes, OpenClaw, …) are config-driven: register a
+	// ConnectedAdapter for each id declared in connected_runtimes so a run can
+	// reference it; the ConnectedSandbox resolves how to reach the service.
+	for _, id := range options.ConnectedRuntimeIDs {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		adapters[id] = ConnectedAdapter{RuntimeID: id}
 	}
 	return adapters
 }

@@ -60,21 +60,39 @@ func run() error {
 			EgressNetwork:   cfg.Execution.EgressNetwork,
 			EgressProxyAddr: cfg.Execution.EgressProxyAddr,
 		}
+		connectedRuntimes := make(map[string]runworker.ConnectedRuntimeConfig, len(cfg.Execution.ConnectedRuntimes))
+		for id, rc := range cfg.Execution.ConnectedRuntimes {
+			connectedRuntimes[id] = runworker.ConnectedRuntimeConfig{
+				Kind:     rc.Kind,
+				Endpoint: rc.Endpoint,
+				Command:  rc.Command,
+				Args:     rc.Args,
+			}
+		}
+		connectedSandbox := runworker.ConnectedSandbox{
+			Runtimes:      connectedRuntimes,
+			WorkspacesDir: cfg.Execution.WorkspacesDir,
+		}
 		selector = func(executionMode string) runworker.Sandbox {
 			switch executionMode {
 			case "direct":
 				return runworker.DirectSandbox{WorkspacesDir: cfg.Execution.WorkspacesDir}
 			case "connected":
-				return runworker.ConnectedSandbox{}
+				return connectedSandbox
 			default: // "sandbox" or any unrecognised value
 				return dockerSandbox
 			}
 		}
 	}
+	connectedIDs := make([]string, 0, len(cfg.Execution.ConnectedRuntimes))
+	for id := range cfg.Execution.ConnectedRuntimes {
+		connectedIDs = append(connectedIDs, id)
+	}
 	w := runworker.NewWithSelector(store.New(db), selector, runworker.ApprovedAdapters(runworker.AdapterOptions{
 		HostSessionEnabled:   cfg.Execution.HostSessionEnabled,
 		CodexCredentialsDir:  cfg.Execution.CodexCredentialsDir,
 		ClaudeCredentialsDir: cfg.Execution.ClaudeCredentialsDir,
+		ConnectedRuntimeIDs:  connectedIDs,
 	}))
 	w.ArtifactsDir = cfg.Knowledge.ArtifactsDir
 	w.WorkspacesDir = cfg.Execution.WorkspacesDir

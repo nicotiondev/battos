@@ -85,6 +85,20 @@ type ExecutionConfig struct {
 	// Ver ADR-0022.
 	EgressNetwork   string `mapstructure:"egress_network"`
 	EgressProxyAddr string `mapstructure:"egress_proxy_addr"`
+	// ConnectedRuntimes mapea un runtime adapter id a la config del servicio
+	// always-on al que el tier "connected" reenvía el run (Hermes, OpenClaw, …).
+	// Ver ConnectedSandbox / Fase A3.
+	ConnectedRuntimes map[string]ConnectedRuntimeConfig `mapstructure:"connected_runtimes"`
+}
+
+// ConnectedRuntimeConfig describe cómo alcanzar un servicio always-on para el
+// tier "connected". kind: "local-cli" (corre `command` en el host con los args,
+// soporta placeholders {{prompt}}/{{prompt_file}}) o "http" (POST al endpoint).
+type ConnectedRuntimeConfig struct {
+	Kind     string   `mapstructure:"kind"`
+	Endpoint string   `mapstructure:"endpoint"`
+	Command  string   `mapstructure:"command"`
+	Args     []string `mapstructure:"args"`
 }
 
 type NovaCoreConfig struct {

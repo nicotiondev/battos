@@ -430,7 +430,10 @@ func validatePlan(plan ExecutionPlan, run store.Run) error {
 	if plan.RuntimeID != run.RuntimeAdapterID {
 		return fmt.Errorf("plan runtime %q does not match run runtime %q", plan.RuntimeID, run.RuntimeAdapterID)
 	}
-	if strings.TrimSpace(plan.Command) == "" {
+	// For the "connected" tier the host command is resolved by the ConnectedSandbox
+	// service config (or is irrelevant for http forwarding), so an empty plan
+	// command is allowed there. Every other tier requires a command to execute.
+	if strings.TrimSpace(plan.Command) == "" && run.ExecutionMode != "connected" {
 		return fmt.Errorf("command is required")
 	}
 	for _, key := range plan.EnvKeys {

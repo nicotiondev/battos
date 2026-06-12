@@ -965,23 +965,9 @@ func TestSandboxSelectorReturnsDockerForSandboxMode(t *testing.T) {
 // in sandbox_direct_test.go (real host exec, artifacts, timeout). The former stub
 // assertion lived here and was removed when the stub was replaced.
 
-func TestConnectedSandboxStubReturnsNotImplementedError(t *testing.T) {
-	var logs []string
-	_, err := ConnectedSandbox{}.Execute(context.Background(), testPlan("codex"), func(stream, message string) error {
-		logs = append(logs, stream+":"+message)
-		return nil
-	})
-
-	if err == nil {
-		t.Fatal("ConnectedSandbox.Execute must return an error (stub not yet implemented)")
-	}
-	if !strings.Contains(err.Error(), "not implemented") {
-		t.Fatalf("err=%v, want 'not implemented' message", err)
-	}
-	if len(logs) == 0 || !strings.Contains(strings.Join(logs, "\n"), "connected") {
-		t.Fatalf("logs=%v, want at least one log mentioning connected", logs)
-	}
-}
+// ConnectedSandbox is now implemented (Fase A3); its behaviour (http forwarding,
+// local-cli forwarding, and the no-service-configured error) is covered in
+// sandbox_connected_test.go. The former stub assertion lived here.
 
 func TestProcessOneDispatchesDirectRunToDirectSandbox(t *testing.T) {
 	// A run with execution_mode=direct must be dispatched to whatever sandbox the
