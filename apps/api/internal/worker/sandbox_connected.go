@@ -98,7 +98,10 @@ func (s ConnectedSandbox) forwardCLI(ctx context.Context, cfg ConnectedRuntimeCo
 	cmd.Dir = workspace
 	cmd.Env = append(os.Environ(), "BATTOS_PROMPT_FILE="+promptPath)
 	for _, key := range plan.EnvKeys {
-		if val, ok := os.LookupEnv(key); ok {
+		// Prefer pre-resolved values (managed/inline_encrypted credentials).
+		if val, ok := plan.ResolvedEnv[key]; ok && val != "" {
+			cmd.Env = append(cmd.Env, key+"="+val)
+		} else if val, ok := os.LookupEnv(key); ok {
 			cmd.Env = append(cmd.Env, key+"="+val)
 		}
 	}

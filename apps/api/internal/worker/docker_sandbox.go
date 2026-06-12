@@ -255,7 +255,14 @@ func (s DockerSandbox) dockerArgs(image, workspace string, plan ExecutionPlan) [
 		args = append(args, "-v", source+":"+target+":"+mode)
 	}
 	for _, key := range plan.EnvKeys {
-		args = append(args, "-e", key)
+		// If the credential was pre-resolved (e.g. inline_encrypted), pass the
+		// literal value so the container doesn't need it in the host env.
+		if val, ok := plan.ResolvedEnv[key]; ok && val != "" {
+			args = append(args, "-e", key+"="+val)
+		} else {
+			// Forward the env var from the host process to the container.
+			args = append(args, "-e", key)
+		}
 	}
 	args = append(args, image, plan.Command)
 	args = append(args, plan.Args...)

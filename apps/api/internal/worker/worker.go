@@ -63,6 +63,11 @@ type ExecutionPlan struct {
 	Command        string
 	Args           []string
 	EnvKeys        []string
+	// ResolvedEnv contiene valores ya resueltos por el credstore para cada key
+	// de EnvKeys. El sandbox prefiere este mapa sobre os.LookupEnv cuando la
+	// key está presente, de modo que los secretos inline_encrypted nunca se
+	// exponen como variables de entorno del proceso padre.
+	ResolvedEnv    map[string]string
 	Mounts         []Mount
 	Prompt         string
 	WorkDir        string
@@ -90,6 +95,12 @@ type Result struct {
 	EstimatedCostUSD float64
 }
 
+// CredentialResolver resuelve una referencia de credencial a su valor secreto.
+// Implementado por *credstore.Resolver; campo opcional en Worker.
+type CredentialResolver interface {
+	Resolve(ctx context.Context, ref string) (string, error)
+}
+
 type Worker struct {
 	store           Store
 	adapters        map[string]Adapter
@@ -99,6 +110,9 @@ type Worker struct {
 	RepositoriesDir string
 	Memory          MemoryContextProvider
 	MemoryPromote   MemoryPromoter
+	// CredResolver resuelve credenciales gestionadas antes de pasarlas al sandbox.
+	// Cuando es nil, solo se usan variables de entorno del proceso.
+	CredResolver CredentialResolver
 }
 
 // New creates a Worker that uses sandbox for every run regardless of
@@ -255,6 +269,20 @@ func (w *Worker) processClaimedRun(ctx context.Context, run store.Run) (bool, er
 		} else if strings.TrimSpace(memoryContext.Content) != "" {
 			plan.Prompt = injectMemoryContext(plan.Prompt, memoryContext.Content)
 			_ = w.log(ctx, run.ID, "system", fmt.Sprintf("memory context injected (%d items)", memoryContext.Count))
+		}
+	}
+
+	// Resolver credenciales antes de pasarlas al sandbox.
+	// Si CredResolver está configurado, intentamos resolver cada EnvKey a través
+	// del credstore; el resultado se coloca en ResolvedEnv para que el sandbox
+	// lo prefiera sobre os.LookupEnv (los secretos inline_encrypted nunca pasan
+	// por el entorno del proceso padre).
+	if w.CredResolver != nil && len(plan.EnvKeys) > 0 {
+		plan.ResolvedEnv = make(map[string]string, len(plan.EnvKeys))
+		for _, key := range plan.EnvKeys {
+			if val, err := w.CredResolver.Resolve(ctx, key); err == nil && val != "" {
+				plan.ResolvedEnv[key] = val
+			}
 		}
 	}
 

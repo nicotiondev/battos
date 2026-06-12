@@ -67,7 +67,11 @@ func (s DirectSandbox) Execute(ctx context.Context, plan ExecutionPlan, log LogF
 	// loop re-appends them last so explicit values win (mirrors DockerSandbox -e).
 	cmd.Env = append(os.Environ(), "BATTOS_PROMPT_FILE="+promptPath)
 	for _, key := range plan.EnvKeys {
-		if val, ok := os.LookupEnv(key); ok {
+		// Prefer pre-resolved values (inline_encrypted secrets, managed credentials)
+		// over the host environment so secrets are never stored in process env.
+		if val, ok := plan.ResolvedEnv[key]; ok && val != "" {
+			cmd.Env = append(cmd.Env, key+"="+val)
+		} else if val, ok := os.LookupEnv(key); ok {
 			cmd.Env = append(cmd.Env, key+"="+val)
 		}
 	}
