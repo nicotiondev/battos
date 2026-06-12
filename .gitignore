@@ -21,6 +21,8 @@ go.work.sum
 node_modules/
 .next/
 out/
+# El out/ embebido en Go se versionea (solo el placeholder) — no ignorar
+!apps/api/internal/static/out/
 .npm/
 .pnpm-debug.log*
 .yarn/

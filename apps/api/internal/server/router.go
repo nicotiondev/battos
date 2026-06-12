@@ -8,6 +8,7 @@ package server
 import (
 	"crypto/subtle"
 	"encoding/json"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/nicotion/battos/apps/api/internal/config"
 	"github.com/nicotion/battos/apps/api/internal/handlers"
+	"github.com/nicotion/battos/apps/api/internal/static"
 )
 
 // Deps agrupa las dependencias que los handlers necesitan inyectadas.
@@ -147,12 +149,46 @@ func NewRouter(deps Deps) http.Handler {
 		}
 	})
 
-	// 404 prolijo en JSON, no HTML.
-	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
-		WriteError(w, http.StatusNotFound, "endpoint no encontrado")
-	})
+	// Dashboard estático embebido — catch-all SPA.
+	// Solo se monta si out/index.html existe (build web corrido).
+	// Las rutas de API definidas arriba tienen prioridad por orden de registro.
+	if sh := newStaticHandler(deps.Logger); sh != nil {
+		r.Handle("/*", sh)
+	} else {
+		r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+			WriteError(w, http.StatusNotFound, "endpoint no encontrado")
+		})
+	}
 
 	return r
+}
+
+// newStaticHandler construye el handler SPA desde el embed.FS.
+// Devuelve nil si el build del dashboard no está disponible (solo .gitkeep).
+func newStaticHandler(log *slog.Logger) http.Handler {
+	fsys, err := fs.Sub(static.FS, "out")
+	if err != nil {
+		return nil
+	}
+	// Verificar que hay un index.html real (no solo el placeholder).
+	f, err := fsys.Open("index.html")
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+
+	fileServer := http.FileServer(http.FS(fsys))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// SPA fallback: si el archivo no existe en el FS, serve index.html.
+		path := r.URL.Path
+		if path == "" || path == "/" {
+			path = "index.html"
+		}
+		if _, err := fsys.Open(path); err != nil {
+			r.URL.Path = "/"
+		}
+		fileServer.ServeHTTP(w, r)
+	})
 }
 
 func mountRunRoutes(r chi.Router, runs *handlers.RunHandler) {
