@@ -299,9 +299,11 @@ export default function ControlRoomView() {
   const uniqueProjects = Array.from(new Map(projects.map(p => [p.id, p])).values());
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[76vh]">
-      {/* 1. Panel Izquierdo: Listado de Runs */}
-      <div className="glass-panel rounded-xl flex flex-col h-full overflow-hidden border border-gray-800">
+    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:h-[76vh]">
+      {/* 1. Panel Izquierdo: Listado de Runs. En pantallas angostas (o zoom alto)
+          el grid colapsa a una columna: sin altura propia la lista quedaba
+          aplastada a ~120px e imposible de revisar. */}
+      <div className="glass-panel rounded-xl flex flex-col h-[40vh] lg:h-full overflow-hidden border border-gray-800">
         <div className="p-4 border-b border-gray-800 flex items-center justify-between">
           <h3 className="text-sm font-bold text-white flex items-center gap-2">
             <Clock size={16} className="text-primary" /> Historial de Runs
@@ -352,7 +354,7 @@ export default function ControlRoomView() {
       </div>
 
       {/* 2. Panel Derecho: Detalle, Logs SSE, Diff y HITL Panel */}
-      <div className="lg:col-span-3 flex flex-col h-full overflow-hidden space-y-4">
+      <div className="lg:col-span-3 flex flex-col min-h-[60vh] lg:min-h-0 lg:h-full overflow-hidden space-y-4">
         {dataUnavailable && (
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-100">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
