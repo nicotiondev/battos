@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -312,6 +313,88 @@ func (c *Client) MarkAgentMessageRead(ctx context.Context, id string) (*AgentMes
 		return nil, fmt.Errorf("mark read: %w", err)
 	}
 	return &out.Message, nil
+}
+
+// --- Runs + Work Board (Etapa 3, delegación) ---
+
+// Run es un run supervisado (espejo de runResponse del API).
+type Run struct {
+	ID               string  `json:"id"`
+	ProjectID        string  `json:"project_id"`
+	TaskID           string  `json:"task_id"`
+	AgentID          string  `json:"agent_id"`
+	SkillID          string  `json:"skill_id,omitempty"`
+	RuntimeAdapterID string  `json:"runtime_adapter_id"`
+	RepositoryID     string  `json:"repository_id,omitempty"`
+	Prompt           string  `json:"prompt"`
+	RequestedNetwork bool    `json:"requested_network"`
+	NetworkEnabled   bool    `json:"network_enabled"`
+	ExecutionMode    string  `json:"execution_mode"`
+	Status           string  `json:"status"`
+	BranchName       string  `json:"branch_name,omitempty"`
+	ResultSummary    string  `json:"result_summary,omitempty"`
+	ErrorMessage     string  `json:"error_message,omitempty"`
+	EstimatedCostUSD float64 `json:"estimated_cost_usd"`
+}
+
+// CreateRunRequest es el cuerpo de POST /runs.
+// ParentRunID enlaza el run hijo con el run del lead que lo delegó (trazabilidad).
+type CreateRunRequest struct {
+	ProjectID        string `json:"project_id"`
+	TaskID           string `json:"task_id"`
+	AgentID          string `json:"agent_id"`
+	SkillID          string `json:"skill_id,omitempty"`
+	RuntimeAdapterID string `json:"runtime_adapter_id"`
+	RepositoryID     string `json:"repository_id,omitempty"`
+	Prompt           string `json:"prompt"`
+	RequestedNetwork bool   `json:"requested_network,omitempty"`
+	ExecutionMode    string `json:"execution_mode,omitempty"`
+	ParentRunID      string `json:"parent_run_id,omitempty"`
+}
+
+// Task es una tarea del Work Board (espejo de taskResponse del API).
+type Task struct {
+	ID              string `json:"id"`
+	ProjectID       string `json:"project_id"`
+	GoalID          string `json:"goal_id,omitempty"`
+	Title           string `json:"title"`
+	Description     string `json:"description,omitempty"`
+	AssignedAgentID string `json:"assigned_agent_id,omitempty"`
+	Status          string `json:"status"`
+	BoardPosition   int32  `json:"board_position"`
+}
+
+// CreateRun propone un run supervisado (POST /runs). El run nace
+// awaiting_approval y NO se ejecuta hasta que un humano apruebe execute.
+func (c *Client) CreateRun(ctx context.Context, req CreateRunRequest) (*Run, error) {
+	var out Run
+	if err := c.postJSON(ctx, "/runs", req, &out); err != nil {
+		return nil, fmt.Errorf("create run: %w", err)
+	}
+	return &out, nil
+}
+
+// GetRun devuelve el detalle de un run (GET /runs/{id}).
+func (c *Client) GetRun(ctx context.Context, id string) (*Run, error) {
+	var out Run
+	if err := c.getJSON(ctx, "/runs/"+url.PathEscape(id), &out); err != nil {
+		return nil, fmt.Errorf("get run: %w", err)
+	}
+	return &out, nil
+}
+
+// ListTasks lista las tareas del Work Board (GET /tasks), opcionalmente
+// filtradas por proyecto. El API no filtra por status — eso es client-side.
+func (c *Client) ListTasks(ctx context.Context, projectID string) ([]Task, error) {
+	path := "/tasks"
+	if projectID != "" {
+		path += "?project_id=" + url.QueryEscape(projectID)
+	}
+	var out []Task
+	if err := c.getJSON(ctx, path, &out); err != nil {
+		return nil, fmt.Errorf("list tasks: %w", err)
+	}
+	return out, nil
 }
 
 // getJSON hace GET al path y deserializa la respuesta en out.

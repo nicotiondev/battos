@@ -108,13 +108,14 @@ func TestMCPServerEndToEnd(t *testing.T) {
 	for _, want := range []string{
 		"memory_search", "memory_recent", "memory_save", "memory_stats",
 		"team_send_message", "team_read_inbox", "team_mark_read",
+		"team_spawn_run", "team_read_board", "team_get_run_status",
 	} {
 		if !got[want] {
 			t.Errorf("falta la tool %q; tools=%v", want, got)
 		}
 	}
-	if len(lt.Tools) != 7 {
-		t.Errorf("se esperaban 7 tools, hay %d", len(lt.Tools))
+	if len(lt.Tools) != 10 {
+		t.Errorf("se esperaban 10 tools, hay %d", len(lt.Tools))
 	}
 
 	// CallTool memory_recent: pasa por el server -> client.Client -> API httptest.

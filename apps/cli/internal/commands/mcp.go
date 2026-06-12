@@ -15,6 +15,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/nicotion/battos/apps/cli/internal/client"
@@ -116,6 +117,28 @@ func newMCPServer(c *client.Client) *mcp.Server {
 		return teamMarkReadToolHandler(ctx, c, args)
 	})
 
+	// --- Team tools (Etapa 3, B1d): delegación lead → agentes ---
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "team_spawn_run",
+		Description: "Delega trabajo a otro agente creando un run hijo. El run nace awaiting_approval y NO se ejecuta hasta que un humano apruebe execute. Pasa parent_run_id (tu run actual) para trazabilidad.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, args teamSpawnRunArgs) (*mcp.CallToolResult, any, error) {
+		return teamSpawnRunToolHandler(ctx, c, args)
+	})
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "team_read_board",
+		Description: "Lee el Work Board: lista compacta de tareas con id, título, status, agente asignado y proyecto. Filtrable por project_id y status.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, args teamReadBoardArgs) (*mcp.CallToolResult, any, error) {
+		return teamReadBoardToolHandler(ctx, c, args)
+	})
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "team_get_run_status",
+		Description: "Consulta el estado de un run delegado (poll): status, result_summary, error_message, execution_mode y runtime.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, args teamGetRunStatusArgs) (*mcp.CallToolResult, any, error) {
+		return teamGetRunStatusToolHandler(ctx, c, args)
+	})
+
 	return srv
 }
 
@@ -170,6 +193,26 @@ type teamReadInboxArgs struct {
 
 type teamMarkReadArgs struct {
 	MessageID string `json:"message_id" jsonschema:"ID del mensaje a marcar leído"`
+}
+
+type teamSpawnRunArgs struct {
+	ProjectID        string `json:"project_id"                  jsonschema:"Proyecto del run delegado"`
+	TaskID           string `json:"task_id"                     jsonschema:"Tarea del Work Board asociada al run"`
+	AgentID          string `json:"agent_id"                    jsonschema:"Agente que va a ejecutar el trabajo delegado"`
+	RuntimeAdapterID string `json:"runtime_adapter_id"          jsonschema:"Runtime adapter que corre al agente (ej: claude-code|codex|gemini|pi)"`
+	Prompt           string `json:"prompt"                      jsonschema:"Instrucción completa para el agente delegado"`
+	ExecutionMode    string `json:"execution_mode,omitempty"    jsonschema:"Modo de ejecución: sandbox|direct|connected (default: sandbox)"`
+	ParentRunID      string `json:"parent_run_id,omitempty"     jsonschema:"Run id del lead que delega — enlaza padre e hijo para trazabilidad"`
+	RequestedNetwork bool   `json:"requested_network,omitempty" jsonschema:"Solicitar acceso de red para el run (default false)"`
+}
+
+type teamReadBoardArgs struct {
+	ProjectID string `json:"project_id,omitempty" jsonschema:"Filtrar tareas por proyecto"`
+	Status    string `json:"status,omitempty"     jsonschema:"Filtrar por status: backlog|ready|in_progress|review|done|cancelled"`
+}
+
+type teamGetRunStatusArgs struct {
+	RunID string `json:"run_id" jsonschema:"ID del run delegado a consultar"`
 }
 
 // --- handlers de cada tool ---
@@ -272,6 +315,86 @@ func teamMarkReadToolHandler(ctx context.Context, c *client.Client, args teamMar
 		return toolError(fmt.Sprintf("team_mark_read: %s", err.Error())), nil, nil
 	}
 	return toolJSON(msg)
+}
+
+func teamSpawnRunToolHandler(ctx context.Context, c *client.Client, args teamSpawnRunArgs) (*mcp.CallToolResult, any, error) {
+	mode := args.ExecutionMode
+	if mode == "" {
+		mode = "sandbox"
+	}
+	run, err := c.CreateRun(ctx, client.CreateRunRequest{
+		ProjectID:        args.ProjectID,
+		TaskID:           args.TaskID,
+		AgentID:          args.AgentID,
+		RuntimeAdapterID: args.RuntimeAdapterID,
+		Prompt:           args.Prompt,
+		ExecutionMode:    mode,
+		ParentRunID:      args.ParentRunID,
+		RequestedNetwork: args.RequestedNetwork,
+	})
+	if err != nil {
+		return toolError(fmt.Sprintf("team_spawn_run: %s", err.Error())), nil, nil
+	}
+	out := map[string]any{
+		"run_id":         run.ID,
+		"status":         run.Status,
+		"execution_mode": run.ExecutionMode,
+		"note":           "el run delegado NO se ejecuta todavía: requiere aprobación humana (approval kind=execute). Usa team_get_run_status para monitorearlo.",
+	}
+	if args.ParentRunID != "" {
+		out["parent_run_id"] = args.ParentRunID
+	}
+	return toolJSON(out)
+}
+
+func teamReadBoardToolHandler(ctx context.Context, c *client.Client, args teamReadBoardArgs) (*mcp.CallToolResult, any, error) {
+	tasks, err := c.ListTasks(ctx, args.ProjectID)
+	if err != nil {
+		return toolError(fmt.Sprintf("team_read_board: %s", err.Error())), nil, nil
+	}
+	// El API solo filtra por project_id; el filtro por status es client-side.
+	type boardTask struct {
+		ID              string `json:"id"`
+		Title           string `json:"title"`
+		Status          string `json:"status"`
+		AssignedAgentID string `json:"assigned_agent_id,omitempty"`
+		ProjectID       string `json:"project_id"`
+	}
+	out := make([]boardTask, 0, len(tasks))
+	for _, t := range tasks {
+		if args.Status != "" && t.Status != args.Status {
+			continue
+		}
+		out = append(out, boardTask{
+			ID:              t.ID,
+			Title:           t.Title,
+			Status:          t.Status,
+			AssignedAgentID: t.AssignedAgentID,
+			ProjectID:       t.ProjectID,
+		})
+	}
+	return toolJSON(map[string]any{
+		"count": len(out),
+		"tasks": out,
+	})
+}
+
+func teamGetRunStatusToolHandler(ctx context.Context, c *client.Client, args teamGetRunStatusArgs) (*mcp.CallToolResult, any, error) {
+	run, err := c.GetRun(ctx, args.RunID)
+	if err != nil {
+		if strings.Contains(err.Error(), "404") {
+			return toolError(fmt.Sprintf("team_get_run_status: el run %q no existe", args.RunID)), nil, nil
+		}
+		return toolError(fmt.Sprintf("team_get_run_status: %s", err.Error())), nil, nil
+	}
+	return toolJSON(map[string]any{
+		"id":                 run.ID,
+		"status":             run.Status,
+		"result_summary":     run.ResultSummary,
+		"error_message":      run.ErrorMessage,
+		"execution_mode":     run.ExecutionMode,
+		"runtime_adapter_id": run.RuntimeAdapterID,
+	})
 }
 
 // --- utilidades de respuesta ---
