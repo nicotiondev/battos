@@ -415,6 +415,29 @@ func TestApprovedDryRunAdaptersCreatePlans(t *testing.T) {
 	if memorySmoke.Command != "sh" || !strings.Contains(strings.Join(memorySmoke.Args, " "), "BattOS Memory Context") {
 		t.Fatalf("memory smoke plan=%+v, want prompt memory context assertion", memorySmoke)
 	}
+
+	// Etapa 1: gemini y pi registrados y planificando contra el prompt file.
+	gemini, err := adapters["gemini"].Plan(context.Background(), testRun("gemini"))
+	if err != nil {
+		t.Fatalf("gemini Plan returned error: %v", err)
+	}
+	if gemini.RuntimeID != "gemini" || gemini.Command != "sh" || !contains(gemini.EnvKeys, "GEMINI_API_KEY") {
+		t.Fatalf("gemini plan=%+v, want shell plan with GEMINI_API_KEY", gemini)
+	}
+	if !strings.Contains(strings.Join(gemini.Args, " "), "gemini") || !strings.Contains(strings.Join(gemini.Args, " "), "BATTOS_PROMPT_FILE") {
+		t.Fatalf("gemini args=%q, want prompt-file gemini script", strings.Join(gemini.Args, " "))
+	}
+	pi, err := adapters["pi"].Plan(context.Background(), testRun("pi"))
+	if err != nil {
+		t.Fatalf("pi Plan returned error: %v", err)
+	}
+	// pi maneja su propia auth: sin ProviderEnv.
+	if pi.RuntimeID != "pi" || pi.Command != "sh" || len(pi.EnvKeys) != 0 {
+		t.Fatalf("pi plan=%+v, want shell plan sin provider env", pi)
+	}
+	if !strings.Contains(strings.Join(pi.Args, " "), "pi -p") || !strings.Contains(strings.Join(pi.Args, " "), "BATTOS_PROMPT_FILE") {
+		t.Fatalf("pi args=%q, want prompt-file pi print script", strings.Join(pi.Args, " "))
+	}
 }
 
 func TestApprovedAdaptersHostSessionCodexPlan(t *testing.T) {

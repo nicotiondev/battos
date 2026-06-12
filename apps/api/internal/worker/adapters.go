@@ -111,6 +111,23 @@ func ApprovedAdapters(options AdapterOptions) map[string]Adapter {
 			BaseArgs:    []string{"-c", `claude --bare --print --input-format text --output-format stream-json --no-session-persistence --dangerously-skip-permissions "$(cat "$BATTOS_PROMPT_FILE")"`},
 			ProviderEnv: "ANTHROPIC_API_KEY",
 		},
+		// gemini: Gemini CLI de Google en modo no-interactivo (-p). --yolo
+		// auto-aprueba tools (seguro porque corre dentro del sandbox/tier).
+		// Los flags exactos se confirman en el smoke (Etapa 1).
+		"gemini": CommandAdapter{
+			RuntimeID:   "gemini",
+			Command:     "sh",
+			BaseArgs:    []string{"-c", `gemini --yolo -p "$(cat "$BATTOS_PROMPT_FILE")"`},
+			ProviderEnv: "GEMINI_API_KEY",
+		},
+		// pi: harness minimalista (earendil-works/pi) en print mode (-p). Maneja su
+		// propia auth/login, por eso sin ProviderEnv — ideal en tier direct (host)
+		// donde su login está disponible. Flags exactos a confirmar en el smoke.
+		"pi": CommandAdapter{
+			RuntimeID: "pi",
+			Command:   "sh",
+			BaseArgs:  []string{"-c", `pi -p "$(cat "$BATTOS_PROMPT_FILE")"`},
+		},
 		"sandbox-smoke": CommandAdapter{
 			RuntimeID: "sandbox-smoke",
 			Command:   "sh",

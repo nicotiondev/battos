@@ -132,6 +132,27 @@ var approvedRuntimeTools = []runtimeToolSpec{
 		RequiresAuth: true,
 		Capabilities: `["code_generation","repo_editing","tests","host_session"]`,
 	},
+	{
+		ID:           "gemini",
+		Name:         "Gemini CLI",
+		Command:      "gemini",
+		Kind:         "coding_agent",
+		RuntimeID:    "gemini",
+		RiskLevel:    "medium",
+		RequiresAuth: true,
+		ProviderEnv:  "GEMINI_API_KEY",
+		Capabilities: `["long_context","multimodal","code_generation"]`,
+	},
+	{
+		ID:           "pi",
+		Name:         "Pi",
+		Command:      "pi",
+		Kind:         "coding_agent",
+		RuntimeID:    "pi",
+		RiskLevel:    "medium",
+		RequiresAuth: true,
+		Capabilities: `["code_editing","terminal","skills"]`,
+	},
 }
 
 func (h *RuntimeHandler) ListRuntimeAdapters(w http.ResponseWriter, r *http.Request) {
