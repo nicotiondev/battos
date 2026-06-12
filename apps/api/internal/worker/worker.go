@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nicotion/battos/apps/api/internal/credstore"
 	"github.com/nicotion/battos/apps/api/internal/gitauth"
 	"github.com/nicotion/battos/apps/api/internal/store"
 )
@@ -24,6 +25,7 @@ type Store interface {
 	FailRun(context.Context, store.FailRunParams) (store.Run, error)
 	CreateArtifact(context.Context, store.CreateArtifactParams) (store.Artifact, error)
 	GetRepository(context.Context, string) (store.Repository, error)
+	GetCredentialByName(context.Context, string) (store.Credential, error)
 	UpdateRunBranchAndMetadata(context.Context, store.UpdateRunBranchAndMetadataParams) (store.Run, error)
 	CreateUsageEvent(context.Context, store.CreateUsageEventParams) (store.UsageEvent, error)
 }
@@ -249,7 +251,10 @@ func (w *Worker) processClaimedRun(ctx context.Context, run store.Run) (bool, er
 					}
 					return true, nil
 				}
-				gitToken = gitauth.Resolve(repo.CredentialRef.String)
+				// Resolve the git token through the credential broker (ADR-0023):
+				// managed credentials win, otherwise it falls back to the env var
+				// named by credential_ref (legacy behaviour).
+				gitToken, _ = credstore.New(w.store).Resolve(ctx, repo.CredentialRef.String)
 				cloneSource = gitauth.AuthenticatedURL(remoteURL, gitToken)
 			}
 			_ = w.log(ctx, run.ID, "system", fmt.Sprintf("git: cloning repository %s", repo.Name))

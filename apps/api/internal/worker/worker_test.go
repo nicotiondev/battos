@@ -90,6 +90,10 @@ func (f *fakeStore) GetRepository(_ context.Context, id string) (store.Repositor
 	}, nil
 }
 
+func (f *fakeStore) GetCredentialByName(_ context.Context, _ string) (store.Credential, error) {
+	return store.Credential{}, sql.ErrNoRows
+}
+
 func (f *fakeStore) UpdateRunBranchAndMetadata(_ context.Context, arg store.UpdateRunBranchAndMetadataParams) (store.Run, error) {
 	item := f.run
 	item.BranchName = arg.BranchName

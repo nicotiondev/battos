@@ -73,6 +73,11 @@ func (f *fakeRunStore) CreateRunApproval(_ context.Context, arg store.CreateRunA
 	}, nil
 }
 
+func (f *fakeRunStore) GetCredentialByName(_ context.Context, _ string) (store.Credential, error) {
+	// No managed credentials in tests: the broker falls back to os.Getenv.
+	return store.Credential{}, sql.ErrNoRows
+}
+
 func (f *fakeRunStore) CountApprovedRunApproval(_ context.Context, arg store.CountApprovedRunApprovalParams) (int64, error) {
 	if arg.Kind == "execution_mode" {
 		return f.executionModeApprovals, nil

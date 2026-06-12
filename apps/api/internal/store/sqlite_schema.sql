@@ -49,6 +49,22 @@ CREATE TABLE IF NOT EXISTS models (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- credentials: la Bóveda funcional (ADR-0023). El secreto nunca se guarda en
+-- claro: secret_source=env → secret_locator es el nombre de una env var;
+-- secret_source=inline_encrypted → secret_locator es un blob AES-GCM cifrado con
+-- la master key del host; secret_source=keychain → id del keychain del SO (futuro).
+CREATE TABLE IF NOT EXISTS credentials (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    kind TEXT NOT NULL CHECK (kind IN ('api_key', 'oauth_token', 'git_token')),
+    provider_id TEXT REFERENCES providers(id) ON DELETE SET NULL,
+    secret_source TEXT NOT NULL CHECK (secret_source IN ('env', 'inline_encrypted', 'keychain')),
+    secret_locator TEXT NOT NULL,
+    description TEXT,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY,
     slug TEXT NOT NULL UNIQUE,

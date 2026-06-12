@@ -88,6 +88,18 @@ type CliTool struct {
 	UpdatedAt      time.Time      `json:"updated_at"`
 }
 
+type Credential struct {
+	ID            string         `json:"id"`
+	Name          string         `json:"name"`
+	Kind          string         `json:"kind"`
+	ProviderID    sql.NullString `json:"provider_id"`
+	SecretSource  string         `json:"secret_source"`
+	SecretLocator string         `json:"secret_locator"`
+	Description   sql.NullString `json:"description"`
+	CreatedAt     time.Time      `json:"created_at"`
+	UpdatedAt     time.Time      `json:"updated_at"`
+}
+
 type Domain struct {
 	ID          string         `json:"id"`
 	Slug        string         `json:"slug"`

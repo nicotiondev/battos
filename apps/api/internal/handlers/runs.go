@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/nicotion/battos/apps/api/internal/credstore"
 	"github.com/nicotion/battos/apps/api/internal/gitauth"
 	"github.com/nicotion/battos/apps/api/internal/memory"
 	"github.com/nicotion/battos/apps/api/internal/store"
@@ -26,6 +27,7 @@ type RunStore interface {
 	GetRun(context.Context, string) (store.Run, error)
 	CreateRunApproval(context.Context, store.CreateRunApprovalParams) (store.RunApproval, error)
 	CountApprovedRunApproval(context.Context, store.CountApprovedRunApprovalParams) (int64, error)
+	GetCredentialByName(context.Context, string) (store.Credential, error)
 	UpdateRunStatus(context.Context, store.UpdateRunStatusParams) (store.Run, error)
 	EnableRunNetwork(context.Context, string) (store.Run, error)
 	EnableRunHostSession(context.Context, string) (store.Run, error)
@@ -371,7 +373,7 @@ func (h *RunHandler) ApproveRunAction(w http.ResponseWriter, r *http.Request) {
 					writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"message": "el repositorio github no tiene remote_url configurado", "code": 400}})
 					return
 				}
-				gitToken = gitauth.Resolve(textValue(repo.CredentialRef))
+				gitToken, _ = credstore.New(h.store).Resolve(r.Context(), textValue(repo.CredentialRef))
 				if gitToken == "" {
 					writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"message": "credential_ref no resuelve un token; define la variable de entorno referenciada antes de aprobar push", "code": 400}})
 					return
