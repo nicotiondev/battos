@@ -17,6 +17,7 @@ type Querier interface {
 	CompleteRun(ctx context.Context, arg CompleteRunParams) (Run, error)
 	CountActiveMCPConnections(ctx context.Context) (int64, error)
 	CountAgents(ctx context.Context) (int64, error)
+	CountApprovedRunApproval(ctx context.Context, arg CountApprovedRunApprovalParams) (int64, error)
 	CountAuditLogs(ctx context.Context) (int64, error)
 	CountAvailableRuntimes(ctx context.Context) (int64, error)
 	CountDetectedCLITools(ctx context.Context) (int64, error)
@@ -24,10 +25,13 @@ type Querier interface {
 	// Solo lectura + counts en Fase 2. CRUD completo viene en Fase 3.
 	CountProjects(ctx context.Context) (int64, error)
 	CountSkills(ctx context.Context) (int64, error)
+	CountUnreadForAgent(ctx context.Context, toAgentID string) (int64, error)
 	CreateAgent(ctx context.Context, arg CreateAgentParams) (Agent, error)
+	CreateAgentMessage(ctx context.Context, arg CreateAgentMessageParams) (AgentMessage, error)
 	CreateArtifact(ctx context.Context, arg CreateArtifactParams) (Artifact, error)
 	// Audit log queries para registro de acciones administrativas.
 	CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) (AuditLog, error)
+	CreateCredential(ctx context.Context, arg CreateCredentialParams) (Credential, error)
 	// Work Board CRUD: domains, projects, goals and tasks.
 	CreateDomain(ctx context.Context, arg CreateDomainParams) (Domain, error)
 	CreateGoal(ctx context.Context, arg CreateGoalParams) (Goal, error)
@@ -45,6 +49,7 @@ type Querier interface {
 	CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error)
 	// Queries para eventos de consumo y uso (usage_events)
 	CreateUsageEvent(ctx context.Context, arg CreateUsageEventParams) (UsageEvent, error)
+	DeleteCredential(ctx context.Context, name string) error
 	DeleteRepository(ctx context.Context, id string) (Repository, error)
 	EnableRunHostSession(ctx context.Context, id string) (Run, error)
 	EnableRunNetwork(ctx context.Context, id string) (Run, error)
@@ -53,6 +58,7 @@ type Querier interface {
 	GetAgentRuntime(ctx context.Context, id string) (AgentRuntime, error)
 	GetArtifact(ctx context.Context, id string) (Artifact, error)
 	GetArtifactByRunAndKind(ctx context.Context, arg GetArtifactByRunAndKindParams) (Artifact, error)
+	GetCredentialByName(ctx context.Context, name string) (Credential, error)
 	GetDomain(ctx context.Context, id string) (Domain, error)
 	GetGoal(ctx context.Context, id string) (Goal, error)
 	GetJournal(ctx context.Context, id string) (Journal, error)
@@ -74,9 +80,11 @@ type Querier interface {
 	ListAuditLogsByAction(ctx context.Context, arg ListAuditLogsByActionParams) ([]AuditLog, error)
 	ListAuditLogsByActor(ctx context.Context, arg ListAuditLogsByActorParams) ([]AuditLog, error)
 	ListCLITools(ctx context.Context) ([]CliTool, error)
+	ListCredentials(ctx context.Context) ([]Credential, error)
 	ListDomains(ctx context.Context) ([]Domain, error)
 	ListGoals(ctx context.Context) ([]Goal, error)
 	ListGoalsByProject(ctx context.Context, projectID string) ([]Goal, error)
+	ListInboxForAgent(ctx context.Context, arg ListInboxForAgentParams) ([]AgentMessage, error)
 	ListJournalsByProject(ctx context.Context, projectID string) ([]Journal, error)
 	ListKnowledgeWorkspaces(ctx context.Context) ([]KnowledgeWorkspace, error)
 	ListNovaConversations(ctx context.Context) ([]NovacoreConversation, error)
@@ -91,6 +99,8 @@ type Querier interface {
 	ListSkills(ctx context.Context) ([]Skill, error)
 	ListTasks(ctx context.Context) ([]Task, error)
 	ListTasksByProject(ctx context.Context, projectID string) ([]Task, error)
+	ListUnreadInboxForAgent(ctx context.Context, toAgentID string) ([]AgentMessage, error)
+	MarkAgentMessageRead(ctx context.Context, id string) (AgentMessage, error)
 	// Queries de sistema: healthchecks, logs.
 	PingDB(ctx context.Context) (int64, error)
 	RecentSystemLogs(ctx context.Context, limit int64) ([]SystemLog, error)
