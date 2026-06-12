@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "generate:api-types": "openapi-typescript ../../packages/openapi/openapi.yaml -o src/lib/generated/openapi.ts",
     "check:api-types": "npm run generate:api-types && git diff --exit-code -- src/lib/generated/openapi.ts"
   },

@@ -9,6 +9,7 @@ import {
   Clock, GitBranch, RefreshCw, Cpu, Globe, Database, CheckSquare, AlertTriangle
 } from 'lucide-react';
 import RuntimesPanel from './RuntimesPanel';
+import CliToolsPanel from './cli-tools-panel';
 
 function errorMessage(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
@@ -533,6 +534,9 @@ export default function ControlRoomView() {
 
                 {/* Runtimes Panel */}
                 <RuntimesPanel runtimes={runtimes} />
+
+                {/* CLI Tools Panel */}
+                <CliToolsPanel onDetectCompleted={fetchStaticData} />
               </div>
             </div>
           </div>
@@ -545,7 +549,10 @@ export default function ControlRoomView() {
                 Selecciona una ejecución de run de la lista izquierda para visualizar su estado, logs SSE en vivo y aprobaciones HITL.
               </p>
             </div>
-            <RuntimesPanel runtimes={runtimes} />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <RuntimesPanel runtimes={runtimes} />
+              <CliToolsPanel onDetectCompleted={fetchStaticData} />
+            </div>
           </div>
         )}
       </div>

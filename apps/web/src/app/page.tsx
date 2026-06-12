@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ApiError, clearApiToken, setApiToken, apiClient } from '../lib/api';
 import { connectSSE } from '../lib/sse';
-import { StatusResponse } from '../lib/types';
+import { StatusResponse, TopProcess } from '../lib/types';
 import DashboardView from '../components/DashboardView';
 import WorkboardView from '../components/WorkboardView';
 import AgentsView from '../components/AgentsView';
@@ -32,6 +32,16 @@ function errorMessage(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
 }
 
+function normalizeTopProcesses(value: unknown): TopProcess[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isRecord).map(proc => ({
+    pid: metricNumber(proc.pid, 0),
+    name: typeof proc.name === 'string' ? proc.name : '',
+    cpuPercent: metricNumber(proc.cpuPercent, proc.cpu_percent),
+    memMB: metricNumber(proc.memMB, proc.memMb ?? proc.mem_mb),
+  }));
+}
+
 function normalizeMetrics(data: unknown): StatusResponse | null {
   if (!data) return null;
   if (!isRecord(data)) return null;
@@ -45,6 +55,10 @@ function normalizeMetrics(data: unknown): StatusResponse | null {
       memTotalMB: metricNumber(rawMetrics.memTotalMB, rawMetrics.memTotalMb ?? rawMetrics.mem_total_mb),
       netUploadKBps: metricNumber(rawMetrics.netUploadKBps, rawMetrics.netUploadKbps ?? rawMetrics.net_upload_kbps),
       netDownloadKBps: metricNumber(rawMetrics.netDownloadKBps, rawMetrics.netDownloadKbps ?? rawMetrics.net_download_kbps),
+      diskPercent: metricNumber(rawMetrics.diskPercent, rawMetrics.disk_percent),
+      diskUsedGB: metricNumber(rawMetrics.diskUsedGB, rawMetrics.diskUsedGb ?? rawMetrics.disk_used_gb),
+      diskTotalGB: metricNumber(rawMetrics.diskTotalGB, rawMetrics.diskTotalGb ?? rawMetrics.disk_total_gb),
+      topProcesses: normalizeTopProcesses(rawMetrics.topProcesses ?? rawMetrics.top_processes),
     }
   } as StatusResponse;
 }

@@ -48,6 +48,13 @@ export interface SubsystemHealth {
   latencyMs?: number;
 }
 
+export interface TopProcess {
+  pid: number;
+  name: string;
+  cpuPercent: number;
+  memMB: number;
+}
+
 export interface SystemMetrics {
   cpuPercent: number;
   memPercent: number;
@@ -55,6 +62,10 @@ export interface SystemMetrics {
   memTotalMB: number;
   netUploadKBps: number;
   netDownloadKBps: number;
+  diskPercent: number;
+  diskUsedGB: number;
+  diskTotalGB: number;
+  topProcesses: TopProcess[];
 }
 
 export interface StatusResponse {
@@ -136,6 +147,51 @@ export interface AgentRuntime {
   approvedForExecution?: boolean;
   requiresAuth: boolean;
   lastDetectedAt?: string;
+}
+
+// CLI tools instalables en el host. El contrato OpenAPI todavía no expone
+// estos schemas en `generated/`, por eso se tipan a mano siguiendo el patrón
+// del resto de la API (snake_case en el wire, camelCase tras camelizeResponse).
+export type CliToolStatus = 'detected' | 'not_detected' | 'broken';
+
+export interface CliTool {
+  id: string;
+  name: string;
+  command: string;
+  kind?: string;
+  status: CliToolStatus | string;
+  detectedPath?: string;
+  version?: string;
+  runtimeId?: string;
+  riskLevel?: string;
+  requiresAuth?: boolean;
+  installCommand?: string;
+  installUrl?: string;
+  lastDetectedAt?: string;
+}
+
+export type CliToolInstallStatus =
+  | 'pending_approval'
+  | 'running'
+  | 'succeeded'
+  | 'failed'
+  | 'rejected';
+
+export interface CliToolInstall {
+  id: string;
+  cliToolId: string;
+  installCommand: string;
+  status: CliToolInstallStatus | string;
+  reason?: string | null;
+  output?: string | null;
+  requestedAt?: string;
+  decidedAt?: string | null;
+  completedAt?: string | null;
+}
+
+export interface CliToolInstallDecision {
+  decision: 'approved' | 'rejected';
+  reason?: string;
 }
 
 export interface Provider {

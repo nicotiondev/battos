@@ -33,6 +33,7 @@ import type {
   ApiTaskPatch,
   ApiUsageOverviewItem,
 } from './generated/api-contract';
+import type { CliTool, CliToolInstall, CliToolInstallDecision } from './types';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BATTOS_API_URL || 'http://localhost:8000';
 
@@ -202,6 +203,12 @@ export const apiClient = {
   createAgent: (body: ApiAgentInput) => api.post<ApiAgent>('/agents', snakeizeBody(body)),
   listSkills: () => api.get<ApiSkill[]>('/skills'),
   listRuntimeAdapters: () => api.get<ApiRuntimeAdapter[]>('/runtime-adapters'),
+  detectRuntimeAdapters: () => api.post<ApiRuntimeAdapter[]>('/runtime-adapters/detect'),
+  listCliTools: () => api.get<CliTool[]>('/cli-tools'),
+  requestCliToolInstall: (id: string) => api.post<{ install: CliToolInstall }>(`/cli-tools/${id}/install`, {}),
+  approveCliToolInstall: (installId: string, body: CliToolInstallDecision) =>
+    api.post<{ install: CliToolInstall }>(`/cli-tools/installs/${installId}/approve`, snakeizeBody(body)),
+  listCliToolInstalls: (id: string) => api.get<CliToolInstall[]>(`/cli-tools/${id}/installs`),
   listRepositories: () => api.get<ApiRepository[]>('/repositories'),
   connectRepository: (body: ApiRepositoryInput) => api.post<ApiRepository>('/repositories', snakeizeBody(body)),
   listRuns: () => api.get<ApiRun[]>('/runs'),

@@ -5,7 +5,7 @@ import { apiClient } from '../lib/api';
 import { Project, Agent, Skill, AgentRuntime, StatusResponse, UsageOverviewItem } from '../lib/types';
 import { 
   Folder, Cpu, Award, Shield, Activity, DollarSign, BarChart2,
-  CheckCircle, AlertTriangle, XCircle, RefreshCw, Zap
+  CheckCircle, AlertTriangle, XCircle, RefreshCw, Zap, HardDrive
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -166,7 +166,7 @@ export default function DashboardView({ metrics }: DashboardViewProps) {
             <span className="text-[10px] text-muted-foreground bg-muted px-2 py-1 rounded">Stream SSE</span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
             {/* CPU */}
             <div className="space-y-2">
               <div className="flex justify-between text-xs">
@@ -195,6 +195,25 @@ export default function DashboardView({ metrics }: DashboardViewProps) {
               </div>
               <div className="text-[10px] text-muted-foreground text-right">
                 {metrics?.metrics.memUsedMB || 0} / {metrics?.metrics.memTotalMB || 0} MB
+              </div>
+            </div>
+
+            {/* Disco */}
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground flex items-center gap-1">
+                  <HardDrive size={11} /> Disco
+                </span>
+                <span className="font-semibold text-white">{(metrics?.metrics.diskPercent || 0).toFixed(1)}%</span>
+              </div>
+              <div className="h-2 w-full bg-gray-800 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-amber-500 transition-all duration-500"
+                  style={{ width: `${metrics?.metrics.diskPercent || 0}%` }}
+                />
+              </div>
+              <div className="text-[10px] text-muted-foreground text-right">
+                {(metrics?.metrics.diskUsedGB || 0).toFixed(1)} / {(metrics?.metrics.diskTotalGB || 0).toFixed(1)} GB
               </div>
             </div>
 
@@ -236,6 +255,47 @@ export default function DashboardView({ metrics }: DashboardViewProps) {
               <span>Hace 1 min</span>
               <span>Tiempo real</span>
             </div>
+          </div>
+
+          {/* Top procesos por memoria */}
+          <div className="pt-4 border-t border-gray-800/80 space-y-2">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                <Activity size={13} className="text-primary" /> Top Procesos (por memoria)
+              </h4>
+              <span className="text-[10px] text-muted-foreground">
+                {(metrics?.metrics.topProcesses || []).length} procesos
+              </span>
+            </div>
+
+            {(metrics?.metrics.topProcesses || []).length === 0 ? (
+              <p className="text-[10px] text-muted-foreground italic text-center py-2">
+                Sin datos de procesos en el stream de telemetría.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-[10px]">
+                  <thead>
+                    <tr className="border-b border-gray-800 text-muted-foreground uppercase">
+                      <th className="py-1.5 font-semibold">PID</th>
+                      <th className="py-1.5 font-semibold">Proceso</th>
+                      <th className="py-1.5 font-semibold text-right">CPU %</th>
+                      <th className="py-1.5 font-semibold text-right">Mem MB</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-800/60 text-gray-200">
+                    {(metrics?.metrics.topProcesses || []).map(proc => (
+                      <tr key={proc.pid} className="hover:bg-gray-900/30">
+                        <td className="py-1.5 font-mono text-muted-foreground">{proc.pid}</td>
+                        <td className="py-1.5 font-medium text-white truncate max-w-[180px]">{proc.name}</td>
+                        <td className="py-1.5 text-right font-mono text-emerald-400">{proc.cpuPercent.toFixed(1)}</td>
+                        <td className="py-1.5 text-right font-mono text-indigo-300">{proc.memMB.toFixed(0)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
 
