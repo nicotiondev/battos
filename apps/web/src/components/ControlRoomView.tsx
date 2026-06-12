@@ -16,7 +16,7 @@ function errorMessage(err: unknown, fallback: string): string {
 }
 
 type RunnableAdapterID = 'claude-code' | 'codex' | 'sandbox-smoke' | 'sandbox-memory-smoke';
-type ApprovalKind = 'execute' | 'network' | 'commit' | 'push' | 'remember';
+type ApprovalKind = 'execute' | 'network' | 'host_session' | 'execution_mode' | 'commit' | 'push' | 'remember';
 
 function isRunnableAdapterID(value: string): value is RunnableAdapterID {
   return value === 'claude-code' || value === 'codex' || value === 'sandbox-smoke' || value === 'sandbox-memory-smoke';
@@ -243,6 +243,33 @@ export default function ControlRoomView() {
     }
   };
 
+  // Aprobar ejecución: los tiers direct/connected exigen el approval del modo
+  // (kind=execution_mode) ANTES del execute — el backend rechaza execute sin
+  // ese consentimiento previo. Un solo clic encadena ambos en orden.
+  const handleApproveExecute = async () => {
+    if (!selectedRun) return;
+    try {
+      if (selectedRun.executionMode && selectedRun.executionMode !== 'sandbox') {
+        await apiClient.approveRunAction(selectedRun.id, {
+          kind: 'execution_mode',
+          decision: 'approved',
+          reason: `Tier ${selectedRun.executionMode} aprobado desde Dashboard`,
+        });
+      }
+      await apiClient.approveRunAction(selectedRun.id, {
+        kind: 'execute',
+        decision: 'approved',
+        reason: 'Aprobado desde Dashboard',
+      });
+      const updated = await apiClient.getRun(selectedRun.id) as Run;
+      setSelectedRun(updated);
+      setRuns(prev => prev.map(r => r.id === updated.id ? updated : r));
+      setErrorMsg('');
+    } catch (err: unknown) {
+      setErrorMsg(errorMessage(err, 'Error al procesar aprobación'));
+    }
+  };
+
   const handleCancelRun = async () => {
     if (!selectedRun) return;
     try {
@@ -464,21 +491,38 @@ export default function ControlRoomView() {
 
                   {selectedRun.status === 'awaiting_approval' && (
                     <div className="space-y-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                      <p className="text-[10px] text-amber-300 font-medium">El run requiere aprobación para ejecutarse.</p>
+                      <p className="text-[10px] text-amber-300 font-medium">
+                        {selectedRun.executionMode && selectedRun.executionMode !== 'sandbox'
+                          ? `El run requiere aprobación para ejecutarse en el tier ${selectedRun.executionMode} (un clic aprueba tier + ejecución).`
+                          : 'El run requiere aprobación para ejecutarse.'}
+                      </p>
+                      {selectedRun.executionMode === 'direct' && (
+                        <p className="text-[10px] text-red-300/90">
+                          ⚠ direct corre en tu máquina con tus credenciales y sin filtro de red.
+                        </p>
+                      )}
                       <div className="flex gap-2">
-                        <button 
-                          onClick={() => handleApproval('execute', 'approved')}
+                        <button
+                          onClick={handleApproveExecute}
                           className="flex-1 py-1 px-2 rounded text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 flex items-center justify-center gap-1"
                         >
                           <Check size={12} /> Aprobar
                         </button>
-                        <button 
+                        <button
                           onClick={() => handleApproval('execute', 'rejected')}
                           className="py-1 px-2 rounded text-xs font-bold bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20"
                         >
                           Rechazar
                         </button>
                       </div>
+                      {selectedRun.requestedNetwork && !selectedRun.networkEnabled && (
+                        <button
+                          onClick={() => handleApproval('network', 'approved', 'Red aprobada desde Dashboard')}
+                          className="w-full py-1 px-2 rounded text-xs font-semibold bg-blue-500/10 text-blue-300 border border-blue-500/20 hover:bg-blue-500/20 flex items-center justify-center gap-1"
+                        >
+                          <Globe size={12} /> Aprobar acceso a red solicitado
+                        </button>
+                      )}
                     </div>
                   )}
 

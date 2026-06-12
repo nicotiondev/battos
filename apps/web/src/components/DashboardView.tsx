@@ -10,9 +10,11 @@ import {
 
 interface DashboardViewProps {
   metrics: StatusResponse | null;
+  // Navegación a otras vistas del shell al clickear las cards de resumen.
+  onNavigate?: (tab: 'workboard' | 'agents' | 'controlroom' | 'usage') => void;
 }
 
-export default function DashboardView({ metrics }: DashboardViewProps) {
+export default function DashboardView({ metrics, onNavigate }: DashboardViewProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -90,7 +92,11 @@ export default function DashboardView({ metrics }: DashboardViewProps) {
       {/* 1. Resumen de contadores (Top Cards) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Card Proyectos */}
-        <div className="glass-panel p-4 rounded-xl flex items-center justify-between transition-all hover:translate-y-[-2px]">
+        <div
+          onClick={() => onNavigate?.('workboard')}
+          title="Abrir Work Board"
+          className="glass-panel p-4 rounded-xl flex items-center justify-between transition-all hover:translate-y-[-2px] cursor-pointer"
+        >
           <div>
             <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">Proyectos</p>
             <h3 className="text-2xl font-bold mt-1 text-white">{projects.length}</h3>
@@ -102,7 +108,11 @@ export default function DashboardView({ metrics }: DashboardViewProps) {
         </div>
 
         {/* Card Agentes */}
-        <div className="glass-panel p-4 rounded-xl flex items-center justify-between transition-all hover:translate-y-[-2px]">
+        <div
+          onClick={() => onNavigate?.('agents')}
+          title="Abrir Agents Registry"
+          className="glass-panel p-4 rounded-xl flex items-center justify-between transition-all hover:translate-y-[-2px] cursor-pointer"
+        >
           <div>
             <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">Agentes</p>
             <h3 className="text-2xl font-bold mt-1 text-white">{agents.length}</h3>
@@ -114,7 +124,11 @@ export default function DashboardView({ metrics }: DashboardViewProps) {
         </div>
 
         {/* Card Habilidades */}
-        <div className="glass-panel p-4 rounded-xl flex items-center justify-between transition-all hover:translate-y-[-2px]">
+        <div
+          onClick={() => onNavigate?.('agents')}
+          title="Abrir Agents Registry (skills)"
+          className="glass-panel p-4 rounded-xl flex items-center justify-between transition-all hover:translate-y-[-2px] cursor-pointer"
+        >
           <div>
             <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">Skills</p>
             <h3 className="text-2xl font-bold mt-1 text-white">{skills.length}</h3>
@@ -126,7 +140,11 @@ export default function DashboardView({ metrics }: DashboardViewProps) {
         </div>
 
         {/* Card Runtimes */}
-        <div className="glass-panel p-4 rounded-xl flex items-center justify-between transition-all hover:translate-y-[-2px]">
+        <div
+          onClick={() => onNavigate?.('controlroom')}
+          title="Abrir Control Room (runtimes y CLIs)"
+          className="glass-panel p-4 rounded-xl flex items-center justify-between transition-all hover:translate-y-[-2px] cursor-pointer"
+        >
           <div>
             <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">Runtimes</p>
             <h3 className="text-2xl font-bold mt-1 text-white">{runtimes.length}</h3>
@@ -138,7 +156,11 @@ export default function DashboardView({ metrics }: DashboardViewProps) {
         </div>
 
         {/* Card Salud General */}
-        <div className="glass-panel p-4 rounded-xl flex items-center justify-between transition-all hover:translate-y-[-2px]">
+        <div
+          onClick={() => document.getElementById('subsystems-panel')?.scrollIntoView({ behavior: 'smooth' })}
+          title="Ver estado de subsistemas"
+          className="glass-panel p-4 rounded-xl flex items-center justify-between transition-all hover:translate-y-[-2px] cursor-pointer"
+        >
           <div>
             <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">Salud OS</p>
             <h3 className="text-md font-bold mt-2 text-white">
@@ -400,7 +422,7 @@ export default function DashboardView({ metrics }: DashboardViewProps) {
         </div>
 
         {/* Salud de Subsistemas */}
-        <div className="glass-panel p-5 rounded-xl space-y-4">
+        <div id="subsystems-panel" className="glass-panel p-5 rounded-xl space-y-4">
           <h3 className="text-base font-bold text-white flex items-center gap-2">
             <Shield size={18} className="text-primary" />
             Estado de Subsistemas

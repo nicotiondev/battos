@@ -449,7 +449,7 @@ export default function Home() {
           )}
 
           {activeTab === 'dashboard' && (
-            <DashboardView metrics={metrics} />
+            <DashboardView metrics={metrics} onNavigate={(tab) => setActiveTab(tab)} />
           )}
           {activeTab === 'workboard' && <WorkboardView />}
           {activeTab === 'agents' && <AgentsView />}
