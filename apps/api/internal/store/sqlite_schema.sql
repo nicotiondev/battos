@@ -298,6 +298,22 @@ CREATE TABLE IF NOT EXISTS run_logs (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- agent_messages: mailbox para inter-comunicación entre agentes (Fase B / multi-agente).
+-- Un agente (típicamente un lead) deja un mensaje en el inbox de otro; el destino
+-- lo lee por polling. run_id opcional vincula el mensaje al run que lo originó.
+CREATE TABLE IF NOT EXISTS agent_messages (
+    id TEXT PRIMARY KEY,
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    from_agent_id TEXT REFERENCES agents(id) ON DELETE SET NULL,
+    to_agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    run_id TEXT REFERENCES runs(id) ON DELETE SET NULL,
+    subject TEXT,
+    body TEXT NOT NULL,
+    read_at DATETIME,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_agent_messages_inbox ON agent_messages(to_agent_id, read_at);
+
 CREATE TABLE IF NOT EXISTS usage_events (
     id TEXT PRIMARY KEY,
     run_id TEXT REFERENCES runs(id) ON DELETE CASCADE,

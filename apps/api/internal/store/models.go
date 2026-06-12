@@ -28,6 +28,18 @@ type Agent struct {
 	UpdatedAt       time.Time      `json:"updated_at"`
 }
 
+type AgentMessage struct {
+	ID          string         `json:"id"`
+	ProjectID   sql.NullString `json:"project_id"`
+	FromAgentID sql.NullString `json:"from_agent_id"`
+	ToAgentID   string         `json:"to_agent_id"`
+	RunID       sql.NullString `json:"run_id"`
+	Subject     sql.NullString `json:"subject"`
+	Body        string         `json:"body"`
+	ReadAt      sql.NullTime   `json:"read_at"`
+	CreatedAt   time.Time      `json:"created_at"`
+}
+
 type AgentRuntime struct {
 	ID           string         `json:"id"`
 	Name         string         `json:"name"`
