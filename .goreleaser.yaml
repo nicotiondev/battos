@@ -4,8 +4,8 @@ project_name: battos
 
 before:
   hooks:
-    - go mod tidy -C apps/cli
-    - go mod tidy -C apps/api
+    - sh -c "GOWORK=off go mod tidy -C apps/cli"
+    - sh -c "GOWORK=off go mod tidy -C apps/api"
 
 builds:
   - id: battos
@@ -16,6 +16,7 @@ builds:
     goarch: [amd64, arm64]
     env:
       - CGO_ENABLED=0
+      - GOWORK=off
     ldflags:
       - -s -w -X main.version={{.Version}}
 
@@ -27,12 +28,13 @@ builds:
     goarch: [amd64, arm64]
     env:
       - CGO_ENABLED=0
+      - GOWORK=off
     ldflags:
       - -s -w -X main.version={{.Version}}
 
 archives:
   - id: default
-    builds: [battos, battos-api]
+    ids: [battos, battos-api]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
