@@ -30,7 +30,8 @@ if (-not $Version) {
 $Arch     = if ([System.Environment]::GetEnvironmentVariable("PROCESSOR_ARCHITECTURE") -eq "ARM64") { "arm64" } `
             elseif ([System.Environment]::Is64BitOperatingSystem) { "amd64" } `
             else { "386" }
-$FileName = "battos_${Version}_windows_${Arch}.zip"
+$FileVersion = $Version -replace '^v', ''
+$FileName = "battos_${FileVersion}_windows_${Arch}.zip"
 $Url      = "https://github.com/$Repo/releases/download/$Version/$FileName"
 
 Write-Host "Instalando BattOS $Version para windows/$Arch..."

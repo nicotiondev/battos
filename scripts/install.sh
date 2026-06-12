@@ -33,7 +33,8 @@ if [ -z "$VERSION" ]; then
 fi
 
 # Descargar y extraer el archive (contiene battos + battos-api + config)
-FILENAME="battos_${VERSION}_${OS}_${ARCH}.tar.gz"
+FILE_VERSION="${VERSION#v}"
+FILENAME="battos_${FILE_VERSION}_${OS}_${ARCH}.tar.gz"
 URL="https://github.com/$REPO/releases/download/$VERSION/$FILENAME"
 
 echo "Instalando BattOS $VERSION para ${OS}/${ARCH}..."
