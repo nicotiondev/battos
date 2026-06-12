@@ -42,10 +42,10 @@ type RunStore interface {
 
 type RunHandler struct {
 	store  RunStore
-	memory *memory.Core
+	memory memory.MemoryProvider
 }
 
-func NewRunHandler(q RunStore, mem *memory.Core) *RunHandler {
+func NewRunHandler(q RunStore, mem memory.MemoryProvider) *RunHandler {
 	return &RunHandler{store: q, memory: mem}
 }
 

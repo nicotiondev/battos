@@ -79,22 +79,36 @@ func run() error {
 	defer memCore.Close()
 	logger.Info("memory core ready", "db_path", cfg.Database.Path)
 
+	// --- 5b. Selección del MemoryProvider activo ---
+	var memProvider memory.MemoryProvider
+	if cfg.Memory.Provider == "engram" {
+		engramURL := cfg.Memory.EngramURL
+		if engramURL == "" {
+			engramURL = "http://localhost:7437"
+		}
+		memProvider = memory.NewEngramProvider(engramURL, memCore)
+		logger.Info("memory provider: engram", "url", engramURL)
+	} else {
+		memProvider = memCore
+		logger.Info("memory provider: builtin")
+	}
+
 	// Closures de healthcheck que el SystemHandler usa para reportar /status.
 	pingDB := db.PingContext
 	pingMem := memCore.Ping
 
 	// --- 6. Router ---
 	systemHandler := handlers.NewSystemHandler(sampler, pingDB, pingMem)
-	memoryHandler := handlers.NewMemoryHandler(memCore)
+	memoryHandler := handlers.NewMemoryHandler(memProvider)
 	queries := store.New(db)
 	workHandler := handlers.NewWorkHandler(queries)
 	knowledgeHandler := handlers.NewKnowledgeHandler(queries, cfg.Knowledge.ArtifactsDir)
 	registriesHandler := handlers.NewRegistriesHandler(queries)
 	runtimeHandler := handlers.NewRuntimeHandler(queries)
-	runHandler := handlers.NewRunHandler(queries, memCore)
+	runHandler := handlers.NewRunHandler(queries, memProvider)
 	messagesHandler := handlers.NewMessagesHandler(queries)
 	repositoriesHandler := handlers.NewRepositoriesHandler(queries, cfg.Execution.RepositoriesDir)
-	novaCoreHandler := handlers.NewNovaCoreHandler(queries, memCore, cfg)
+	novaCoreHandler := handlers.NewNovaCoreHandler(queries, memProvider, cfg)
 	usageHandler := handlers.NewUsageHandler(queries)
 	router := server.NewRouter(server.Deps{
 		Config:       cfg,

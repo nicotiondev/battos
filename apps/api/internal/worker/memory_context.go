@@ -78,7 +78,7 @@ func shortRunID(value string) string {
 }
 
 type MemoryCoreContextProvider struct {
-	Core  *memory.Core
+	Core  memory.MemoryProvider
 	Limit int
 }
 

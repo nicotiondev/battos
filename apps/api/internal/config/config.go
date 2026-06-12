@@ -45,8 +45,10 @@ type DatabaseConfig struct {
 }
 
 type MemoryConfig struct {
-	DBPath  string `mapstructure:"db_path"`
-	UseFTS5 bool   `mapstructure:"use_fts5"`
+	DBPath    string `mapstructure:"db_path"`
+	UseFTS5   bool   `mapstructure:"use_fts5"`
+	Provider  string `mapstructure:"provider"`   // "builtin" (default) o "engram"
+	EngramURL string `mapstructure:"engram_url"` // default: "http://localhost:7437"
 }
 
 type KnowledgeConfig struct {
@@ -143,6 +145,8 @@ func Load() (*Config, error) {
 		"logs.dir",
 		"memory.db_path",
 		"memory.use_fts5",
+		"memory.provider",
+		"memory.engram_url",
 		"knowledge.artifacts_dir",
 		"sysmetrics.sample_interval_s",
 		"sysmetrics.history_size",
@@ -192,6 +196,17 @@ func Load() (*Config, error) {
 	}
 	if err := validateAuth(&cfg); err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(cfg.Memory.Provider) == "" {
+		cfg.Memory.Provider = "builtin"
+	}
+	switch cfg.Memory.Provider {
+	case "builtin", "engram":
+	default:
+		return nil, fmt.Errorf("memory: provider invalido %q (use builtin o engram)", cfg.Memory.Provider)
+	}
+	if strings.TrimSpace(cfg.Memory.EngramURL) == "" {
+		cfg.Memory.EngramURL = "http://localhost:7437"
 	}
 	if strings.TrimSpace(cfg.Knowledge.ArtifactsDir) == "" {
 		cfg.Knowledge.ArtifactsDir = "data/artifacts"

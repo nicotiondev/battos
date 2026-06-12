@@ -34,11 +34,11 @@ type NovaStore interface {
 
 type NovaCoreHandler struct {
 	store  NovaStore
-	memory *memory.Core
+	memory memory.MemoryProvider
 	cfg    *config.Config
 }
 
-func NewNovaCoreHandler(q NovaStore, mem *memory.Core, cfg *config.Config) *NovaCoreHandler {
+func NewNovaCoreHandler(q NovaStore, mem memory.MemoryProvider, cfg *config.Config) *NovaCoreHandler {
 	return &NovaCoreHandler{
 		store:  q,
 		memory: mem,

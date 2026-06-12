@@ -25,6 +25,9 @@ memory:
   db_path: "data/battos.db"
   # Usar FTS5 (true) o LIKE (false) para search
   use_fts5: true
+  # Provider activo: builtin (Core SQLite embebido) o engram (HTTP, con fallback al Core).
+  provider: "builtin"   # builtin | engram
+  engram_url: "http://localhost:7437"
 
 knowledge:
   # Raiz del filesystem gestionado para artifacts del Knowledge Center.
@@ -51,7 +54,9 @@ execution:
   # con contenedor efimero. dry_run registra el plan sin ejecutar comandos.
   # Cambia sandbox_mode a "docker" para probar contenedor efimero controlado.
   worker_enabled: false
-  sandbox_mode: "dry_run"
+  # docker = dispatch real por tier (sandbox->Docker, direct->host, connected->servicio).
+  # dry_run es el master off-switch que registra el plan sin ejecutar nada.
+  sandbox_mode: "docker"
   default_timeout_s: 1800
   poll_interval_s: 2
   # Runs procesados en paralelo por el worker (RunPool, Etapa 3).

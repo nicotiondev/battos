@@ -48,6 +48,17 @@ func run() error {
 	}
 	defer memCore.Close()
 
+	var memProvider memory.MemoryProvider
+	if cfg.Memory.Provider == "engram" {
+		engramURL := cfg.Memory.EngramURL
+		if engramURL == "" {
+			engramURL = "http://localhost:7437"
+		}
+		memProvider = memory.NewEngramProvider(engramURL, memCore)
+	} else {
+		memProvider = memCore
+	}
+
 	// selector picks the right sandbox per run execution_mode.
 	// When cfg.Execution.SandboxMode == "dry_run" it acts as a master off-switch:
 	// every run uses DryRunSandbox regardless of the requested mode.
@@ -98,9 +109,9 @@ func run() error {
 	w.ArtifactsDir = cfg.Knowledge.ArtifactsDir
 	w.WorkspacesDir = cfg.Execution.WorkspacesDir
 	w.RepositoriesDir = cfg.Execution.RepositoriesDir
-	memProvider := runworker.MemoryCoreContextProvider{Core: memCore}
-	w.Memory = memProvider
-	w.MemoryPromote = memProvider
+	memCtxProvider := runworker.MemoryCoreContextProvider{Core: memProvider}
+	w.Memory = memCtxProvider
+	w.MemoryPromote = memCtxProvider
 	if *once {
 		fmt.Printf("worker once started; sandbox=%s\n", cfg.Execution.SandboxMode)
 		var processed bool
