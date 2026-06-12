@@ -19,11 +19,11 @@ import (
 
 // MemoryHandler agrupa los endpoints relacionados al Memory Core.
 type MemoryHandler struct {
-	core *memory.Core
+	core memory.MemoryProvider
 }
 
-// NewMemoryHandler construye el handler con el Core inyectado.
-func NewMemoryHandler(core *memory.Core) *MemoryHandler {
+// NewMemoryHandler construye el handler con el provider inyectado.
+func NewMemoryHandler(core memory.MemoryProvider) *MemoryHandler {
 	return &MemoryHandler{core: core}
 }
 
