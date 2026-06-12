@@ -24,8 +24,10 @@ type Usage struct {
 }
 
 type LLMClient struct {
-	Provider string
-	Model    string
+	Provider  string // "anthropic" | "openai" | "openrouter" | custom
+	Model     string
+	BaseURL   string // override URL base. Si vacío, usa el default del provider.
+	APIKeyEnv string // env var donde está la API key. Si vacío, usa el default del provider.
 }
 
 func NewLLMClient(provider, model string) *LLMClient {
@@ -36,11 +38,11 @@ func NewLLMClient(provider, model string) *LLMClient {
 }
 
 func (c *LLMClient) Generate(ctx context.Context, systemPrompt string, history []Message) (string, Usage, error) {
-	if c.Provider == "openai" {
-		return c.generateOpenAI(ctx, systemPrompt, history)
+	if c.Provider == "anthropic" {
+		return c.generateAnthropic(ctx, systemPrompt, history)
 	}
-	// Default a anthropic
-	return c.generateAnthropic(ctx, systemPrompt, history)
+	// openai, openrouter, o cualquier provider con BaseURL configurado
+	return c.generateOpenAICompat(ctx, systemPrompt, history)
 }
 
 func (c *LLMClient) generateAnthropic(ctx context.Context, systemPrompt string, history []Message) (string, Usage, error) {
@@ -133,13 +135,32 @@ func (c *LLMClient) generateAnthropic(ctx context.Context, systemPrompt string, 
 	}, nil
 }
 
-func (c *LLMClient) generateOpenAI(ctx context.Context, systemPrompt string, history []Message) (string, Usage, error) {
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		return "", Usage{}, fmt.Errorf("OPENAI_API_KEY no configurado")
+func (c *LLMClient) generateOpenAICompat(ctx context.Context, systemPrompt string, history []Message) (string, Usage, error) {
+	// Resolver base URL
+	baseURL := c.BaseURL
+	if baseURL == "" {
+		if c.Provider == "openrouter" {
+			baseURL = "https://openrouter.ai/api/v1"
+		} else {
+			baseURL = "https://api.openai.com/v1"
+		}
 	}
 
-	url := "https://api.openai.com/v1/chat/completions"
+	// Resolver env var de la API key
+	keyEnv := c.APIKeyEnv
+	if keyEnv == "" {
+		if c.Provider == "openrouter" {
+			keyEnv = "OPENROUTER_API_KEY"
+		} else {
+			keyEnv = "OPENAI_API_KEY"
+		}
+	}
+	apiKey := os.Getenv(keyEnv)
+	if apiKey == "" {
+		return "", Usage{}, fmt.Errorf("%s no configurado", keyEnv)
+	}
+
+	reqURL := baseURL + "/chat/completions"
 
 	type openAIMessage struct {
 		Role    string `json:"role"`
@@ -169,7 +190,7 @@ func (c *LLMClient) generateOpenAI(ctx context.Context, systemPrompt string, his
 		return "", Usage{}, fmt.Errorf("marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(jsonBytes))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewBuffer(jsonBytes))
 	if err != nil {
 		return "", Usage{}, fmt.Errorf("new request: %w", err)
 	}
@@ -186,7 +207,7 @@ func (c *LLMClient) generateOpenAI(ctx context.Context, systemPrompt string, his
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return "", Usage{}, fmt.Errorf("API de OpenAI respondio status %d: %s", resp.StatusCode, string(bodyBytes))
+		return "", Usage{}, fmt.Errorf("API de %s respondio status %d: %s", c.Provider, resp.StatusCode, string(bodyBytes))
 	}
 
 	var respJSON struct {

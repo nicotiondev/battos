@@ -204,6 +204,8 @@ func (h *NovaCoreHandler) Chat(w http.ResponseWriter, r *http.Request) {
 
 	// 4. Invocar al LLM
 	client := novacore.NewLLMClient(h.cfg.NovaCore.Provider, h.cfg.NovaCore.Model)
+	client.BaseURL = h.cfg.NovaCore.BaseURL
+	client.APIKeyEnv = h.cfg.NovaCore.APIKeyEnv
 	responseStr, usage, errLLM := client.Generate(r.Context(), systemPrompt, llmHistory)
 	if errLLM != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": map[string]any{"message": "Error al invocar el LLM: " + errLLM.Error(), "code": 500}})

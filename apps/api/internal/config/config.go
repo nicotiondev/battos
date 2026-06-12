@@ -108,9 +108,11 @@ type ConnectedRuntimeConfig struct {
 }
 
 type NovaCoreConfig struct {
-	Enabled  bool   `mapstructure:"enabled"`
-	Provider string `mapstructure:"provider"`
-	Model    string `mapstructure:"model"`
+	Enabled   bool   `mapstructure:"enabled"`
+	Provider  string `mapstructure:"provider"`
+	Model     string `mapstructure:"model"`
+	BaseURL   string `mapstructure:"base_url"`   // override URL del LLM API; vacío = default del provider
+	APIKeyEnv string `mapstructure:"api_key_env"` // env var con la API key; vacío = default del provider
 }
 
 // Load lee el archivo de config y devuelve la struct tipada.
@@ -167,6 +169,8 @@ func Load() (*Config, error) {
 		"novacore.enabled",
 		"novacore.provider",
 		"novacore.model",
+		"novacore.base_url",
+		"novacore.api_key_env",
 	} {
 		if err := v.BindEnv(key); err != nil {
 			return nil, fmt.Errorf("binding env %s: %w", key, err)
