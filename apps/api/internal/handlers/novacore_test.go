@@ -37,6 +37,11 @@ type fakeNovaStore struct {
 	ListSkillsFn        func(context.Context) ([]store.Skill, error)
 	ListAgentRuntimesFn func(context.Context) ([]store.AgentRuntime, error)
 	ListProvidersFn     func(context.Context) ([]store.Provider, error)
+
+	// Work Board + Runs — para propose_runs y launch_run
+	ListTasksFn  func(context.Context) ([]store.Task, error)
+	CreateRunFn  func(context.Context, store.CreateRunParams) (store.Run, error)
+	GetRunFn     func(context.Context, string) (store.Run, error)
 }
 
 func (f *fakeNovaStore) CreateNovaConversation(ctx context.Context, userID sql.NullString) (store.NovacoreConversation, error) {
@@ -114,6 +119,36 @@ func (f *fakeNovaStore) ListProviders(ctx context.Context) ([]store.Provider, er
 		return f.ListProvidersFn(ctx)
 	}
 	return nil, nil
+}
+
+func (f *fakeNovaStore) ListTasks(ctx context.Context) ([]store.Task, error) {
+	if f.ListTasksFn != nil {
+		return f.ListTasksFn(ctx)
+	}
+	return nil, nil
+}
+
+func (f *fakeNovaStore) CreateRun(ctx context.Context, params store.CreateRunParams) (store.Run, error) {
+	if f.CreateRunFn != nil {
+		return f.CreateRunFn(ctx, params)
+	}
+	return store.Run{
+		ID:            "run-nova-1",
+		ProjectID:     params.ProjectID,
+		TaskID:        params.TaskID,
+		AgentID:       params.AgentID,
+		RuntimeAdapterID: params.RuntimeAdapterID,
+		Prompt:        params.Prompt,
+		ExecutionMode: params.ExecutionMode,
+		Status:        "awaiting_approval",
+	}, nil
+}
+
+func (f *fakeNovaStore) GetRun(ctx context.Context, id string) (store.Run, error) {
+	if f.GetRunFn != nil {
+		return f.GetRunFn(ctx, id)
+	}
+	return store.Run{ID: id, Status: "awaiting_approval"}, nil
 }
 
 func TestListConversations(t *testing.T) {
@@ -531,5 +566,172 @@ func TestChatSuccessOpenAI(t *testing.T) {
 
 	if res.Content != "Hola desde OpenAI." {
 		t.Errorf("content = %q, want 'Hola desde OpenAI.'", res.Content)
+	}
+}
+
+func TestProcessToolCallsLaunchRun(t *testing.T) {
+	var createdRunParams store.CreateRunParams
+	q := &fakeNovaStore{
+		ListAgentsFn: func(ctx context.Context) ([]store.Agent, error) {
+			return []store.Agent{
+				{
+					ID:        "agent-1",
+					Slug:      "nova-orchestrator",
+					Name:      "Nova Orchestrator",
+					RuntimeID: sql.NullString{String: "claude-code", Valid: true},
+					Status:    "active",
+				},
+			}, nil
+		},
+		ListProjectsFn: func(ctx context.Context) ([]store.Project, error) {
+			return []store.Project{
+				{ID: "proj-abc", Name: "Test Project", Status: "active"},
+			}, nil
+		},
+		ListTasksFn: func(ctx context.Context) ([]store.Task, error) {
+			return []store.Task{
+				{ID: "task-1", ProjectID: "proj-abc", Title: "Fix bug", Status: "todo"},
+			}, nil
+		},
+		CreateRunFn: func(ctx context.Context, params store.CreateRunParams) (store.Run, error) {
+			createdRunParams = params
+			return store.Run{
+				ID:               "run-new-1",
+				ProjectID:        params.ProjectID,
+				TaskID:           params.TaskID,
+				AgentID:          params.AgentID,
+				RuntimeAdapterID: params.RuntimeAdapterID,
+				Prompt:           params.Prompt,
+				ExecutionMode:    params.ExecutionMode,
+				Status:           "awaiting_approval",
+			}, nil
+		},
+	}
+
+	h := NewNovaCoreHandler(q, nil, &config.Config{})
+
+	input := `<tool:launch_run>
+{"runtime_id": "claude-code", "execution_mode": "sandbox", "prompt": "Arregla el bug en auth", "parent_run_id": ""}
+</tool:launch_run>`
+
+	processed, toolCallsJSON := h.processToolCalls(context.Background(), input)
+
+	// El bloque debe haberse reemplazado
+	if strings.Contains(processed, "<tool:launch_run>") {
+		t.Errorf("processed debería haber reemplazado el bloque tool, got: %s", processed)
+	}
+
+	// Debe mencionar el run ID
+	if !strings.Contains(processed, "run-new-1") {
+		t.Errorf("processed debería contener el run ID 'run-new-1', got: %s", processed)
+	}
+
+	// Debe mencionar awaiting_approval
+	if !strings.Contains(processed, "awaiting_approval") {
+		t.Errorf("processed debería mencionar awaiting_approval, got: %s", processed)
+	}
+
+	// toolCallsJSON debe ser un array con 1 elemento
+	var calls []map[string]any
+	if err := json.Unmarshal([]byte(toolCallsJSON), &calls); err != nil {
+		t.Fatalf("toolCallsJSON no es JSON válido: %v — got: %s", err, toolCallsJSON)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("toolCallsJSON len = %d, want 1", len(calls))
+	}
+	if calls[0]["name"] != "launch_run" {
+		t.Errorf("tool name = %q, want 'launch_run'", calls[0]["name"])
+	}
+
+	// El run debe haberse creado con los params correctos
+	if createdRunParams.RuntimeAdapterID != "claude-code" {
+		t.Errorf("RuntimeAdapterID = %q, want 'claude-code'", createdRunParams.RuntimeAdapterID)
+	}
+	if createdRunParams.ExecutionMode != "sandbox" {
+		t.Errorf("ExecutionMode = %q, want 'sandbox'", createdRunParams.ExecutionMode)
+	}
+	if createdRunParams.Prompt != "Arregla el bug en auth" {
+		t.Errorf("Prompt = %q, want 'Arregla el bug en auth'", createdRunParams.Prompt)
+	}
+}
+
+func TestProcessToolCallsProposeRuns(t *testing.T) {
+	q := &fakeNovaStore{
+		ListAgentsFn: func(ctx context.Context) ([]store.Agent, error) {
+			return []store.Agent{
+				{
+					ID:        "agent-codex",
+					Name:      "Codex Agent",
+					RuntimeID: sql.NullString{String: "codex", Valid: true},
+					Status:    "active",
+				},
+			}, nil
+		},
+		ListAgentRuntimesFn: func(ctx context.Context) ([]store.AgentRuntime, error) {
+			return []store.AgentRuntime{
+				{ID: "codex", Name: "OpenAI Codex", Kind: "codex", Status: "configured"},
+			}, nil
+		},
+		ListTasksFn: func(ctx context.Context) ([]store.Task, error) {
+			return []store.Task{
+				{ID: "task-todo", ProjectID: "proj-1", Title: "Migrar DB", Status: "todo"},
+			}, nil
+		},
+		ListProjectsFn: func(ctx context.Context) ([]store.Project, error) {
+			return []store.Project{
+				{ID: "proj-1", Name: "BattOS", Status: "active"},
+			}, nil
+		},
+	}
+
+	h := NewNovaCoreHandler(q, nil, &config.Config{})
+
+	input := `Voy a proponerte un plan:
+<tool:propose_runs>
+{"goal": "Migrar la base de datos a SQLite", "runtimes": ["codex"]}
+</tool:propose_runs>`
+
+	processed, _ := h.processToolCalls(context.Background(), input)
+
+	// El bloque debe haberse reemplazado
+	if strings.Contains(processed, "<tool:propose_runs>") {
+		t.Errorf("processed debería haber reemplazado el bloque tool")
+	}
+
+	// Debe mencionar el objetivo
+	if !strings.Contains(processed, "Migrar la base de datos a SQLite") {
+		t.Errorf("processed debería contener el objetivo, got: %s", processed)
+	}
+
+	// Debe mencionar el agente
+	if !strings.Contains(processed, "Codex Agent") {
+		t.Errorf("processed debería mencionar el agente 'Codex Agent', got: %s", processed)
+	}
+}
+
+func TestProcessToolCallsUnknownTool(t *testing.T) {
+	h := NewNovaCoreHandler(&fakeNovaStore{}, nil, &config.Config{})
+
+	input := `<tool:unknown_tool>{"key":"value"}</tool:unknown_tool>`
+	processed, _ := h.processToolCalls(context.Background(), input)
+
+	if !strings.Contains(processed, "Tool desconocida") {
+		t.Errorf("debería indicar tool desconocida, got: %s", processed)
+	}
+}
+
+func TestProcessToolCallsLaunchRunNoAgents(t *testing.T) {
+	q := &fakeNovaStore{
+		ListAgentsFn: func(ctx context.Context) ([]store.Agent, error) {
+			return nil, nil
+		},
+	}
+	h := NewNovaCoreHandler(q, nil, &config.Config{})
+
+	input := `<tool:launch_run>{"runtime_id": "codex", "execution_mode": "sandbox", "prompt": "test"}</tool:launch_run>`
+	processed, _ := h.processToolCalls(context.Background(), input)
+
+	if !strings.Contains(processed, "no hay agentes") {
+		t.Errorf("debería avisar que no hay agentes, got: %s", processed)
 	}
 }
