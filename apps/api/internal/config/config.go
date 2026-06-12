@@ -120,16 +120,27 @@ type NovaCoreConfig struct {
 // Orden de búsqueda del archivo:
 //  1. Path explícito si BATTOS_CONFIG está seteado.
 //  2. ./config/battos.yaml relativo al cwd.
-//  3. /app/config/battos.yaml (dentro del contenedor).
+//  3. $APPDATA/battos/battos.yaml   (Windows, instalación de usuario).
+//  4. $HOME/.config/battos/battos.yaml (Linux/macOS, XDG).
+//  5. /app/config/battos.yaml (dentro del contenedor).
 func Load() (*Config, error) {
 	v := viper.New()
 	v.SetConfigName("battos")
 	v.SetConfigType("yaml")
 	v.AddConfigPath("./config")
+	if appData := os.Getenv("APPDATA"); appData != "" {
+		v.AddConfigPath(appData + "/battos")
+	}
+	if home := os.Getenv("HOME"); home != "" {
+		v.AddConfigPath(home + "/.config/battos")
+	}
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		v.AddConfigPath(xdg + "/battos")
+	}
 	v.AddConfigPath("/app/config")
 
 	// Env var BATTOS_CONFIG=/path/al/archivo permite override total.
-	if envPath := v.GetString("BATTOS_CONFIG"); envPath != "" {
+	if envPath := os.Getenv("BATTOS_CONFIG"); envPath != "" {
 		v.SetConfigFile(envPath)
 	}
 
