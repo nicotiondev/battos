@@ -3,8 +3,10 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
+	"github.com/nicotion/battos/apps/api/internal/registry"
 	"github.com/nicotion/battos/apps/api/internal/store"
 )
 
@@ -12,6 +14,7 @@ type RegistriesStore interface {
 	CreateAgent(context.Context, store.CreateAgentParams) (store.Agent, error)
 	ListAgents(context.Context) ([]store.Agent, error)
 	ListSkills(context.Context) ([]store.Skill, error)
+	UpsertSkillFromMD(context.Context, store.UpsertSkillParams) (store.Skill, error)
 }
 
 type RegistriesHandler struct {
@@ -117,6 +120,46 @@ func (h *RegistriesHandler) ListSkills(w http.ResponseWriter, r *http.Request) {
 		out = append(out, skillDTO(item))
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+type ingestSkillInput struct {
+	Content string `json:"content"`
+}
+
+// IngestSkill acepta el contenido raw de un SKILL.md, lo parsea y lo guarda
+// (upsert por nombre/slug). Devuelve el skill guardado con su ID.
+func (h *RegistriesHandler) IngestSkill(w http.ResponseWriter, r *http.Request) {
+	var in ingestSkillInput
+	if !decodeWorkInput(w, r, &in) || !required(w, in.Content, "content") {
+		return
+	}
+
+	name, description, _, version, body, err := registry.ParseSkillMD(in.Content)
+	if err != nil {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{
+			"error": map[string]any{
+				"message": "error al parsear SKILL.md: " + err.Error(),
+				"code":    http.StatusUnprocessableEntity,
+			},
+		})
+		return
+	}
+
+	slug := strings.ToLower(strings.ReplaceAll(name, " ", "-"))
+
+	item, err := h.store.UpsertSkillFromMD(r.Context(), store.UpsertSkillParams{
+		ID:             slug,
+		Slug:           slug,
+		Name:           name,
+		Description:    nullableText(description),
+		Version:        nullableText(version),
+		PromptTemplate: nullableText(body),
+	})
+	if err != nil {
+		writeWorkError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, skillDTO(item))
 }
 
 func agentDTO(item store.Agent) agentResponse {

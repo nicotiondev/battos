@@ -46,6 +46,27 @@ func (f *fakeRegistriesStore) ListSkills(context.Context) ([]store.Skill, error)
 	return nil, nil
 }
 
+func (f *fakeRegistriesStore) UpsertSkillFromMD(_ context.Context, arg store.UpsertSkillParams) (store.Skill, error) {
+	return store.Skill{
+		ID:             arg.ID,
+		Slug:           arg.Slug,
+		Name:           arg.Name,
+		Description:    arg.Description,
+		Version:        arg.Version,
+		PromptTemplate: arg.PromptTemplate,
+		Source:         "local",
+		Status:         "active",
+		Lifecycle:      "active",
+		RiskLevel:      "medium",
+		Inputs:         "[]",
+		Outputs:        "[]",
+		CompatibleAgents:   "[]",
+		CompatibleRuntimes: "[]",
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+	}, nil
+}
+
 func TestCreateAgentUsesSafeDefaults(t *testing.T) {
 	q := &fakeRegistriesStore{}
 	h := NewRegistriesHandler(q)

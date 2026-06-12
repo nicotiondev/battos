@@ -212,6 +212,7 @@ func mountRegistryRoutes(r chi.Router, registries *handlers.RegistriesHandler) {
 	r.Get("/agents", registries.ListAgents)
 	r.Post("/agents", registries.CreateAgent)
 	r.Get("/skills", registries.ListSkills)
+	r.Post("/skills/ingest", registries.IngestSkill)
 }
 
 func mountUnavailableRegistryRoutes(r chi.Router) {
@@ -221,6 +222,7 @@ func mountUnavailableRegistryRoutes(r chi.Router) {
 	r.Get("/agents", unavailable)
 	r.Post("/agents", unavailable)
 	r.Get("/skills", unavailable)
+	r.Post("/skills/ingest", unavailable)
 }
 
 func mountUnavailableRuntimeRoutes(r chi.Router) {

@@ -69,6 +69,7 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(commands.NewGoalCmd(getClient))
 	root.AddCommand(commands.NewTaskCmd(getClient))
 	root.AddCommand(commands.NewAgentCmd(getClient))
+	root.AddCommand(commands.NewSkillCmd(getClient))
 	root.AddCommand(commands.NewKnowledgeCmd(getClient))
 	root.AddCommand(commands.NewRuntimeCmd(getClient))
 	root.AddCommand(commands.NewProviderCmd(getClient))
