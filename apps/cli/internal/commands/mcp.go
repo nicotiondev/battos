@@ -94,6 +94,28 @@ func newMCPServer(c *client.Client) *mcp.Server {
 		return memoryStatsToolHandler(ctx, c)
 	})
 
+	// --- Team tools (Fase B): inter-comunicación multi-agente vía mailbox ---
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "team_send_message",
+		Description: "Envía un mensaje al inbox de otro agente (inter-comunicación multi-agente). Úsalo para delegar trabajo, coordinar o reportar a un lead.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, args teamSendMessageArgs) (*mcp.CallToolResult, any, error) {
+		return teamSendMessageToolHandler(ctx, c, args)
+	})
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "team_read_inbox",
+		Description: "Lee los mensajes dirigidos a un agente. unread_only=true devuelve solo los no leídos.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, args teamReadInboxArgs) (*mcp.CallToolResult, any, error) {
+		return teamReadInboxToolHandler(ctx, c, args)
+	})
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "team_mark_read",
+		Description: "Marca un mensaje del inbox como leído (para no reprocesarlo).",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, args teamMarkReadArgs) (*mcp.CallToolResult, any, error) {
+		return teamMarkReadToolHandler(ctx, c, args)
+	})
+
 	return srv
 }
 
@@ -130,6 +152,25 @@ type memorySaveArgs struct {
 // memoryStatsArgs es un struct vacío — memory_stats no tiene parámetros.
 // El SDK requiere que In sea un map o struct para el JSON Schema "object".
 type memoryStatsArgs struct{}
+
+type teamSendMessageArgs struct {
+	ToAgentID   string `json:"to_agent_id"             jsonschema:"Agente destino — su inbox recibe el mensaje"`
+	Body        string `json:"body"                    jsonschema:"Cuerpo del mensaje"`
+	Subject     string `json:"subject,omitempty"       jsonschema:"Asunto opcional"`
+	FromAgentID string `json:"from_agent_id,omitempty" jsonschema:"Agente emisor (opcional)"`
+	ProjectID   string `json:"project_id,omitempty"    jsonschema:"project_id asociado (opcional)"`
+	RunID       string `json:"run_id,omitempty"        jsonschema:"run_id que origina el mensaje (opcional)"`
+}
+
+type teamReadInboxArgs struct {
+	AgentID    string `json:"agent_id"              jsonschema:"Agente cuyo inbox leer"`
+	UnreadOnly bool   `json:"unread_only,omitempty" jsonschema:"Solo no leídos (default false)"`
+	Limit      int    `json:"limit,omitempty"       jsonschema:"Máximo de mensajes (0 = 50)"`
+}
+
+type teamMarkReadArgs struct {
+	MessageID string `json:"message_id" jsonschema:"ID del mensaje a marcar leído"`
+}
 
 // --- handlers de cada tool ---
 // Estos son funciones puras (reciben c *client.Client) para poder testarlas
@@ -200,6 +241,37 @@ func memoryStatsToolHandler(ctx context.Context, c *client.Client) (*mcp.CallToo
 		return toolError(fmt.Sprintf("memory_stats: %s", err.Error())), nil, nil
 	}
 	return toolJSON(stats)
+}
+
+func teamSendMessageToolHandler(ctx context.Context, c *client.Client, args teamSendMessageArgs) (*mcp.CallToolResult, any, error) {
+	msg, err := c.SendAgentMessage(ctx, client.SendAgentMessageRequest{
+		ToAgentID:   args.ToAgentID,
+		Body:        args.Body,
+		Subject:     args.Subject,
+		FromAgentID: args.FromAgentID,
+		ProjectID:   args.ProjectID,
+		RunID:       args.RunID,
+	})
+	if err != nil {
+		return toolError(fmt.Sprintf("team_send_message: %s", err.Error())), nil, nil
+	}
+	return toolJSON(msg)
+}
+
+func teamReadInboxToolHandler(ctx context.Context, c *client.Client, args teamReadInboxArgs) (*mcp.CallToolResult, any, error) {
+	msgs, err := c.ListAgentInbox(ctx, args.AgentID, args.UnreadOnly, args.Limit)
+	if err != nil {
+		return toolError(fmt.Sprintf("team_read_inbox: %s", err.Error())), nil, nil
+	}
+	return toolJSON(msgs)
+}
+
+func teamMarkReadToolHandler(ctx context.Context, c *client.Client, args teamMarkReadArgs) (*mcp.CallToolResult, any, error) {
+	msg, err := c.MarkAgentMessageRead(ctx, args.MessageID)
+	if err != nil {
+		return toolError(fmt.Sprintf("team_mark_read: %s", err.Error())), nil, nil
+	}
+	return toolJSON(msg)
 }
 
 // --- utilidades de respuesta ---

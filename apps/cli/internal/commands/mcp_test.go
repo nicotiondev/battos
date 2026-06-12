@@ -60,14 +60,20 @@ func TestNewMCPServer(t *testing.T) {
 // el registro de tools y el protocolo MCP de verdad.
 func TestMCPServerEndToEnd(t *testing.T) {
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/memory/recent" {
+		switch r.URL.Path {
+		case "/memory/recent":
+			_ = json.NewEncoder(w).Encode(client.MemoryRecentResponse{
+				Count: 1,
+				Items: []client.MemoryItem{sampleItem},
+			})
+		case "/agent-messages":
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"message": client.AgentMessage{ID: "m1", ToAgentID: "codex", Body: "hola codex", CreatedAt: "2026-06-11T00:00:00Z"},
+			})
+		default:
 			http.Error(w, "unexpected path", http.StatusNotFound)
-			return
 		}
-		_ = json.NewEncoder(w).Encode(client.MemoryRecentResponse{
-			Count: 1,
-			Items: []client.MemoryItem{sampleItem},
-		})
 	}))
 	defer api.Close()
 
@@ -99,13 +105,16 @@ func TestMCPServerEndToEnd(t *testing.T) {
 	for _, tool := range lt.Tools {
 		got[tool.Name] = true
 	}
-	for _, want := range []string{"memory_search", "memory_recent", "memory_save", "memory_stats"} {
+	for _, want := range []string{
+		"memory_search", "memory_recent", "memory_save", "memory_stats",
+		"team_send_message", "team_read_inbox", "team_mark_read",
+	} {
 		if !got[want] {
 			t.Errorf("falta la tool %q; tools=%v", want, got)
 		}
 	}
-	if len(lt.Tools) != 4 {
-		t.Errorf("se esperaban 4 tools, hay %d", len(lt.Tools))
+	if len(lt.Tools) != 7 {
+		t.Errorf("se esperaban 7 tools, hay %d", len(lt.Tools))
 	}
 
 	// CallTool memory_recent: pasa por el server -> client.Client -> API httptest.
@@ -127,6 +136,28 @@ func TestMCPServerEndToEnd(t *testing.T) {
 	}
 	if !strings.Contains(text, sampleItem.Title) {
 		t.Errorf("la respuesta de memory_recent no contiene %q; got: %s", sampleItem.Title, text)
+	}
+
+	// CallTool team_send_message: ejercita el camino MCP -> client.Client -> API
+	// para una team tool (la inter-comunicación multi-agente de Fase B).
+	sendRes, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "team_send_message",
+		Arguments: map[string]any{"to_agent_id": "codex", "body": "hola codex"},
+	})
+	if err != nil {
+		t.Fatalf("CallTool team_send_message: %v", err)
+	}
+	if sendRes.IsError {
+		t.Fatalf("team_send_message devolvió IsError: %+v", sendRes.Content)
+	}
+	var sendText string
+	for _, c := range sendRes.Content {
+		if tc, ok := c.(*mcp.TextContent); ok {
+			sendText += tc.Text
+		}
+	}
+	if !strings.Contains(sendText, "codex") {
+		t.Errorf("team_send_message no devolvió el mensaje creado; got: %s", sendText)
 	}
 }
 

@@ -235,6 +235,74 @@ func (c *Client) MemoryStats(ctx context.Context) (*MemoryStatsResponse, error) 
 	return &out, nil
 }
 
+// --- Mailbox / Team (Fase B) ---
+
+type AgentMessage struct {
+	ID          string `json:"id"`
+	ProjectID   string `json:"project_id,omitempty"`
+	FromAgentID string `json:"from_agent_id,omitempty"`
+	ToAgentID   string `json:"to_agent_id"`
+	RunID       string `json:"run_id,omitempty"`
+	Subject     string `json:"subject,omitempty"`
+	Body        string `json:"body"`
+	Read        bool   `json:"read"`
+	ReadAt      string `json:"read_at,omitempty"`
+	CreatedAt   string `json:"created_at"`
+}
+
+type SendAgentMessageRequest struct {
+	ProjectID   string `json:"project_id,omitempty"`
+	FromAgentID string `json:"from_agent_id,omitempty"`
+	ToAgentID   string `json:"to_agent_id"`
+	RunID       string `json:"run_id,omitempty"`
+	Subject     string `json:"subject,omitempty"`
+	Body        string `json:"body"`
+}
+
+type agentMessageEnvelope struct {
+	Message AgentMessage `json:"message"`
+}
+
+type agentMessageListResponse struct {
+	Messages []AgentMessage `json:"messages"`
+}
+
+// SendAgentMessage deja un mensaje en el inbox de otro agente (POST /agent-messages).
+func (c *Client) SendAgentMessage(ctx context.Context, req SendAgentMessageRequest) (*AgentMessage, error) {
+	var out agentMessageEnvelope
+	if err := c.postJSON(ctx, "/agent-messages", req, &out); err != nil {
+		return nil, fmt.Errorf("send agent message: %w", err)
+	}
+	return &out.Message, nil
+}
+
+// ListAgentInbox lee los mensajes dirigidos a un agente (GET /agents/{id}/messages).
+func (c *Client) ListAgentInbox(ctx context.Context, agentID string, unreadOnly bool, limit int) ([]AgentMessage, error) {
+	path := fmt.Sprintf("/agents/%s/messages", agentID)
+	sep := "?"
+	if unreadOnly {
+		path += sep + "unread=true"
+		sep = "&"
+	}
+	if limit > 0 {
+		path += sep + fmt.Sprintf("limit=%d", limit)
+	}
+	var out agentMessageListResponse
+	if err := c.getJSON(ctx, path, &out); err != nil {
+		return nil, fmt.Errorf("list inbox: %w", err)
+	}
+	return out.Messages, nil
+}
+
+// MarkAgentMessageRead marca un mensaje como leído (POST /agent-messages/{id}/read).
+func (c *Client) MarkAgentMessageRead(ctx context.Context, id string) (*AgentMessage, error) {
+	var out agentMessageEnvelope
+	if err := c.postJSON(ctx, fmt.Sprintf("/agent-messages/%s/read", id), nil, &out); err != nil {
+		return nil, fmt.Errorf("mark read: %w", err)
+	}
+	return &out.Message, nil
+}
+
 // getJSON hace GET al path y deserializa la respuesta en out.
 // Envuelve errores de red con un mensaje accionable para el usuario.
 func (c *Client) getJSON(ctx context.Context, path string, out any) error {
