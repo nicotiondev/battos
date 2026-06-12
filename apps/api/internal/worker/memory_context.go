@@ -12,6 +12,71 @@ import (
 
 const defaultMemoryContextLimit = 12
 
+// PromoteRunSummary implementa MemoryPromoter: renderiza el resumen del run
+// terminado y lo guarda como observación tipo learning en el Memory Core
+// (B3 — sesiones→memoria, Etapa 3).
+func (p MemoryCoreContextProvider) PromoteRunSummary(ctx context.Context, run store.Run, logs []store.RunLog) error {
+	if p.Core == nil {
+		return fmt.Errorf("memory core no disponible")
+	}
+	_, err := p.Core.Save(ctx, memory.Observation{
+		Type:      memory.TypeLearning,
+		Title:     fmt.Sprintf("Run %s %s", shortRunID(run.ID), run.Status),
+		Content:   RenderRunSummary(run, logs, true, false, 20),
+		TopicKey:  fmt.Sprintf("%s/runs/%s/summary", run.ProjectID, run.ID),
+		ProjectID: run.ProjectID,
+		AgentID:   run.AgentID,
+		Scope:     memory.ScopeProject,
+	})
+	if err != nil {
+		return fmt.Errorf("guardar resumen del run en memoria: %w", err)
+	}
+	return nil
+}
+
+// RenderRunSummary arma el Markdown del resumen de un run para memoria.
+// Es la única implementación: el flujo manual `remember` (handlers) y la
+// promoción automática del worker renderizan idéntico.
+func RenderRunSummary(run store.Run, logs []store.RunLog, includeLogs, includePrompt bool, logLimit int) string {
+	var b strings.Builder
+	b.WriteString("# BattOS Run Summary\n\n")
+	b.WriteString(fmt.Sprintf("- Run: %s\n", run.ID))
+	b.WriteString(fmt.Sprintf("- Project: %s\n", run.ProjectID))
+	b.WriteString(fmt.Sprintf("- Task: %s\n", run.TaskID))
+	b.WriteString(fmt.Sprintf("- Agent: %s\n", run.AgentID))
+	b.WriteString(fmt.Sprintf("- Runtime: %s\n", run.RuntimeAdapterID))
+	b.WriteString(fmt.Sprintf("- Status: %s\n", run.Status))
+	if run.ResultSummary.Valid && run.ResultSummary.String != "" {
+		b.WriteString(fmt.Sprintf("- Result: %s\n", run.ResultSummary.String))
+	}
+	if run.ErrorMessage.Valid && run.ErrorMessage.String != "" {
+		b.WriteString(fmt.Sprintf("- Error: %s\n", run.ErrorMessage.String))
+	}
+	if includePrompt && run.Prompt != "" {
+		b.WriteString("\n## Prompt\n\n")
+		b.WriteString(strings.TrimSpace(run.Prompt))
+		b.WriteString("\n")
+	}
+	if includeLogs && len(logs) > 0 {
+		b.WriteString("\n## Logs\n\n")
+		start := 0
+		if logLimit > 0 && len(logs) > logLimit {
+			start = len(logs) - logLimit
+		}
+		for i := start; i < len(logs); i++ {
+			b.WriteString(fmt.Sprintf("- `%s` %s\n", logs[i].Stream, strings.TrimSpace(logs[i].Message)))
+		}
+	}
+	return b.String()
+}
+
+func shortRunID(value string) string {
+	if len(value) <= 8 {
+		return value
+	}
+	return value[:8]
+}
+
 type MemoryCoreContextProvider struct {
 	Core  *memory.Core
 	Limit int

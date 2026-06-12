@@ -54,6 +54,9 @@ execution:
   sandbox_mode: "dry_run"
   default_timeout_s: 1800
   poll_interval_s: 2
+  # Runs procesados en paralelo por el worker (RunPool, Etapa 3).
+  # Para team-runs (lead + delegados simultaneos) se necesita >= 3.
+  worker_concurrency: 3
   docker_image: "alpine:3.20"
   workspaces_dir: "data/runs/workspaces"
   repositories_dir: "data/repositories"

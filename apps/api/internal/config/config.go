@@ -70,10 +70,14 @@ type RegistriesConfig struct {
 }
 
 type ExecutionConfig struct {
-	WorkerEnabled        bool   `mapstructure:"worker_enabled"`
-	SandboxMode          string `mapstructure:"sandbox_mode"`
-	DefaultTimeoutS      int    `mapstructure:"default_timeout_s"`
-	PollIntervalS        int    `mapstructure:"poll_interval_s"`
+	WorkerEnabled   bool   `mapstructure:"worker_enabled"`
+	SandboxMode     string `mapstructure:"sandbox_mode"`
+	DefaultTimeoutS int    `mapstructure:"default_timeout_s"`
+	PollIntervalS   int    `mapstructure:"poll_interval_s"`
+	// WorkerConcurrency es la cantidad de runs procesados en paralelo por el
+	// worker (RunPool, Etapa 3). 1 = loop secuencial clásico. Para team-runs
+	// (lead + delegados simultáneos) se necesita >= 3.
+	WorkerConcurrency    int    `mapstructure:"worker_concurrency"`
 	DockerImage          string `mapstructure:"docker_image"`
 	WorkspacesDir        string `mapstructure:"workspaces_dir"`
 	RepositoriesDir      string `mapstructure:"repositories_dir"`
@@ -208,6 +212,9 @@ func Load() (*Config, error) {
 	}
 	if cfg.Execution.PollIntervalS <= 0 {
 		cfg.Execution.PollIntervalS = 2
+	}
+	if cfg.Execution.WorkerConcurrency <= 0 {
+		cfg.Execution.WorkerConcurrency = 1
 	}
 	if strings.TrimSpace(cfg.Execution.DockerImage) == "" {
 		cfg.Execution.DockerImage = "alpine:3.20"

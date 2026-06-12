@@ -47,6 +47,16 @@ func (f *fakeStore) AppendRunLog(_ context.Context, arg store.AppendRunLogParams
 	return store.RunLog{ID: int64(len(f.logs)), RunID: arg.RunID, Stream: arg.Stream, Message: arg.Message, CreatedAt: time.Now()}, nil
 }
 
+func (f *fakeStore) ListRunLogs(_ context.Context, runID string) ([]store.RunLog, error) {
+	out := make([]store.RunLog, 0, len(f.logs))
+	for i, item := range f.logs {
+		if item.RunID == runID {
+			out = append(out, store.RunLog{ID: int64(i + 1), RunID: item.RunID, Stream: item.Stream, Message: item.Message})
+		}
+	}
+	return out, nil
+}
+
 func (f *fakeStore) CompleteRun(_ context.Context, arg store.CompleteRunParams) (store.Run, error) {
 	f.completed = arg
 	f.completeOK = true

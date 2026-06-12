@@ -238,7 +238,7 @@ INSERT INTO runs (
     id, project_id, task_id, agent_id, skill_id, runtime_adapter_id, repository_id,
     prompt, requested_network, network_enabled, host_session_enabled, execution_mode, status, metadata
 )
-VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, 'awaiting_approval', '{}')
+VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, 'awaiting_approval', ?)
 RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
           repository_id, prompt, requested_network, network_enabled, host_session_enabled,
           execution_mode, status, branch_name, result_summary, error_message, estimated_cost_usd,
@@ -255,6 +255,7 @@ type CreateRunParams struct {
 	Prompt           string         `json:"prompt"`
 	RequestedNetwork int64          `json:"requested_network"`
 	ExecutionMode    string         `json:"execution_mode"`
+	Metadata         string         `json:"metadata"`
 }
 
 // Run proposal and approval queries.
@@ -269,6 +270,7 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) (Run, erro
 		arg.Prompt,
 		arg.RequestedNetwork,
 		arg.ExecutionMode,
+		arg.Metadata,
 	)
 	var i Run
 	err := row.Scan(

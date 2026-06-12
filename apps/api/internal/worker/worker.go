@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nicotion/battos/apps/api/internal/credstore"
@@ -21,6 +22,7 @@ type Store interface {
 	ClaimNextQueuedRun(context.Context) (store.Run, error)
 	ClaimQueuedRunByID(context.Context, string) (store.Run, error)
 	AppendRunLog(context.Context, store.AppendRunLogParams) (store.RunLog, error)
+	ListRunLogs(context.Context, string) ([]store.RunLog, error)
 	CompleteRun(context.Context, store.CompleteRunParams) (store.Run, error)
 	FailRun(context.Context, store.FailRunParams) (store.Run, error)
 	CreateArtifact(context.Context, store.CreateArtifactParams) (store.Artifact, error)
@@ -40,6 +42,13 @@ type Sandbox interface {
 
 type MemoryContextProvider interface {
 	ContextForRun(context.Context, store.Run) (MemoryContext, error)
+}
+
+// MemoryPromoter persiste el resumen de un run terminado en la memoria
+// (B3, sesiones→memoria). La promoción es opt-in por run: solo corre si el
+// humano marcó auto_remember=true al proponer el run.
+type MemoryPromoter interface {
+	PromoteRunSummary(ctx context.Context, run store.Run, logs []store.RunLog) error
 }
 
 type MemoryContext struct {
@@ -89,6 +98,7 @@ type Worker struct {
 	WorkspacesDir   string
 	RepositoriesDir string
 	Memory          MemoryContextProvider
+	MemoryPromote   MemoryPromoter
 }
 
 // New creates a Worker that uses sandbox for every run regardless of
@@ -129,6 +139,39 @@ func NewWithSelector(store Store, selector func(executionMode string) Sandbox, a
 		WorkspacesDir:   "data/runs/workspaces",
 		RepositoriesDir: "data/repositories",
 	}
+}
+
+// RunPool corre `concurrency` loops de procesamiento en paralelo sobre la
+// misma cola (B2, Etapa 3). El claim atómico de ClaimNextQueuedRun
+// (UPDATE ... WHERE status='queued' con subselect) garantiza exactly-once:
+// dos goroutines nunca procesan el mismo run. Si un loop devuelve error se
+// cancelan los demás y se propaga el primero.
+//
+// TODO(v2): split reader/writer SQLite si la contención crece; para v1
+// WAL + busy_timeout alcanzan.
+func (w *Worker) RunPool(ctx context.Context, concurrency int, pollInterval time.Duration) error {
+	if concurrency <= 1 {
+		return w.RunLoop(ctx, pollInterval)
+	}
+	poolCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, concurrency)
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := w.RunLoop(poolCtx, pollInterval); err != nil {
+				errCh <- err
+				cancel()
+			}
+		}()
+	}
+	wg.Wait()
+	close(errCh)
+	// Primer error reportado, o nil si todos terminaron por cancelación limpia.
+	return <-errCh
 }
 
 func (w *Worker) RunLoop(ctx context.Context, pollInterval time.Duration) error {
@@ -382,13 +425,46 @@ func (w *Worker) processClaimedRun(ctx context.Context, run store.Run) (bool, er
 	}
 
 	w.recordUsage(ctx, run, result)
-	if _, err := w.store.CompleteRun(ctx, store.CompleteRunParams{ID: run.ID, ResultSummary: nullableText(result.Summary)}); err != nil {
+	completed, err := w.store.CompleteRun(ctx, store.CompleteRunParams{ID: run.ID, ResultSummary: nullableText(result.Summary)})
+	if err != nil {
 		return true, fmt.Errorf("complete run: %w", err)
 	}
 	if err := w.log(ctx, run.ID, "system", "run completed successfully"); err != nil {
 		return true, err
 	}
+	w.maybePromoteMemory(ctx, completed)
 	return true, nil
+}
+
+// maybePromoteMemory promueve el resumen del run a memoria si el run fue
+// propuesto con auto_remember=true (B3). Errores no son fatales: el run ya
+// terminó; la promoción fallida solo se loguea.
+func (w *Worker) maybePromoteMemory(ctx context.Context, run store.Run) {
+	if w.MemoryPromote == nil || !runMetadataBool(run.Metadata, "auto_remember") {
+		return
+	}
+	logs, err := w.store.ListRunLogs(ctx, run.ID)
+	if err != nil {
+		_ = w.log(ctx, run.ID, "system", fmt.Sprintf("memory promotion: error leyendo logs: %v", err))
+		return
+	}
+	if err := w.MemoryPromote.PromoteRunSummary(ctx, run, logs); err != nil {
+		_ = w.log(ctx, run.ID, "system", fmt.Sprintf("memory promotion failed: %v", err))
+		return
+	}
+	_ = w.log(ctx, run.ID, "system", "run summary promoted to memory (auto_remember)")
+}
+
+func runMetadataBool(metadata string, key string) bool {
+	if strings.TrimSpace(metadata) == "" {
+		return false
+	}
+	var meta map[string]any
+	if err := json.Unmarshal([]byte(metadata), &meta); err != nil {
+		return false
+	}
+	value, _ := meta[key].(bool)
+	return value
 }
 
 func (w *Worker) fail(ctx context.Context, id string, summary, message string) error {

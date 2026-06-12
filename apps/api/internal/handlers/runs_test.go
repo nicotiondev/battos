@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -22,6 +23,7 @@ type fakeRunStore struct {
 	createRunParams        store.CreateRunParams
 	createApprovalParams   store.CreateRunApprovalParams
 	current                store.Run
+	getRunErr              error
 	updatedStatus          string
 	networkEnabled         bool
 	hostSessionEnabled     bool
@@ -52,6 +54,9 @@ func (f *fakeRunStore) ListRunsByProject(context.Context, string) ([]store.Run, 
 }
 
 func (f *fakeRunStore) GetRun(context.Context, string) (store.Run, error) {
+	if f.getRunErr != nil {
+		return store.Run{}, f.getRunErr
+	}
 	if f.current.ID == "" {
 		return testRun("awaiting_approval", true), nil
 	}
@@ -576,6 +581,61 @@ func TestCreateRunExecutionModeInvalidRejected(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "execution_mode") {
 		t.Fatalf("expected execution_mode error in body: %s", rec.Body.String())
+	}
+}
+
+func TestCreateRunWithParentAndAutoRememberPersistsMetadata(t *testing.T) {
+	q := &fakeRunStore{}
+	h := NewRunHandler(q, nil)
+	req := httptest.NewRequest(http.MethodPost, "/runs", strings.NewReader(`{"project_id":"web","task_id":"task-1","agent_id":"agent-1","runtime_adapter_id":"codex","prompt":"build it","parent_run_id":"lead-run-1","auto_remember":true}`))
+	rec := httptest.NewRecorder()
+
+	h.CreateRun(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusCreated, rec.Body.String())
+	}
+	var meta map[string]any
+	if err := json.Unmarshal([]byte(q.createRunParams.Metadata), &meta); err != nil {
+		t.Fatalf("metadata no es JSON: %v (%q)", err, q.createRunParams.Metadata)
+	}
+	if meta["parent_run_id"] != "lead-run-1" {
+		t.Fatalf("metadata parent_run_id = %v, want lead-run-1", meta["parent_run_id"])
+	}
+	if meta["auto_remember"] != true {
+		t.Fatalf("metadata auto_remember = %v, want true", meta["auto_remember"])
+	}
+}
+
+func TestCreateRunWithUnknownParentRejected(t *testing.T) {
+	q := &fakeRunStore{getRunErr: sql.ErrNoRows}
+	h := NewRunHandler(q, nil)
+	req := httptest.NewRequest(http.MethodPost, "/runs", strings.NewReader(`{"project_id":"web","task_id":"task-1","agent_id":"agent-1","runtime_adapter_id":"codex","prompt":"build it","parent_run_id":"no-existe"}`))
+	rec := httptest.NewRecorder()
+
+	h.CreateRun(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "parent_run_id") {
+		t.Fatalf("expected parent_run_id error in body: %s", rec.Body.String())
+	}
+}
+
+func TestCreateRunWithoutExtrasKeepsEmptyMetadata(t *testing.T) {
+	q := &fakeRunStore{}
+	h := NewRunHandler(q, nil)
+	req := httptest.NewRequest(http.MethodPost, "/runs", strings.NewReader(`{"project_id":"web","task_id":"task-1","agent_id":"agent-1","runtime_adapter_id":"codex","prompt":"build it"}`))
+	rec := httptest.NewRecorder()
+
+	h.CreateRun(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusCreated, rec.Body.String())
+	}
+	if q.createRunParams.Metadata != "{}" {
+		t.Fatalf("metadata = %q, want {}", q.createRunParams.Metadata)
 	}
 }
 

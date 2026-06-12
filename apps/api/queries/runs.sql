@@ -5,7 +5,7 @@ INSERT INTO runs (
     id, project_id, task_id, agent_id, skill_id, runtime_adapter_id, repository_id,
     prompt, requested_network, network_enabled, host_session_enabled, execution_mode, status, metadata
 )
-VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, 'awaiting_approval', '{}')
+VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, 'awaiting_approval', ?)
 RETURNING id, project_id, task_id, agent_id, skill_id, runtime_adapter_id,
           repository_id, prompt, requested_network, network_enabled, host_session_enabled,
           execution_mode, status, branch_name, result_summary, error_message, estimated_cost_usd,

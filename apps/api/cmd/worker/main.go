@@ -26,6 +26,7 @@ func run() error {
 	once := flag.Bool("once", true, "procesa un run queued y termina")
 	runID := flag.String("run-id", "", "procesa solo el run queued indicado")
 	poll := flag.Duration("poll", 0, "intervalo de polling cuando -once=false")
+	workers := flag.Int("workers", 0, "runs en paralelo cuando -once=false (0 = usar config worker_concurrency)")
 	flag.Parse()
 
 	cfg, err := config.Load()
@@ -97,7 +98,9 @@ func run() error {
 	w.ArtifactsDir = cfg.Knowledge.ArtifactsDir
 	w.WorkspacesDir = cfg.Execution.WorkspacesDir
 	w.RepositoriesDir = cfg.Execution.RepositoriesDir
-	w.Memory = runworker.MemoryCoreContextProvider{Core: memCore}
+	memProvider := runworker.MemoryCoreContextProvider{Core: memCore}
+	w.Memory = memProvider
+	w.MemoryPromote = memProvider
 	if *once {
 		fmt.Printf("worker once started; sandbox=%s\n", cfg.Execution.SandboxMode)
 		var processed bool
@@ -126,8 +129,12 @@ func run() error {
 	if pollInterval <= 0 {
 		pollInterval = time.Duration(cfg.Execution.PollIntervalS) * time.Second
 	}
-	fmt.Printf("worker loop started; sandbox=%s poll=%s\n", cfg.Execution.SandboxMode, pollInterval)
-	return w.RunLoop(ctx, pollInterval)
+	concurrency := *workers
+	if concurrency <= 0 {
+		concurrency = cfg.Execution.WorkerConcurrency
+	}
+	fmt.Printf("worker pool started; sandbox=%s poll=%s concurrency=%d\n", cfg.Execution.SandboxMode, pollInterval, concurrency)
+	return w.RunPool(ctx, concurrency, pollInterval)
 }
 
 func parseRunID(value string) (string, error) {

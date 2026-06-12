@@ -18,6 +18,7 @@ import (
 	"github.com/nicotion/battos/apps/api/internal/gitauth"
 	"github.com/nicotion/battos/apps/api/internal/memory"
 	"github.com/nicotion/battos/apps/api/internal/store"
+	"github.com/nicotion/battos/apps/api/internal/worker"
 )
 
 type RunStore interface {
@@ -58,6 +59,12 @@ type runProposalInput struct {
 	Prompt           string `json:"prompt"`
 	RequestedNetwork bool   `json:"requested_network"`
 	ExecutionMode    string `json:"execution_mode"`
+	// ParentRunID enlaza un run hijo con el run líder que lo delegó
+	// (team_spawn_run, Etapa 3). Se persiste en runs.metadata.
+	ParentRunID string `json:"parent_run_id"`
+	// AutoRemember opt-in al proponer: al terminar el run, el worker promueve
+	// su resumen a memoria sin approval adicional (la decisión humana ocurre acá).
+	AutoRemember bool `json:"auto_remember"`
 }
 
 type runApprovalInput struct {
@@ -147,6 +154,27 @@ func (h *RunHandler) CreateRun(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"message": "execution_mode invalido; valores permitidos: sandbox, direct, connected", "code": 400}})
 		return
 	}
+	metadata := map[string]any{}
+	parentRunID := strings.TrimSpace(in.ParentRunID)
+	if parentRunID != "" {
+		if _, err := h.store.GetRun(r.Context(), parentRunID); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"message": "parent_run_id no corresponde a un run existente", "code": 400}})
+				return
+			}
+			writeWorkError(w, err)
+			return
+		}
+		metadata["parent_run_id"] = parentRunID
+	}
+	if in.AutoRemember {
+		metadata["auto_remember"] = true
+	}
+	metadataJSON, err := json.Marshal(metadata)
+	if err != nil {
+		writeWorkError(w, err)
+		return
+	}
 	item, err := h.store.CreateRun(r.Context(), store.CreateRunParams{
 		ProjectID:        strings.TrimSpace(in.ProjectID),
 		TaskID:           strings.TrimSpace(in.TaskID),
@@ -157,6 +185,7 @@ func (h *RunHandler) CreateRun(w http.ResponseWriter, r *http.Request) {
 		Prompt:           strings.TrimSpace(in.Prompt),
 		RequestedNetwork: boolInt(in.RequestedNetwork),
 		ExecutionMode:    execMode,
+		Metadata:         string(metadataJSON),
 	})
 	if err != nil {
 		writeWorkError(w, err)
@@ -267,8 +296,9 @@ func (h *RunHandler) ApproveRunAction(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			// Renderizar resumen Markdown
-			content := renderRunMemorySummaryBackend(current, runLogs, true, false, 20)
+			// Renderizar resumen Markdown (mismo render que la promoción
+			// automática del worker — B3).
+			content := worker.RenderRunSummary(current, runLogs, true, false, 20)
 			runUUIDStr := current.ID
 
 			_, errSave := h.memory.Save(r.Context(), memory.Observation{
@@ -680,40 +710,6 @@ func runLogDTO(item store.RunLog) runLogResponse {
 		Message:   item.Message,
 		CreatedAt: item.CreatedAt,
 	}
-}
-
-func renderRunMemorySummaryBackend(run store.Run, logs []store.RunLog, includeLogs, includePrompt bool, logLimit int) string {
-	var b strings.Builder
-	b.WriteString("# BattOS Run Summary\n\n")
-	runIDStr := run.ID
-	b.WriteString(fmt.Sprintf("- Run: %s\n", runIDStr))
-	b.WriteString(fmt.Sprintf("- Project: %s\n", run.ProjectID))
-	b.WriteString(fmt.Sprintf("- Task: %s\n", run.TaskID))
-	b.WriteString(fmt.Sprintf("- Agent: %s\n", run.AgentID))
-	b.WriteString(fmt.Sprintf("- Runtime: %s\n", run.RuntimeAdapterID))
-	b.WriteString(fmt.Sprintf("- Status: %s\n", run.Status))
-	if run.ResultSummary.Valid && run.ResultSummary.String != "" {
-		b.WriteString(fmt.Sprintf("- Result: %s\n", run.ResultSummary.String))
-	}
-	if run.ErrorMessage.Valid && run.ErrorMessage.String != "" {
-		b.WriteString(fmt.Sprintf("- Error: %s\n", run.ErrorMessage.String))
-	}
-	if includePrompt && run.Prompt != "" {
-		b.WriteString("\n## Prompt\n\n")
-		b.WriteString(strings.TrimSpace(run.Prompt))
-		b.WriteString("\n")
-	}
-	if includeLogs && len(logs) > 0 {
-		b.WriteString("\n## Logs\n\n")
-		start := 0
-		if logLimit > 0 && len(logs) > logLimit {
-			start = len(logs) - logLimit
-		}
-		for i := start; i < len(logs); i++ {
-			b.WriteString(fmt.Sprintf("- `%s` %s\n", logs[i].Stream, strings.TrimSpace(logs[i].Message)))
-		}
-	}
-	return b.String()
 }
 
 func shortIDValue(value string) string {
