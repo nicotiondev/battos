@@ -408,7 +408,7 @@ func TestApprovedDryRunAdaptersCreatePlans(t *testing.T) {
 	if claude.RuntimeID != "claude-code" || claude.Command != "sh" || !contains(claude.EnvKeys, "ANTHROPIC_API_KEY") {
 		t.Fatalf("claude plan=%+v, want shell plan with provider env", claude)
 	}
-	if !strings.Contains(strings.Join(claude.Args, " "), "claude --bare --print") || !strings.Contains(strings.Join(claude.Args, " "), "BATTOS_PROMPT_FILE") {
+	if !strings.Contains(strings.Join(claude.Args, " "), "claude --print --verbose") || !strings.Contains(strings.Join(claude.Args, " "), "BATTOS_PROMPT_FILE") {
 		t.Fatalf("claude args=%q, want prompt-file print script", strings.Join(claude.Args, " "))
 	}
 	smoke, err := adapters["sandbox-smoke"].Plan(context.Background(), testRun("sandbox-smoke"))

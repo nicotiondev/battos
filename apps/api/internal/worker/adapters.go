@@ -108,7 +108,7 @@ func ApprovedAdapters(options AdapterOptions) map[string]Adapter {
 		"claude-code": CommandAdapter{
 			RuntimeID:   "claude-code",
 			Command:     "sh",
-			BaseArgs:    []string{"-c", `claude --bare --print --input-format text --output-format stream-json --no-session-persistence --dangerously-skip-permissions "$(cat "$BATTOS_PROMPT_FILE")"`},
+			BaseArgs:    []string{"-c", `claude --print --verbose --input-format text --output-format stream-json --no-session-persistence --dangerously-skip-permissions "$(cat "$BATTOS_PROMPT_FILE")"`},
 			ProviderEnv: "ANTHROPIC_API_KEY",
 		},
 		// gemini: Gemini CLI de Google en modo no-interactivo (-p). --yolo
