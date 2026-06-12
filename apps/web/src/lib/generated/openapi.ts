@@ -342,6 +342,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agent-messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["sendAgentMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent-messages/{id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["markAgentMessageRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/{id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listAgentInbox"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/skills": {
         parameters: {
             query?: never;
@@ -1050,6 +1098,34 @@ export interface components {
             completed_at?: string;
         };
         RunList: components["schemas"]["Run"][];
+        AgentMessage: {
+            id: string;
+            project_id?: string;
+            from_agent_id?: string;
+            to_agent_id: string;
+            run_id?: string;
+            subject?: string;
+            body: string;
+            read: boolean;
+            /** Format: date-time */
+            read_at?: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        AgentMessageEnvelope: {
+            message: components["schemas"]["AgentMessage"];
+        };
+        AgentMessageList: {
+            messages: components["schemas"]["AgentMessage"][];
+        };
+        SendAgentMessageInput: {
+            project_id?: string;
+            from_agent_id?: string;
+            to_agent_id: string;
+            run_id?: string;
+            subject?: string;
+            body: string;
+        };
         ApprovalInput: {
             /** @enum {string} */
             kind: "execute" | "network" | "host_session" | "commit" | "push" | "remember" | "execution_mode";
@@ -1863,6 +1939,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Agent"];
+                };
+            };
+        };
+    };
+    sendAgentMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendAgentMessageInput"];
+            };
+        };
+        responses: {
+            /** @description Created message */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentMessageEnvelope"];
+                };
+            };
+        };
+    };
+    markAgentMessageRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Updated message */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentMessageEnvelope"];
+                };
+            };
+        };
+    };
+    listAgentInbox: {
+        parameters: {
+            query?: {
+                unread?: boolean;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Inbox messages */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentMessageList"];
                 };
             };
         };

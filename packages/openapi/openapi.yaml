@@ -436,6 +436,64 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Agent"
+  /agent-messages:
+    post:
+      tags: [Messages]
+      operationId: sendAgentMessage
+      x-battos-phase: B1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendAgentMessageInput"
+      responses:
+        "201":
+          description: Created message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentMessageEnvelope"
+  /agent-messages/{id}/read:
+    post:
+      tags: [Messages]
+      operationId: markAgentMessageRead
+      x-battos-phase: B1
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Updated message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentMessageEnvelope"
+  /agents/{id}/messages:
+    get:
+      tags: [Messages]
+      operationId: listAgentInbox
+      x-battos-phase: B1
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: unread
+          in: query
+          schema: { type: boolean }
+        - name: limit
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Inbox messages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentMessageList"
   /skills:
     get:
       tags: [Agents]
@@ -1464,6 +1522,44 @@ components:
       type: array
       items:
         $ref: "#/components/schemas/Run"
+    AgentMessage:
+      type: object
+      required: [id, to_agent_id, body, read, created_at]
+      properties:
+        id: { type: string }
+        project_id: { type: string }
+        from_agent_id: { type: string }
+        to_agent_id: { type: string }
+        run_id: { type: string }
+        subject: { type: string }
+        body: { type: string }
+        read: { type: boolean }
+        read_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+    AgentMessageEnvelope:
+      type: object
+      required: [message]
+      properties:
+        message:
+          $ref: "#/components/schemas/AgentMessage"
+    AgentMessageList:
+      type: object
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentMessage"
+    SendAgentMessageInput:
+      type: object
+      required: [to_agent_id, body]
+      properties:
+        project_id: { type: string }
+        from_agent_id: { type: string }
+        to_agent_id: { type: string }
+        run_id: { type: string }
+        subject: { type: string }
+        body: { type: string }
     ApprovalInput:
       type: object
       required: [kind, decision]

@@ -92,6 +92,7 @@ func run() error {
 	registriesHandler := handlers.NewRegistriesHandler(queries)
 	runtimeHandler := handlers.NewRuntimeHandler(queries)
 	runHandler := handlers.NewRunHandler(queries, memCore)
+	messagesHandler := handlers.NewMessagesHandler(queries)
 	repositoriesHandler := handlers.NewRepositoriesHandler(queries, cfg.Execution.RepositoriesDir)
 	novaCoreHandler := handlers.NewNovaCoreHandler(queries, memCore, cfg)
 	usageHandler := handlers.NewUsageHandler(queries)
@@ -105,6 +106,7 @@ func run() error {
 		Registries:   registriesHandler,
 		Runtime:      runtimeHandler,
 		Runs:         runHandler,
+		Messages:     messagesHandler,
 		Repositories: repositoriesHandler,
 		NovaCore:     novaCoreHandler,
 		Usage:        usageHandler,

@@ -30,6 +30,7 @@ type Deps struct {
 	Registries   *handlers.RegistriesHandler
 	Runtime      *handlers.RuntimeHandler
 	Runs         *handlers.RunHandler
+	Messages     *handlers.MessagesHandler
 	Repositories *handlers.RepositoriesHandler
 	NovaCore     *handlers.NovaCoreHandler
 	Usage        *handlers.UsageHandler
@@ -106,6 +107,9 @@ func NewRouter(deps Deps) http.Handler {
 			}
 
 			// --- Supervised run control plane (Fase 4B base) ---
+			if deps.Messages != nil {
+				mountMessageRoutes(r, deps.Messages)
+			}
 			if deps.Runs != nil {
 				mountRunRoutes(r, deps.Runs)
 			} else {
@@ -164,6 +168,12 @@ func mountRunRoutes(r chi.Router, runs *handlers.RunHandler) {
 
 func mountRunEventRoutes(r chi.Router, runs *handlers.RunHandler) {
 	r.Get("/events/runs/{id}", runs.StreamRunEvents)
+}
+
+func mountMessageRoutes(r chi.Router, messages *handlers.MessagesHandler) {
+	r.Post("/agent-messages", messages.SendMessage)
+	r.Post("/agent-messages/{id}/read", messages.MarkRead)
+	r.Get("/agents/{id}/messages", messages.ListInbox)
 }
 
 func mountUnavailableRunRoutes(r chi.Router) {
