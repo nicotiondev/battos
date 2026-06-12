@@ -735,3 +735,221 @@ func TestProcessToolCallsLaunchRunNoAgents(t *testing.T) {
 		t.Errorf("debería avisar que no hay agentes, got: %s", processed)
 	}
 }
+
+func TestProcessToolCallsStartSDDWorkflow(t *testing.T) {
+	var createdRuns []store.CreateRunParams
+
+	q := &fakeNovaStore{
+		ListAgentsFn: func(ctx context.Context) ([]store.Agent, error) {
+			return []store.Agent{
+				{
+					ID:        "agent-cc",
+					Name:      "Claude Code Agent",
+					RuntimeID: sql.NullString{String: "claude-code", Valid: true},
+					Status:    "active",
+				},
+				{
+					ID:        "agent-codex",
+					Name:      "Codex Agent",
+					RuntimeID: sql.NullString{String: "codex", Valid: true},
+					Status:    "active",
+				},
+			}, nil
+		},
+		ListProjectsFn: func(ctx context.Context) ([]store.Project, error) {
+			return []store.Project{
+				{ID: "proj-sdd", Name: "SDD Project", Status: "active"},
+			}, nil
+		},
+		ListTasksFn: func(ctx context.Context) ([]store.Task, error) {
+			return []store.Task{
+				{ID: "task-sdd", ProjectID: "proj-sdd", Title: "SDD Task", Status: "todo"},
+			}, nil
+		},
+		CreateRunFn: func(ctx context.Context, params store.CreateRunParams) (store.Run, error) {
+			createdRuns = append(createdRuns, params)
+			return store.Run{
+				ID:               fmt.Sprintf("run-sdd-%d", len(createdRuns)),
+				ProjectID:        params.ProjectID,
+				AgentID:          params.AgentID,
+				RuntimeAdapterID: params.RuntimeAdapterID,
+				Prompt:           params.Prompt,
+				ExecutionMode:    params.ExecutionMode,
+				Status:           "awaiting_approval",
+			}, nil
+		},
+	}
+
+	h := NewNovaCoreHandler(q, nil, &config.Config{})
+
+	input := `<tool:start_sdd_workflow>
+{"goal": "refactorizar el módulo de autenticación", "repo": "battos"}
+</tool:start_sdd_workflow>`
+
+	processed, toolCallsJSON := h.processToolCalls(context.Background(), input)
+
+	// El bloque debe haberse reemplazado
+	if strings.Contains(processed, "<tool:start_sdd_workflow>") {
+		t.Errorf("processed debería haber reemplazado el bloque tool, got: %s", processed)
+	}
+
+	// Deben haberse creado exactamente 3 runs
+	if len(createdRuns) != 3 {
+		t.Fatalf("createdRuns len = %d, want 3; processed: %s", len(createdRuns), processed)
+	}
+
+	// Verificar fases en orden: design (claude-code), implement (codex), review (claude-code)
+	expectedPhases := []struct {
+		runtime string
+		phase   string
+	}{
+		{"claude-code", "design"},
+		{"codex", "implement"},
+		{"claude-code", "review"},
+	}
+	for i, exp := range expectedPhases {
+		if createdRuns[i].RuntimeAdapterID != exp.runtime {
+			t.Errorf("run[%d].RuntimeAdapterID = %q, want %q", i, createdRuns[i].RuntimeAdapterID, exp.runtime)
+		}
+		if !strings.Contains(strings.ToLower(createdRuns[i].Prompt), exp.phase) {
+			t.Errorf("run[%d].Prompt does not contain %q: %s", i, exp.phase, createdRuns[i].Prompt)
+		}
+		if createdRuns[i].ExecutionMode != "sandbox" {
+			t.Errorf("run[%d].ExecutionMode = %q, want 'sandbox'", i, createdRuns[i].ExecutionMode)
+		}
+		// Verificar metadata sdd_phase
+		var meta map[string]any
+		if err := json.Unmarshal([]byte(createdRuns[i].Metadata), &meta); err != nil {
+			t.Fatalf("run[%d].Metadata no es JSON válido: %v", i, err)
+		}
+		if meta["sdd_phase"] != exp.phase {
+			t.Errorf("run[%d].Metadata sdd_phase = %v, want %q", i, meta["sdd_phase"], exp.phase)
+		}
+		if meta["created_by"] != "nova" {
+			t.Errorf("run[%d].Metadata created_by = %v, want 'nova'", i, meta["created_by"])
+		}
+	}
+
+	// La respuesta debe mencionar los IDs de los runs
+	if !strings.Contains(processed, "run-sdd-1") || !strings.Contains(processed, "run-sdd-2") || !strings.Contains(processed, "run-sdd-3") {
+		t.Errorf("processed debería mencionar los IDs de los 3 runs, got: %s", processed)
+	}
+
+	// La respuesta debe mencionar awaiting_approval
+	if !strings.Contains(processed, "awaiting_approval") {
+		t.Errorf("processed debería mencionar awaiting_approval, got: %s", processed)
+	}
+
+	// toolCallsJSON debe registrar la tool
+	var calls []map[string]any
+	if err := json.Unmarshal([]byte(toolCallsJSON), &calls); err != nil {
+		t.Fatalf("toolCallsJSON no es JSON válido: %v", err)
+	}
+	if len(calls) != 1 || calls[0]["name"] != "start_sdd_workflow" {
+		t.Errorf("toolCallsJSON calls = %v, want 1 entry with name 'start_sdd_workflow'", calls)
+	}
+}
+
+func TestProcessToolCallsStartJudgmentDay(t *testing.T) {
+	var createdRuns []store.CreateRunParams
+
+	q := &fakeNovaStore{
+		ListAgentsFn: func(ctx context.Context) ([]store.Agent, error) {
+			return []store.Agent{
+				{
+					ID:        "agent-cc",
+					Name:      "Claude Code Agent",
+					RuntimeID: sql.NullString{String: "claude-code", Valid: true},
+					Status:    "active",
+				},
+				{
+					ID:        "agent-codex",
+					Name:      "Codex Agent",
+					RuntimeID: sql.NullString{String: "codex", Valid: true},
+					Status:    "active",
+				},
+			}, nil
+		},
+		ListProjectsFn: func(ctx context.Context) ([]store.Project, error) {
+			return []store.Project{
+				{ID: "proj-jd", Name: "JD Project", Status: "active"},
+			}, nil
+		},
+		ListTasksFn: func(ctx context.Context) ([]store.Task, error) {
+			return nil, nil
+		},
+		CreateRunFn: func(ctx context.Context, params store.CreateRunParams) (store.Run, error) {
+			createdRuns = append(createdRuns, params)
+			return store.Run{
+				ID:               fmt.Sprintf("run-jd-%d", len(createdRuns)),
+				ProjectID:        params.ProjectID,
+				AgentID:          params.AgentID,
+				RuntimeAdapterID: params.RuntimeAdapterID,
+				Prompt:           params.Prompt,
+				ExecutionMode:    params.ExecutionMode,
+				Status:           "awaiting_approval",
+			}, nil
+		},
+	}
+
+	h := NewNovaCoreHandler(q, nil, &config.Config{})
+
+	targetRunID := "abc123-original-run"
+	input := fmt.Sprintf(`<tool:start_judgment_day>
+{"run_id": "%s", "goal": "refactorizar auth"}
+</tool:start_judgment_day>`, targetRunID)
+
+	processed, toolCallsJSON := h.processToolCalls(context.Background(), input)
+
+	// El bloque debe haberse reemplazado
+	if strings.Contains(processed, "<tool:start_judgment_day>") {
+		t.Errorf("processed debería haber reemplazado el bloque tool, got: %s", processed)
+	}
+
+	// Deben haberse creado exactamente 3 runs
+	if len(createdRuns) != 3 {
+		t.Fatalf("createdRuns len = %d, want 3; processed: %s", len(createdRuns), processed)
+	}
+
+	// Verificar orden: judge-1 (claude-code), judge-2 (claude-code), fix-agent (codex)
+	expectedRuntimes := []string{"claude-code", "claude-code", "codex"}
+	for i, expRT := range expectedRuntimes {
+		if createdRuns[i].RuntimeAdapterID != expRT {
+			t.Errorf("run[%d].RuntimeAdapterID = %q, want %q", i, createdRuns[i].RuntimeAdapterID, expRT)
+		}
+		// Verificar que el prompt menciona el run_id original
+		if !strings.Contains(createdRuns[i].Prompt, targetRunID) {
+			t.Errorf("run[%d].Prompt debería mencionar el run_id %q: %s", i, targetRunID, createdRuns[i].Prompt)
+		}
+		// Verificar metadata
+		var meta map[string]any
+		if err := json.Unmarshal([]byte(createdRuns[i].Metadata), &meta); err != nil {
+			t.Fatalf("run[%d].Metadata no es JSON válido: %v", i, err)
+		}
+		if meta["judgment_day_for"] != targetRunID {
+			t.Errorf("run[%d].Metadata judgment_day_for = %v, want %q", i, meta["judgment_day_for"], targetRunID)
+		}
+		if meta["created_by"] != "nova" {
+			t.Errorf("run[%d].Metadata created_by = %v, want 'nova'", i, meta["created_by"])
+		}
+	}
+
+	// La respuesta debe mencionar los IDs de los runs creados
+	if !strings.Contains(processed, "run-jd-1") || !strings.Contains(processed, "run-jd-2") || !strings.Contains(processed, "run-jd-3") {
+		t.Errorf("processed debería mencionar los IDs de los 3 runs, got: %s", processed)
+	}
+
+	// La respuesta debe mencionar el run original
+	if !strings.Contains(processed, targetRunID) {
+		t.Errorf("processed debería mencionar el run ID original %q, got: %s", targetRunID, processed)
+	}
+
+	// toolCallsJSON debe registrar la tool
+	var calls []map[string]any
+	if err := json.Unmarshal([]byte(toolCallsJSON), &calls); err != nil {
+		t.Fatalf("toolCallsJSON no es JSON válido: %v", err)
+	}
+	if len(calls) != 1 || calls[0]["name"] != "start_judgment_day" {
+		t.Errorf("toolCallsJSON calls = %v, want 1 entry with name 'start_judgment_day'", calls)
+	}
+}

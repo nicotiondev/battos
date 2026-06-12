@@ -74,6 +74,18 @@ type launchRunInput struct {
 	ParentRunID   string `json:"parent_run_id"`
 }
 
+// sddWorkflowInput es el JSON que el LLM pasa dentro de <tool:start_sdd_workflow>.
+type sddWorkflowInput struct {
+	Goal string `json:"goal"`
+	Repo string `json:"repo,omitempty"`
+}
+
+// judgmentDayInput es el JSON que el LLM pasa dentro de <tool:start_judgment_day>.
+type judgmentDayInput struct {
+	RunID string `json:"run_id"`
+	Goal  string `json:"goal,omitempty"`
+}
+
 type novaChatRequest struct {
 	ConversationID string `json:"conversation_id,omitempty"`
 	Content        string `json:"content"`
@@ -403,11 +415,32 @@ Sintaxis:
 {"runtime_id": "id-del-runtime", "execution_mode": "sandbox", "prompt": "instrucción exacta para el agente", "parent_run_id": ""}
 </tool:launch_run>
 
+### Tool: start_sdd_workflow
+Inicia un workflow SDD (Spec-Design-Develop) completo creando 3 runs en secuencia lógica: design, implement, review.
+Todos los runs nacen en awaiting_approval. El usuario los aprueba y ejecuta de a uno.
+Usá esta tool cuando el usuario quiera iniciar un ciclo completo de desarrollo con diseño previo.
+
+Sintaxis:
+<tool:start_sdd_workflow>
+{"goal": "descripción del objetivo de desarrollo", "repo": "repositorio-opcional"}
+</tool:start_sdd_workflow>
+
+### Tool: start_judgment_day
+Dado un run completado, crea 3 runs de revisión adversarial: dos jueces críticos y un agente de fix.
+Todos los runs usan el run_id proporcionado como parent y nacen en awaiting_approval.
+Usá esta tool cuando el usuario quiera revisar y mejorar el output de un run existente.
+
+Sintaxis:
+<tool:start_judgment_day>
+{"run_id": "id-del-run-completado", "goal": "descripción opcional del objetivo original"}
+</tool:start_judgment_day>
+
 Reglas para usar tools:
 1. NUNCA uses una tool sin que el usuario haya expresado intención clara de ejecutar o planificar.
 2. Para propose_runs: primero describí el plan en texto, LUEGO incluí el bloque tool.
 3. Para launch_run: confirmá siempre con el usuario antes de incluir el bloque. El run nace en awaiting_approval — el usuario debe aprobarlo por separado.
-4. Si el sistema no tiene agentes o runtimes registrados, informá al usuario en lugar de invocar la tool.
+4. Para start_sdd_workflow y start_judgment_day: confirmá con el usuario antes de usar. Estos workflows crean múltiples runs a la vez.
+5. Si el sistema no tiene agentes o runtimes registrados, informá al usuario en lugar de invocar la tool.
 
 `)
 
@@ -441,6 +474,10 @@ func (h *NovaCoreHandler) processToolCalls(ctx context.Context, response string)
 			result = h.executeProposesRuns(ctx, rawJSON)
 		case "launch_run":
 			result = h.executeLaunchRun(ctx, rawJSON)
+		case "start_sdd_workflow":
+			result = h.executeStartSDDWorkflow(ctx, rawJSON)
+		case "start_judgment_day":
+			result = h.executeStartJudgmentDay(ctx, rawJSON)
 		default:
 			result = fmt.Sprintf("⚠️ Tool desconocida: `%s`", toolName)
 		}
@@ -654,6 +691,244 @@ func (h *NovaCoreHandler) executeLaunchRun(ctx context.Context, rawJSON string) 
 	sb.WriteString(fmt.Sprintf("- **Prompt:** %s\n\n", run.Prompt))
 	sb.WriteString("> El run está en `awaiting_approval`. Aprobalo desde el Command Center o con:\n")
 	sb.WriteString(fmt.Sprintf("> `battos run approve %s --kind execute --decision approved`\n", run.ID))
+	return sb.String()
+}
+
+// executeStartSDDWorkflow crea 3 runs en secuencia lógica (design → implement → review)
+// para el objetivo dado. Todos nacen en awaiting_approval.
+func (h *NovaCoreHandler) executeStartSDDWorkflow(ctx context.Context, rawJSON string) string {
+	var in sddWorkflowInput
+	if err := json.Unmarshal([]byte(rawJSON), &in); err != nil {
+		return fmt.Sprintf("⚠️ start_sdd_workflow: JSON inválido — %v", err)
+	}
+	if in.Goal == "" {
+		return "⚠️ start_sdd_workflow: `goal` es obligatorio."
+	}
+
+	// Obtener agentes — necesitamos al menos uno para crear runs
+	agents, errAgents := h.store.ListAgents(ctx)
+	if errAgents != nil || len(agents) == 0 {
+		return "⚠️ start_sdd_workflow: no hay agentes registrados en el sistema. Creá uno antes de iniciar un workflow SDD."
+	}
+
+	// Helper: encontrar agente por runtime, fallback al primero
+	findAgent := func(runtimeName string) store.Agent {
+		for _, a := range agents {
+			if strings.EqualFold(textValue(a.RuntimeID), runtimeName) {
+				return a
+			}
+		}
+		return agents[0]
+	}
+
+	// Obtener primer proyecto disponible
+	projects, _ := h.store.ListProjects(ctx)
+	projectID := "inbox"
+	if len(projects) > 0 {
+		projectID = projects[0].ID
+	}
+
+	// Obtener primera task disponible
+	tasks, _ := h.store.ListTasks(ctx)
+	taskID := "inbox"
+	for _, t := range tasks {
+		if t.Status == "todo" || t.Status == "in_progress" {
+			taskID = t.ID
+			break
+		}
+	}
+
+	type sddPhase struct {
+		phase   string
+		runtime string
+		prompt  string
+	}
+
+	phases := []sddPhase{
+		{
+			phase:   "design",
+			runtime: "claude-code",
+			prompt:  fmt.Sprintf("Design phase for: %s\n\nAnalyze requirements, propose architecture and interfaces. Output: design document in outputs/design.md", in.Goal),
+		},
+		{
+			phase:   "implement",
+			runtime: "codex",
+			prompt:  fmt.Sprintf("Implement phase for: %s\n\nFollow the design from the previous phase. Read outputs/design.md if available.", in.Goal),
+		},
+		{
+			phase:   "review",
+			runtime: "claude-code",
+			prompt:  fmt.Sprintf("Review phase for: %s\n\nReview the implementation. Check correctness, edge cases, style.", in.Goal),
+		},
+	}
+
+	var createdIDs []string
+	var sb strings.Builder
+	sb.WriteString("## Workflow SDD iniciado\n\n")
+	sb.WriteString(fmt.Sprintf("**Objetivo:** %s\n\n", in.Goal))
+	sb.WriteString("### Runs creados (awaiting_approval)\n\n")
+
+	for i, p := range phases {
+		agent := findAgent(p.runtime)
+
+		meta := map[string]any{
+			"sdd_phase": p.phase,
+			"sdd_goal":  in.Goal,
+			"created_by": "nova",
+		}
+		metaBytes, _ := json.Marshal(meta)
+
+		run, err := h.store.CreateRun(ctx, store.CreateRunParams{
+			ProjectID:        projectID,
+			TaskID:           taskID,
+			AgentID:          agent.ID,
+			RuntimeAdapterID: p.runtime,
+			Prompt:           p.prompt,
+			RequestedNetwork: 0,
+			ExecutionMode:    "sandbox",
+			Metadata:         string(metaBytes),
+		})
+		if err != nil {
+			sb.WriteString(fmt.Sprintf("⚠️ Error creando run de fase `%s`: %v\n", p.phase, err))
+			continue
+		}
+
+		createdIDs = append(createdIDs, run.ID)
+		sb.WriteString(fmt.Sprintf("#### Run %d — Fase `%s`\n", i+1, p.phase))
+		sb.WriteString(fmt.Sprintf("- **Run ID:** `%s`\n", run.ID))
+		sb.WriteString(fmt.Sprintf("- **Runtime:** `%s`\n", p.runtime))
+		sb.WriteString(fmt.Sprintf("- **Agente:** `%s`\n", agent.Name))
+		sb.WriteString(fmt.Sprintf("- **Estado:** `%s`\n", run.Status))
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("### Instrucciones de aprobación\n\n")
+	sb.WriteString("> Los runs nacen en `awaiting_approval`. Aprobá cada uno **de a uno** según el orden del workflow:\n\n")
+	for i, id := range createdIDs {
+		sb.WriteString(fmt.Sprintf("%d. `battos run approve %s --kind execute --decision approved`\n", i+1, id))
+	}
+	sb.WriteString("\n> Esperá que cada run se complete antes de aprobar el siguiente.\n")
+
+	return sb.String()
+}
+
+// executeStartJudgmentDay dado un run completado, crea 3 runs de revisión adversarial:
+// dos jueces críticos y un agente de fix. Todos con parent_run_id = run_id.
+func (h *NovaCoreHandler) executeStartJudgmentDay(ctx context.Context, rawJSON string) string {
+	var in judgmentDayInput
+	if err := json.Unmarshal([]byte(rawJSON), &in); err != nil {
+		return fmt.Sprintf("⚠️ start_judgment_day: JSON inválido — %v", err)
+	}
+	if in.RunID == "" {
+		return "⚠️ start_judgment_day: `run_id` es obligatorio."
+	}
+
+	// Obtener agentes
+	agents, errAgents := h.store.ListAgents(ctx)
+	if errAgents != nil || len(agents) == 0 {
+		return "⚠️ start_judgment_day: no hay agentes registrados en el sistema. Creá uno antes de iniciar Judgment Day."
+	}
+
+	// Helper: encontrar agente por runtime, fallback al primero
+	findAgent := func(runtimeName string) store.Agent {
+		for _, a := range agents {
+			if strings.EqualFold(textValue(a.RuntimeID), runtimeName) {
+				return a
+			}
+		}
+		return agents[0]
+	}
+
+	// Obtener primer proyecto disponible
+	projects, _ := h.store.ListProjects(ctx)
+	projectID := "inbox"
+	if len(projects) > 0 {
+		projectID = projects[0].ID
+	}
+
+	// Obtener primera task disponible
+	tasks, _ := h.store.ListTasks(ctx)
+	taskID := "inbox"
+	for _, t := range tasks {
+		if t.Status == "todo" || t.Status == "in_progress" {
+			taskID = t.ID
+			break
+		}
+	}
+
+	type judgmentPhase struct {
+		label   string
+		runtime string
+		prompt  string
+	}
+
+	phases := []judgmentPhase{
+		{
+			label:   "judge-1",
+			runtime: "claude-code",
+			prompt:  fmt.Sprintf("Act as an adversarial judge. Review the output of run %s. Find bugs, correctness issues, security problems. Be critical. Output: verdict in outputs/judgment-1.md", in.RunID),
+		},
+		{
+			label:   "judge-2",
+			runtime: "claude-code",
+			prompt:  fmt.Sprintf("Act as a performance and architecture judge. Review the output of run %s. Evaluate efficiency, scalability and design decisions. Be critical. Output: verdict in outputs/judgment-2.md", in.RunID),
+		},
+		{
+			label:   "fix-agent",
+			runtime: "codex",
+			prompt:  fmt.Sprintf("Based on the judgments in outputs/judgment-*.md, apply the fixes to the codebase. Prioritize by severity. Context: run %s.", in.RunID),
+		},
+	}
+
+	var createdIDs []string
+	var sb strings.Builder
+	sb.WriteString("## Judgment Day iniciado\n\n")
+	sb.WriteString(fmt.Sprintf("**Run revisado:** `%s`\n", in.RunID))
+	if in.Goal != "" {
+		sb.WriteString(fmt.Sprintf("**Objetivo original:** %s\n", in.Goal))
+	}
+	sb.WriteString("\n### Runs creados (awaiting_approval)\n\n")
+
+	for i, p := range phases {
+		agent := findAgent(p.runtime)
+
+		meta := map[string]any{
+			"judgment_day_for": in.RunID,
+			"created_by":       "nova",
+		}
+		metaBytes, _ := json.Marshal(meta)
+
+		run, err := h.store.CreateRun(ctx, store.CreateRunParams{
+			ProjectID:        projectID,
+			TaskID:           taskID,
+			AgentID:          agent.ID,
+			RuntimeAdapterID: p.runtime,
+			Prompt:           p.prompt,
+			RequestedNetwork: 0,
+			ExecutionMode:    "sandbox",
+			Metadata:         string(metaBytes),
+		})
+		if err != nil {
+			sb.WriteString(fmt.Sprintf("⚠️ Error creando run `%s`: %v\n", p.label, err))
+			continue
+		}
+
+		createdIDs = append(createdIDs, run.ID)
+		sb.WriteString(fmt.Sprintf("#### Run %d — `%s`\n", i+1, p.label))
+		sb.WriteString(fmt.Sprintf("- **Run ID:** `%s`\n", run.ID))
+		sb.WriteString(fmt.Sprintf("- **Runtime:** `%s`\n", p.runtime))
+		sb.WriteString(fmt.Sprintf("- **Agente:** `%s`\n", agent.Name))
+		sb.WriteString(fmt.Sprintf("- **Estado:** `%s`\n", run.Status))
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("### Instrucciones de aprobación\n\n")
+	sb.WriteString("> Aprobá los jueces primero, luego el fix-agent:\n\n")
+	for i, id := range createdIDs {
+		sb.WriteString(fmt.Sprintf("%d. `battos run approve %s --kind execute --decision approved`\n", i+1, id))
+	}
+	sb.WriteString("\n> Esperá que los dos jueces terminen antes de aprobar el fix-agent.\n")
+
 	return sb.String()
 }
 
