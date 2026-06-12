@@ -12,8 +12,9 @@ import KnowledgeView from '../components/KnowledgeView';
 import NovaChat from '../components/NovaChat';
 import UsageView from '../components/UsageView';
 import SettingsView from '../components/SettingsView';
-import { 
-  Bot, LayoutDashboard, ClipboardList, Terminal as TermIcon, Database, 
+import CredentialsPanel from '../components/credentials/credentials-panel';
+import {
+  Bot, LayoutDashboard, ClipboardList, Terminal as TermIcon, Database,
   Settings, Key, Cpu, RefreshCw, Menu, DollarSign,
   ShieldAlert, LogOut, UserCog
 } from 'lucide-react';
@@ -64,7 +65,7 @@ function normalizeMetrics(data: unknown): StatusResponse | null {
 }
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'workboard' | 'agents' | 'controlroom' | 'knowledge' | 'usage' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'workboard' | 'agents' | 'controlroom' | 'knowledge' | 'usage' | 'credentials' | 'settings'>('dashboard');
   const [tokenSet, setTokenSet] = useState(true);
   const [tokenInput, setTokenInput] = useState('');
   
@@ -326,7 +327,7 @@ export default function Home() {
           >
             <Database size={14} /> Knowledge Center
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('usage')}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
               activeTab === 'usage' ? 'bg-primary text-primary-foreground font-bold' : 'hover:bg-gray-900/60 text-muted-foreground hover:text-white'
@@ -334,7 +335,15 @@ export default function Home() {
           >
             <DollarSign size={14} /> Usage & Limits
           </button>
-          <button 
+          <button
+            onClick={() => setActiveTab('credentials')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+              activeTab === 'credentials' ? 'bg-primary text-primary-foreground font-bold' : 'hover:bg-gray-900/60 text-muted-foreground hover:text-white'
+            }`}
+          >
+            <Key size={14} /> Credenciales
+          </button>
+          <button
             onClick={() => setActiveTab('settings')}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
               activeTab === 'settings' ? 'bg-primary text-primary-foreground font-bold' : 'hover:bg-gray-900/60 text-muted-foreground hover:text-white'
@@ -393,6 +402,7 @@ export default function Home() {
               {activeTab === 'controlroom' && 'Control Room'}
               {activeTab === 'knowledge' && 'Knowledge Center'}
               {activeTab === 'usage' && 'Usage & Limits'}
+              {activeTab === 'credentials' && 'Credenciales'}
               {activeTab === 'settings' && 'Settings'}
             </h1>
           </div>
@@ -456,6 +466,7 @@ export default function Home() {
           {activeTab === 'controlroom' && <ControlRoomView />}
           {activeTab === 'knowledge' && <KnowledgeView />}
           {activeTab === 'usage' && <UsageView />}
+          {activeTab === 'credentials' && <CredentialsPanel />}
           {activeTab === 'settings' && (
             <SettingsView metrics={metrics} apiOnline={apiOnline} onRefresh={fetchInitialMetrics} />
           )}
