@@ -50,10 +50,10 @@ registries:
   skills_dir: "skills"
 
 execution:
-  # Fase 4B: el worker real queda apagado por defecto hasta conectar sandbox
-  # con contenedor efimero. dry_run registra el plan sin ejecutar comandos.
-  # Cambia sandbox_mode a "docker" para probar contenedor efimero controlado.
-  worker_enabled: false
+  # worker_enabled: arranca el pool de workers dentro del proceso battos-api.
+  # sandbox_mode: "docker" para contenedor efimero | "direct" para host local.
+  # dry_run es el master off-switch: registra el plan sin ejecutar nada.
+  worker_enabled: true
   # docker = dispatch real por tier (sandbox->Docker, direct->host, connected->servicio).
   # dry_run es el master off-switch que registra el plan sin ejecutar nada.
   sandbox_mode: "docker"
