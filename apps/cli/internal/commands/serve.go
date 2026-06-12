@@ -74,31 +74,35 @@ O junto al binario battos en el mismo directorio.`,
 	return cmd
 }
 
-// findAPIBinary localiza el binario battos-api en dos lugares:
-//  1. PATH del sistema (instalación global).
-//  2. Mismo directorio que el binario battos actual (deployment side-by-side).
+// findAPIBinary localiza el binario de la API en orden de prioridad:
+//  1. battos-api / battos-api.exe en PATH (instalación oficial via GoReleaser).
+//  2. api / api.exe en PATH (build de desarrollo: go build -o api ./apps/api/cmd/api).
+//  3. Side-by-side con el binario battos en el mismo directorio (deployment).
 func findAPIBinary() (string, error) {
-	// 1. PATH
-	if p, err := exec.LookPath("battos-api"); err == nil {
-		return p, nil
+	// 1 y 2: buscar en PATH los nombres conocidos (oficial primero, dev después)
+	for _, name := range []string{"battos-api", "api"} {
+		if p, err := exec.LookPath(name); err == nil {
+			return p, nil
+		}
 	}
 
-	// 2. Side-by-side con el binario actual
+	// 3. Side-by-side con el binario actual
 	self, err := os.Executable()
 	if err != nil {
 		return "", fmt.Errorf("no se pudo resolver el path del ejecutable: %w", err)
 	}
-	candidate := filepath.Join(filepath.Dir(self), "battos-api")
-	if _, err := os.Stat(candidate); err == nil {
-		return candidate, nil
-	}
-	// Windows: probar también con extensión .exe
-	candidateExe := candidate + ".exe"
-	if _, err := os.Stat(candidateExe); err == nil {
-		return candidateExe, nil
+	dir := filepath.Dir(self)
+	for _, name := range []string{"battos-api", "api"} {
+		candidate := filepath.Join(dir, name)
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate, nil
+		}
+		if _, err := os.Stat(candidate + ".exe"); err == nil {
+			return candidate + ".exe", nil
+		}
 	}
 
-	return "", fmt.Errorf("no se encontró battos-api en PATH ni junto a battos")
+	return "", fmt.Errorf("no se encontró battos-api ni api en PATH ni junto a battos\nCompilá con: go build -o battos-api ./apps/api/cmd/api")
 }
 
 // openBrowser abre la URL en el browser por defecto del sistema.

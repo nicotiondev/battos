@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/nicotion/battos/apps/api/internal/server"
 	"github.com/nicotion/battos/apps/api/internal/store"
 	"github.com/nicotion/battos/apps/api/internal/sysmetrics"
+	runworker "github.com/nicotion/battos/apps/api/internal/worker"
 )
 
 func main() {
@@ -135,6 +137,72 @@ func run() error {
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      0, // 0 para no cortar SSE en Fase 5
 		IdleTimeout:       120 * time.Second,
+	}
+
+	// --- 7. Worker integrado (cuando worker_enabled: true en config) ---
+	// Corre el mismo pool de workers dentro del proceso de la API, de modo que
+	// `battos serve` (o el binario compilado) arranque todo en un solo comando.
+	if cfg.Execution.WorkerEnabled {
+		connectedIDs := make([]string, 0, len(cfg.Execution.ConnectedRuntimes))
+		for id := range cfg.Execution.ConnectedRuntimes {
+			if s := strings.TrimSpace(id); s != "" {
+				connectedIDs = append(connectedIDs, s)
+			}
+		}
+		var selector func(string) runworker.Sandbox
+		if cfg.Execution.SandboxMode == "dry_run" {
+			selector = func(_ string) runworker.Sandbox { return runworker.DryRunSandbox{} }
+		} else {
+			dockerSandbox := runworker.DockerSandbox{
+				Image:           cfg.Execution.DockerImage,
+				WorkspacesDir:   cfg.Execution.WorkspacesDir,
+				EgressNetwork:   cfg.Execution.EgressNetwork,
+				EgressProxyAddr: cfg.Execution.EgressProxyAddr,
+			}
+			connectedRuntimes := make(map[string]runworker.ConnectedRuntimeConfig, len(cfg.Execution.ConnectedRuntimes))
+			for id, rc := range cfg.Execution.ConnectedRuntimes {
+				connectedRuntimes[id] = runworker.ConnectedRuntimeConfig{
+					Kind: rc.Kind, Endpoint: rc.Endpoint,
+					Command: rc.Command, Args: rc.Args,
+				}
+			}
+			connSandbox := runworker.ConnectedSandbox{
+				Runtimes: connectedRuntimes, WorkspacesDir: cfg.Execution.WorkspacesDir,
+			}
+			selector = func(mode string) runworker.Sandbox {
+				switch mode {
+				case "direct":
+					return runworker.DirectSandbox{WorkspacesDir: cfg.Execution.WorkspacesDir}
+				case "connected":
+					return connSandbox
+				default:
+					return dockerSandbox
+				}
+			}
+		}
+		w := runworker.NewWithSelector(store.New(db), selector, runworker.ApprovedAdapters(runworker.AdapterOptions{
+			HostSessionEnabled:   cfg.Execution.HostSessionEnabled,
+			CodexCredentialsDir:  cfg.Execution.CodexCredentialsDir,
+			ClaudeCredentialsDir: cfg.Execution.ClaudeCredentialsDir,
+			ConnectedRuntimeIDs:  connectedIDs,
+		}))
+		w.ArtifactsDir = cfg.Knowledge.ArtifactsDir
+		w.WorkspacesDir = cfg.Execution.WorkspacesDir
+		w.RepositoriesDir = cfg.Execution.RepositoriesDir
+		memCtx := runworker.MemoryCoreContextProvider{Core: memProvider}
+		w.Memory = memCtx
+		w.MemoryPromote = memCtx
+		pollInterval := time.Duration(cfg.Execution.PollIntervalS) * time.Second
+		concurrency := cfg.Execution.WorkerConcurrency
+		if concurrency <= 0 {
+			concurrency = 1
+		}
+		go func() {
+			logger.Info("worker.pool started", "concurrency", concurrency, "sandbox", cfg.Execution.SandboxMode)
+			if err := w.RunPool(ctx, concurrency, pollInterval); err != nil {
+				logger.Error("worker.pool stopped", "err", err)
+			}
+		}()
 	}
 
 	// Lanzar server en goroutine — para poder esperar señales en main.
