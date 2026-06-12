@@ -85,6 +85,7 @@ func newRootCmd() *cobra.Command {
 			Language: language,
 		}
 	}))
+	root.AddCommand(commands.NewServeCmd())
 
 	return root
 }
