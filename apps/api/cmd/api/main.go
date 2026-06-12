@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/nicotion/battos/apps/api/internal/config"
+	"github.com/nicotion/battos/apps/api/internal/credstore"
 	"github.com/nicotion/battos/apps/api/internal/handlers"
 	"github.com/nicotion/battos/apps/api/internal/memory"
 	"github.com/nicotion/battos/apps/api/internal/server"
@@ -112,6 +113,8 @@ func run() error {
 	repositoriesHandler := handlers.NewRepositoriesHandler(queries, cfg.Execution.RepositoriesDir)
 	novaCoreHandler := handlers.NewNovaCoreHandler(queries, memProvider, cfg)
 	usageHandler := handlers.NewUsageHandler(queries)
+	resolver := credstore.New(queries)
+	credentialsHandler := handlers.NewCredentialHandler(queries, resolver)
 	router := server.NewRouter(server.Deps{
 		Config:       cfg,
 		Logger:       logger,
@@ -126,6 +129,7 @@ func run() error {
 		Repositories: repositoriesHandler,
 		NovaCore:     novaCoreHandler,
 		Usage:        usageHandler,
+		Credentials:  credentialsHandler,
 	})
 
 	// --- 5. HTTP server ---
@@ -192,6 +196,7 @@ func run() error {
 		memCtx := runworker.MemoryCoreContextProvider{Core: memProvider}
 		w.Memory = memCtx
 		w.MemoryPromote = memCtx
+		w.CredResolver = resolver
 		pollInterval := time.Duration(cfg.Execution.PollIntervalS) * time.Second
 		concurrency := cfg.Execution.WorkerConcurrency
 		if concurrency <= 0 {

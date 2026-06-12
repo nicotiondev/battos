@@ -86,6 +86,7 @@ func newRootCmd() *cobra.Command {
 		}
 	}))
 	root.AddCommand(commands.NewServeCmd())
+	root.AddCommand(commands.NewCredentialsCmd(getClient))
 
 	return root
 }

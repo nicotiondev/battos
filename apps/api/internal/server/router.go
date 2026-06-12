@@ -36,6 +36,7 @@ type Deps struct {
 	Repositories *handlers.RepositoriesHandler
 	NovaCore     *handlers.NovaCoreHandler
 	Usage        *handlers.UsageHandler
+	Credentials  *handlers.CredentialHandler
 }
 
 // NewRouter construye el router chi con middleware base y todas las rutas.
@@ -137,6 +138,11 @@ func NewRouter(deps Deps) http.Handler {
 				mountUsageRoutes(r, deps.Usage)
 			} else {
 				mountUnavailableUsageRoutes(r)
+			}
+
+			// --- Credentials Vault endpoints (ADR-0023) ---
+			if deps.Credentials != nil {
+				mountCredentialRoutes(r, deps.Credentials)
 			}
 		})
 
@@ -467,4 +473,10 @@ func mountUnavailableUsageRoutes(r chi.Router) {
 	}
 	r.Get("/usage/overview", unavailable)
 	r.Get("/usage/runs/{id}", unavailable)
+}
+
+func mountCredentialRoutes(r chi.Router, creds *handlers.CredentialHandler) {
+	r.Get("/credentials", creds.List)
+	r.Post("/credentials", creds.Create)
+	r.Delete("/credentials/{name}", creds.Delete)
 }
