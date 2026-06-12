@@ -562,6 +562,66 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CliToolList"
+  /cli-tools/{id}/install:
+    post:
+      tags: [Runtimes]
+      operationId: requestCliToolInstall
+      x-battos-phase: E2
+      summary: Request a governed host install for a registered CLI (pending approval)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "201":
+          description: Install request created awaiting approval
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CliToolInstallEnvelope"
+  /cli-tools/{id}/installs:
+    get:
+      tags: [Runtimes]
+      operationId: listCliToolInstalls
+      x-battos-phase: E2
+      summary: List install requests for a CLI tool, newest first
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Install history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CliToolInstallList"
+  /cli-tools/installs/{installId}/approve:
+    post:
+      tags: [Runtimes]
+      operationId: approveCliToolInstall
+      x-battos-phase: E2
+      summary: Decide an install request; approval executes the command on the host
+      parameters:
+        - name: installId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CliToolInstallDecisionInput"
+      responses:
+        "200":
+          description: Decision recorded (approved installs run in background)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CliToolInstallEnvelope"
   /providers:
     get:
       tags: [Providers]
@@ -1049,6 +1109,21 @@ components:
         mem_total_mb: { type: integer, format: int64 }
         net_upload_kbps: { type: number }
         net_download_kbps: { type: number }
+        disk_percent: { type: number }
+        disk_used_gb: { type: number }
+        disk_total_gb: { type: number }
+        top_processes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProcessSample"
+    ProcessSample:
+      type: object
+      required: [pid, name, cpu_percent, mem_mb]
+      properties:
+        pid: { type: integer, format: int64 }
+        name: { type: string }
+        cpu_percent: { type: number }
+        mem_mb: { type: integer, format: int64 }
     MemoryObservationInput:
       type: object
       required: [title]
@@ -1423,11 +1498,46 @@ components:
         runtime_id: { type: string }
         risk_level: { type: string }
         requires_auth: { type: boolean }
+        install_command: { type: string }
+        install_url: { type: string }
         last_detected_at: { type: string, format: date-time }
     CliToolList:
       type: array
       items:
         $ref: "#/components/schemas/CliTool"
+    CliToolInstall:
+      type: object
+      required: [id, cli_tool_id, install_command, status, requested_at]
+      properties:
+        id: { type: string }
+        cli_tool_id: { type: string }
+        install_command: { type: string }
+        status:
+          type: string
+          enum: [pending_approval, rejected, running, succeeded, failed]
+        reason: { type: string }
+        output: { type: string }
+        requested_at: { type: string, format: date-time }
+        decided_at: { type: string, format: date-time }
+        completed_at: { type: string, format: date-time }
+    CliToolInstallEnvelope:
+      type: object
+      required: [install]
+      properties:
+        install:
+          $ref: "#/components/schemas/CliToolInstall"
+    CliToolInstallList:
+      type: array
+      items:
+        $ref: "#/components/schemas/CliToolInstall"
+    CliToolInstallDecisionInput:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [approved, rejected]
+        reason: { type: string }
     Provider:
       type: object
       required: [id, name, kind, env_key, status]

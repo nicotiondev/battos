@@ -143,6 +143,102 @@ func (q *Queries) CreateAgent(ctx context.Context, arg CreateAgentParams) (Agent
 	return i, err
 }
 
+const createCLIToolInstall = `-- name: CreateCLIToolInstall :one
+
+INSERT INTO cli_tool_installs (id, cli_tool_id, install_command)
+VALUES (lower(hex(randomblob(16))), ?, ?)
+RETURNING id, cli_tool_id, install_command, status, reason, output,
+          requested_at, decided_at, completed_at
+`
+
+type CreateCLIToolInstallParams struct {
+	CliToolID      string `json:"cli_tool_id"`
+	InstallCommand string `json:"install_command"`
+}
+
+// Instalacion gobernada de CLIs (Etapa 2): el request queda pending_approval y
+// solo se ejecuta tras un approve explicito (mismo modelo HITL que run_approvals).
+// NOTA: sin acentos en comentarios de queries -- sqlc desplaza offsets con
+// caracteres multibyte y trunca el SQL generado.
+func (q *Queries) CreateCLIToolInstall(ctx context.Context, arg CreateCLIToolInstallParams) (CliToolInstall, error) {
+	row := q.db.QueryRowContext(ctx, createCLIToolInstall, arg.CliToolID, arg.InstallCommand)
+	var i CliToolInstall
+	err := row.Scan(
+		&i.ID,
+		&i.CliToolID,
+		&i.InstallCommand,
+		&i.Status,
+		&i.Reason,
+		&i.Output,
+		&i.RequestedAt,
+		&i.DecidedAt,
+		&i.CompletedAt,
+	)
+	return i, err
+}
+
+const decideCLIToolInstall = `-- name: DecideCLIToolInstall :one
+UPDATE cli_tool_installs
+SET status = ?, reason = ?, decided_at = CURRENT_TIMESTAMP
+WHERE id = ? AND status = 'pending_approval'
+RETURNING id, cli_tool_id, install_command, status, reason, output,
+          requested_at, decided_at, completed_at
+`
+
+type DecideCLIToolInstallParams struct {
+	Status string         `json:"status"`
+	Reason sql.NullString `json:"reason"`
+	ID     string         `json:"id"`
+}
+
+func (q *Queries) DecideCLIToolInstall(ctx context.Context, arg DecideCLIToolInstallParams) (CliToolInstall, error) {
+	row := q.db.QueryRowContext(ctx, decideCLIToolInstall, arg.Status, arg.Reason, arg.ID)
+	var i CliToolInstall
+	err := row.Scan(
+		&i.ID,
+		&i.CliToolID,
+		&i.InstallCommand,
+		&i.Status,
+		&i.Reason,
+		&i.Output,
+		&i.RequestedAt,
+		&i.DecidedAt,
+		&i.CompletedAt,
+	)
+	return i, err
+}
+
+const finishCLIToolInstall = `-- name: FinishCLIToolInstall :one
+UPDATE cli_tool_installs
+SET status = ?, output = ?, completed_at = CURRENT_TIMESTAMP
+WHERE id = ? AND status = 'running'
+RETURNING id, cli_tool_id, install_command, status, reason, output,
+          requested_at, decided_at, completed_at
+`
+
+type FinishCLIToolInstallParams struct {
+	Status string         `json:"status"`
+	Output sql.NullString `json:"output"`
+	ID     string         `json:"id"`
+}
+
+func (q *Queries) FinishCLIToolInstall(ctx context.Context, arg FinishCLIToolInstallParams) (CliToolInstall, error) {
+	row := q.db.QueryRowContext(ctx, finishCLIToolInstall, arg.Status, arg.Output, arg.ID)
+	var i CliToolInstall
+	err := row.Scan(
+		&i.ID,
+		&i.CliToolID,
+		&i.InstallCommand,
+		&i.Status,
+		&i.Reason,
+		&i.Output,
+		&i.RequestedAt,
+		&i.DecidedAt,
+		&i.CompletedAt,
+	)
+	return i, err
+}
+
 const getAgentRuntime = `-- name: GetAgentRuntime :one
 SELECT id, name, kind, status, binary_path, version, endpoint_url, risk_level,
        requires_auth, capabilities, config_schema, detected_at, created_at, updated_at
@@ -167,6 +263,60 @@ func (q *Queries) GetAgentRuntime(ctx context.Context, id string) (AgentRuntime,
 		&i.DetectedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getCLITool = `-- name: GetCLITool :one
+SELECT id, name, command, kind, detected_path, version, runtime_id, status,
+       risk_level, requires_auth, capabilities, install_command, install_url,
+       last_detected_at, created_at, updated_at
+FROM cli_tools WHERE id = ?
+`
+
+func (q *Queries) GetCLITool(ctx context.Context, id string) (CliTool, error) {
+	row := q.db.QueryRowContext(ctx, getCLITool, id)
+	var i CliTool
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Command,
+		&i.Kind,
+		&i.DetectedPath,
+		&i.Version,
+		&i.RuntimeID,
+		&i.Status,
+		&i.RiskLevel,
+		&i.RequiresAuth,
+		&i.Capabilities,
+		&i.InstallCommand,
+		&i.InstallUrl,
+		&i.LastDetectedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getCLIToolInstall = `-- name: GetCLIToolInstall :one
+SELECT id, cli_tool_id, install_command, status, reason, output,
+       requested_at, decided_at, completed_at
+FROM cli_tool_installs WHERE id = ?
+`
+
+func (q *Queries) GetCLIToolInstall(ctx context.Context, id string) (CliToolInstall, error) {
+	row := q.db.QueryRowContext(ctx, getCLIToolInstall, id)
+	var i CliToolInstall
+	err := row.Scan(
+		&i.ID,
+		&i.CliToolID,
+		&i.InstallCommand,
+		&i.Status,
+		&i.Reason,
+		&i.Output,
+		&i.RequestedAt,
+		&i.DecidedAt,
+		&i.CompletedAt,
 	)
 	return i, err
 }
@@ -287,9 +437,51 @@ func (q *Queries) ListAgents(ctx context.Context) ([]Agent, error) {
 	return items, nil
 }
 
+const listCLIToolInstalls = `-- name: ListCLIToolInstalls :many
+SELECT id, cli_tool_id, install_command, status, reason, output,
+       requested_at, decided_at, completed_at
+FROM cli_tool_installs
+WHERE cli_tool_id = ?
+ORDER BY requested_at DESC, id
+`
+
+func (q *Queries) ListCLIToolInstalls(ctx context.Context, cliToolID string) ([]CliToolInstall, error) {
+	rows, err := q.db.QueryContext(ctx, listCLIToolInstalls, cliToolID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CliToolInstall{}
+	for rows.Next() {
+		var i CliToolInstall
+		if err := rows.Scan(
+			&i.ID,
+			&i.CliToolID,
+			&i.InstallCommand,
+			&i.Status,
+			&i.Reason,
+			&i.Output,
+			&i.RequestedAt,
+			&i.DecidedAt,
+			&i.CompletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCLITools = `-- name: ListCLITools :many
 SELECT id, name, command, kind, detected_path, version, runtime_id, status,
-       risk_level, requires_auth, capabilities, last_detected_at, created_at, updated_at
+       risk_level, requires_auth, capabilities, install_command, install_url,
+       last_detected_at, created_at, updated_at
 FROM cli_tools ORDER BY id
 `
 
@@ -314,6 +506,8 @@ func (q *Queries) ListCLITools(ctx context.Context) ([]CliTool, error) {
 			&i.RiskLevel,
 			&i.RequiresAuth,
 			&i.Capabilities,
+			&i.InstallCommand,
+			&i.InstallUrl,
 			&i.LastDetectedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -482,9 +676,9 @@ func (q *Queries) UpdateProviderStatus(ctx context.Context, arg UpdateProviderSt
 const upsertCLIToolDetection = `-- name: UpsertCLIToolDetection :one
 INSERT INTO cli_tools (
     id, name, command, kind, detected_path, version, runtime_id, status,
-    risk_level, requires_auth, capabilities, last_detected_at
+    risk_level, requires_auth, capabilities, install_command, install_url, last_detected_at
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 ON CONFLICT (id) DO UPDATE SET
     name = EXCLUDED.name,
     command = EXCLUDED.command,
@@ -496,23 +690,28 @@ ON CONFLICT (id) DO UPDATE SET
     risk_level = EXCLUDED.risk_level,
     requires_auth = EXCLUDED.requires_auth,
     capabilities = EXCLUDED.capabilities,
+    install_command = EXCLUDED.install_command,
+    install_url = EXCLUDED.install_url,
     last_detected_at = CURRENT_TIMESTAMP
 RETURNING id, name, command, kind, detected_path, version, runtime_id, status,
-          risk_level, requires_auth, capabilities, last_detected_at, created_at, updated_at
+          risk_level, requires_auth, capabilities, install_command, install_url,
+          last_detected_at, created_at, updated_at
 `
 
 type UpsertCLIToolDetectionParams struct {
-	ID           string         `json:"id"`
-	Name         string         `json:"name"`
-	Command      string         `json:"command"`
-	Kind         string         `json:"kind"`
-	DetectedPath sql.NullString `json:"detected_path"`
-	Version      sql.NullString `json:"version"`
-	RuntimeID    sql.NullString `json:"runtime_id"`
-	Status       string         `json:"status"`
-	RiskLevel    string         `json:"risk_level"`
-	RequiresAuth int64          `json:"requires_auth"`
-	Capabilities string         `json:"capabilities"`
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	Command        string         `json:"command"`
+	Kind           string         `json:"kind"`
+	DetectedPath   sql.NullString `json:"detected_path"`
+	Version        sql.NullString `json:"version"`
+	RuntimeID      sql.NullString `json:"runtime_id"`
+	Status         string         `json:"status"`
+	RiskLevel      string         `json:"risk_level"`
+	RequiresAuth   int64          `json:"requires_auth"`
+	Capabilities   string         `json:"capabilities"`
+	InstallCommand sql.NullString `json:"install_command"`
+	InstallUrl     sql.NullString `json:"install_url"`
 }
 
 func (q *Queries) UpsertCLIToolDetection(ctx context.Context, arg UpsertCLIToolDetectionParams) (CliTool, error) {
@@ -528,6 +727,8 @@ func (q *Queries) UpsertCLIToolDetection(ctx context.Context, arg UpsertCLIToolD
 		arg.RiskLevel,
 		arg.RequiresAuth,
 		arg.Capabilities,
+		arg.InstallCommand,
+		arg.InstallUrl,
 	)
 	var i CliTool
 	err := row.Scan(
@@ -542,6 +743,8 @@ func (q *Queries) UpsertCLIToolDetection(ctx context.Context, arg UpsertCLIToolD
 		&i.RiskLevel,
 		&i.RequiresAuth,
 		&i.Capabilities,
+		&i.InstallCommand,
+		&i.InstallUrl,
 		&i.LastDetectedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,

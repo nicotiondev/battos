@@ -1,7 +1,11 @@
 # CLIs externas que BattOS intenta detectar al arrancar.
 #
-# v0.1 solo detecta (presencia + path + versión cuando es trivial obtenerla).
-# v0.2 podrá ejecutarlas con permisos controlados.
+# Detección: presencia + path + versión. Instalación: install_command se ejecuta
+# en el host SOLO tras un approval explícito (POST /cli-tools/{id}/install +
+# approve — Etapa 2). install_url es la doc oficial para instalación manual.
+#
+# NOTA: la fuente operativa de detección/instalación es `approvedRuntimeTools`
+# en apps/api/internal/handlers/runtimes.go — mantener ambos en sync.
 
 cli_tools:
   - id: claude-code
@@ -11,6 +15,8 @@ cli_tools:
     risk_level: high
     requires_auth: true
     capabilities: [code_editing, file_reading, terminal_commands, mcp]
+    install_command: npm install -g @anthropic-ai/claude-code
+    install_url: https://docs.claude.com/en/docs/claude-code/setup
 
   - id: codex
     name: Codex CLI
@@ -19,6 +25,8 @@ cli_tools:
     risk_level: high
     requires_auth: true
     capabilities: [code_generation, repo_editing, tests]
+    install_command: npm install -g @openai/codex
+    install_url: https://github.com/openai/codex
 
   - id: opencode
     name: OpenCode
@@ -27,6 +35,8 @@ cli_tools:
     risk_level: medium
     requires_auth: true
     capabilities: [code_editing, local_agent, terminal_workflows]
+    install_command: npm install -g opencode-ai
+    install_url: https://opencode.ai
 
   - id: gemini
     name: Gemini CLI
@@ -35,6 +45,8 @@ cli_tools:
     risk_level: medium
     requires_auth: true
     capabilities: [long_context, multimodal, code_generation]
+    install_command: npm install -g @google/gemini-cli
+    install_url: https://github.com/google-gemini/gemini-cli
 
   - id: pi
     name: Pi
@@ -43,6 +55,8 @@ cli_tools:
     risk_level: medium
     requires_auth: true
     capabilities: [code_editing, terminal, skills]
+    install_command: npm install -g @earendil-works/pi-coding-agent
+    install_url: https://www.npmjs.com/package/@earendil-works/pi-coding-agent
 
   - id: gh
     name: GitHub CLI

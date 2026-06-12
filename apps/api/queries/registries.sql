@@ -38,15 +38,22 @@ RETURNING id, name, kind, status, binary_path, version, endpoint_url, risk_level
 
 -- name: ListCLITools :many
 SELECT id, name, command, kind, detected_path, version, runtime_id, status,
-       risk_level, requires_auth, capabilities, last_detected_at, created_at, updated_at
+       risk_level, requires_auth, capabilities, install_command, install_url,
+       last_detected_at, created_at, updated_at
 FROM cli_tools ORDER BY id;
+
+-- name: GetCLITool :one
+SELECT id, name, command, kind, detected_path, version, runtime_id, status,
+       risk_level, requires_auth, capabilities, install_command, install_url,
+       last_detected_at, created_at, updated_at
+FROM cli_tools WHERE id = ?;
 
 -- name: UpsertCLIToolDetection :one
 INSERT INTO cli_tools (
     id, name, command, kind, detected_path, version, runtime_id, status,
-    risk_level, requires_auth, capabilities, last_detected_at
+    risk_level, requires_auth, capabilities, install_command, install_url, last_detected_at
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 ON CONFLICT (id) DO UPDATE SET
     name = EXCLUDED.name,
     command = EXCLUDED.command,
@@ -58,9 +65,49 @@ ON CONFLICT (id) DO UPDATE SET
     risk_level = EXCLUDED.risk_level,
     requires_auth = EXCLUDED.requires_auth,
     capabilities = EXCLUDED.capabilities,
+    install_command = EXCLUDED.install_command,
+    install_url = EXCLUDED.install_url,
     last_detected_at = CURRENT_TIMESTAMP
 RETURNING id, name, command, kind, detected_path, version, runtime_id, status,
-          risk_level, requires_auth, capabilities, last_detected_at, created_at, updated_at;
+          risk_level, requires_auth, capabilities, install_command, install_url,
+          last_detected_at, created_at, updated_at;
+
+-- Instalacion gobernada de CLIs (Etapa 2): el request queda pending_approval y
+-- solo se ejecuta tras un approve explicito (mismo modelo HITL que run_approvals).
+-- NOTA: sin acentos en comentarios de queries -- sqlc desplaza offsets con
+-- caracteres multibyte y trunca el SQL generado.
+
+-- name: CreateCLIToolInstall :one
+INSERT INTO cli_tool_installs (id, cli_tool_id, install_command)
+VALUES (lower(hex(randomblob(16))), ?, ?)
+RETURNING id, cli_tool_id, install_command, status, reason, output,
+          requested_at, decided_at, completed_at;
+
+-- name: GetCLIToolInstall :one
+SELECT id, cli_tool_id, install_command, status, reason, output,
+       requested_at, decided_at, completed_at
+FROM cli_tool_installs WHERE id = ?;
+
+-- name: ListCLIToolInstalls :many
+SELECT id, cli_tool_id, install_command, status, reason, output,
+       requested_at, decided_at, completed_at
+FROM cli_tool_installs
+WHERE cli_tool_id = ?
+ORDER BY requested_at DESC, id;
+
+-- name: DecideCLIToolInstall :one
+UPDATE cli_tool_installs
+SET status = ?, reason = ?, decided_at = CURRENT_TIMESTAMP
+WHERE id = ? AND status = 'pending_approval'
+RETURNING id, cli_tool_id, install_command, status, reason, output,
+          requested_at, decided_at, completed_at;
+
+-- name: FinishCLIToolInstall :one
+UPDATE cli_tool_installs
+SET status = ?, output = ?, completed_at = CURRENT_TIMESTAMP
+WHERE id = ? AND status = 'running'
+RETURNING id, cli_tool_id, install_command, status, reason, output,
+          requested_at, decided_at, completed_at;
 
 -- name: ListProviders :many
 SELECT id, name, kind, env_key, docs_url, status, monthly_budget_usd,

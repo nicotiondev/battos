@@ -144,10 +144,28 @@ CREATE TABLE IF NOT EXISTS cli_tools (
     risk_level TEXT NOT NULL DEFAULT 'medium',
     requires_auth INTEGER NOT NULL DEFAULT 0,
     capabilities TEXT NOT NULL DEFAULT '[]',
+    install_command TEXT,
+    install_url TEXT,
     last_detected_at DATETIME,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- cli_tool_installs: solicitudes de instalación de CLIs en el host (Etapa 2).
+-- Mutación gobernada: la instalación solo se ejecuta tras un approval explícito
+-- (mismo modelo HITL que run_approvals/host_session). El output queda redactado.
+CREATE TABLE IF NOT EXISTS cli_tool_installs (
+    id TEXT PRIMARY KEY,
+    cli_tool_id TEXT NOT NULL REFERENCES cli_tools(id) ON DELETE CASCADE,
+    install_command TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending_approval' CHECK (status IN ('pending_approval', 'rejected', 'running', 'succeeded', 'failed')),
+    reason TEXT,
+    output TEXT,
+    requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    decided_at DATETIME,
+    completed_at DATETIME
+);
+CREATE INDEX IF NOT EXISTS idx_cli_tool_installs_tool ON cli_tool_installs(cli_tool_id, requested_at DESC);
 
 CREATE TABLE IF NOT EXISTS mcp_connections (
     id TEXT PRIMARY KEY,

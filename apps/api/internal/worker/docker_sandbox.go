@@ -295,6 +295,12 @@ func logCommandOutput(log LogFunc, stream, value string) {
 	_ = log(stream, value)
 }
 
+// RedactKnownSecrets expone la redacción de secretos para otros paquetes que
+// ejecutan comandos en el host (p.ej. la instalación gobernada de CLIs).
+func RedactKnownSecrets(value string) string {
+	return redactKnownSecrets(value)
+}
+
 func redactKnownSecrets(value string) string {
 	// 1. Redact known LLM API keys
 	for _, key := range []string{

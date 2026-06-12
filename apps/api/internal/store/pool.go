@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -47,5 +48,29 @@ func OpenDB(ctx context.Context, dbPath string) (*sql.DB, error) {
 		db.Close()
 		return nil, fmt.Errorf("store: aplicar schema SQLite: %w", err)
 	}
+	if err := applyColumnMigrations(ctx, db); err != nil {
+		db.Close()
+		return nil, err
+	}
 	return db, nil
+}
+
+// applyColumnMigrations agrega columnas a tablas ya creadas en DBs existentes.
+// CREATE TABLE IF NOT EXISTS no altera tablas viejas, así que cada columna nueva
+// del schema necesita su ALTER acá. Idempotente: el error "duplicate column
+// name" se ignora.
+func applyColumnMigrations(ctx context.Context, db *sql.DB) error {
+	alters := []string{
+		"ALTER TABLE cli_tools ADD COLUMN install_command TEXT",
+		"ALTER TABLE cli_tools ADD COLUMN install_url TEXT",
+	}
+	for _, stmt := range alters {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			if strings.Contains(err.Error(), "duplicate column name") {
+				continue
+			}
+			return fmt.Errorf("store: migración de columna (%s): %w", stmt, err)
+		}
+	}
+	return nil
 }

@@ -95,9 +95,23 @@ type CliTool struct {
 	RiskLevel      string         `json:"risk_level"`
 	RequiresAuth   int64          `json:"requires_auth"`
 	Capabilities   string         `json:"capabilities"`
+	InstallCommand sql.NullString `json:"install_command"`
+	InstallUrl     sql.NullString `json:"install_url"`
 	LastDetectedAt sql.NullTime   `json:"last_detected_at"`
 	CreatedAt      time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
+}
+
+type CliToolInstall struct {
+	ID             string         `json:"id"`
+	CliToolID      string         `json:"cli_tool_id"`
+	InstallCommand string         `json:"install_command"`
+	Status         string         `json:"status"`
+	Reason         sql.NullString `json:"reason"`
+	Output         sql.NullString `json:"output"`
+	RequestedAt    time.Time      `json:"requested_at"`
+	DecidedAt      sql.NullTime   `json:"decided_at"`
+	CompletedAt    sql.NullTime   `json:"completed_at"`
 }
 
 type Credential struct {

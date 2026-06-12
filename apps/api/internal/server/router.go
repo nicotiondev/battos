@@ -201,6 +201,9 @@ func mountRuntimeRoutes(r chi.Router, runtimeHandler *handlers.RuntimeHandler) {
 	r.Get("/runtime-adapters", runtimeHandler.ListRuntimeAdapters)
 	r.Post("/runtime-adapters/detect", runtimeHandler.DetectRuntimeAdapters)
 	r.Get("/cli-tools", runtimeHandler.ListCLITools)
+	r.Post("/cli-tools/{id}/install", runtimeHandler.RequestCLIToolInstall)
+	r.Get("/cli-tools/{id}/installs", runtimeHandler.ListCLIToolInstallHistory)
+	r.Post("/cli-tools/installs/{installId}/approve", runtimeHandler.ApproveCLIToolInstall)
 	r.Get("/providers", runtimeHandler.ListProviders)
 	r.Post("/providers/detect", runtimeHandler.DetectProviders)
 }
@@ -227,6 +230,9 @@ func mountUnavailableRuntimeRoutes(r chi.Router) {
 	r.Get("/runtime-adapters", unavailable)
 	r.Post("/runtime-adapters/detect", unavailable)
 	r.Get("/cli-tools", unavailable)
+	r.Post("/cli-tools/{id}/install", unavailable)
+	r.Get("/cli-tools/{id}/installs", unavailable)
+	r.Post("/cli-tools/installs/{installId}/approve", unavailable)
 	r.Get("/providers", unavailable)
 	r.Post("/providers/detect", unavailable)
 }

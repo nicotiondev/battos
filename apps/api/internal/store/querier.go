@@ -31,6 +31,11 @@ type Querier interface {
 	CreateArtifact(ctx context.Context, arg CreateArtifactParams) (Artifact, error)
 	// Audit log queries para registro de acciones administrativas.
 	CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) (AuditLog, error)
+	// Instalacion gobernada de CLIs (Etapa 2): el request queda pending_approval y
+	// solo se ejecuta tras un approve explicito (mismo modelo HITL que run_approvals).
+	// NOTA: sin acentos en comentarios de queries -- sqlc desplaza offsets con
+	// caracteres multibyte y trunca el SQL generado.
+	CreateCLIToolInstall(ctx context.Context, arg CreateCLIToolInstallParams) (CliToolInstall, error)
 	CreateCredential(ctx context.Context, arg CreateCredentialParams) (Credential, error)
 	// Work Board CRUD: domains, projects, goals and tasks.
 	CreateDomain(ctx context.Context, arg CreateDomainParams) (Domain, error)
@@ -49,15 +54,19 @@ type Querier interface {
 	CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error)
 	// Queries para eventos de consumo y uso (usage_events)
 	CreateUsageEvent(ctx context.Context, arg CreateUsageEventParams) (UsageEvent, error)
+	DecideCLIToolInstall(ctx context.Context, arg DecideCLIToolInstallParams) (CliToolInstall, error)
 	DeleteCredential(ctx context.Context, name string) error
 	DeleteRepository(ctx context.Context, id string) (Repository, error)
 	EnableRunHostSession(ctx context.Context, id string) (Run, error)
 	EnableRunNetwork(ctx context.Context, id string) (Run, error)
 	EnsureInboxProject(ctx context.Context) (Project, error)
 	FailRun(ctx context.Context, arg FailRunParams) (Run, error)
+	FinishCLIToolInstall(ctx context.Context, arg FinishCLIToolInstallParams) (CliToolInstall, error)
 	GetAgentRuntime(ctx context.Context, id string) (AgentRuntime, error)
 	GetArtifact(ctx context.Context, id string) (Artifact, error)
 	GetArtifactByRunAndKind(ctx context.Context, arg GetArtifactByRunAndKindParams) (Artifact, error)
+	GetCLITool(ctx context.Context, id string) (CliTool, error)
+	GetCLIToolInstall(ctx context.Context, id string) (CliToolInstall, error)
 	GetCredentialByName(ctx context.Context, name string) (Credential, error)
 	GetDomain(ctx context.Context, id string) (Domain, error)
 	GetGoal(ctx context.Context, id string) (Goal, error)
@@ -79,6 +88,7 @@ type Querier interface {
 	ListAuditLogs(ctx context.Context, limit int64) ([]AuditLog, error)
 	ListAuditLogsByAction(ctx context.Context, arg ListAuditLogsByActionParams) ([]AuditLog, error)
 	ListAuditLogsByActor(ctx context.Context, arg ListAuditLogsByActorParams) ([]AuditLog, error)
+	ListCLIToolInstalls(ctx context.Context, cliToolID string) ([]CliToolInstall, error)
 	ListCLITools(ctx context.Context) ([]CliTool, error)
 	ListCredentials(ctx context.Context) ([]Credential, error)
 	ListDomains(ctx context.Context) ([]Domain, error)
