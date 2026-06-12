@@ -1,0 +1,54 @@
+version: 2
+
+project_name: battos
+
+before:
+  hooks:
+    - go mod tidy -C apps/cli
+    - go mod tidy -C apps/api
+
+builds:
+  - id: battos
+    dir: apps/cli
+    main: ./cmd/battos
+    binary: battos
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+  - id: battos-api
+    dir: apps/api
+    main: ./cmd/api
+    binary: battos-api
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - id: default
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - config/battos.yaml
+
+checksum:
+  name_template: 'checksums.txt'
+
+release:
+  github:
+    owner: nicotiondev
+    name: battos
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
