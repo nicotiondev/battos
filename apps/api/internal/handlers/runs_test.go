@@ -19,13 +19,14 @@ import (
 )
 
 type fakeRunStore struct {
-	createRunParams      store.CreateRunParams
-	createApprovalParams store.CreateRunApprovalParams
-	current              store.Run
-	updatedStatus        string
-	networkEnabled       bool
-	hostSessionEnabled   bool
-	repo                 *store.Repository
+	createRunParams        store.CreateRunParams
+	createApprovalParams   store.CreateRunApprovalParams
+	current                store.Run
+	updatedStatus          string
+	networkEnabled         bool
+	hostSessionEnabled     bool
+	executionModeApprovals int64
+	repo                   *store.Repository
 }
 
 func (f *fakeRunStore) GetRepository(_ context.Context, id string) (store.Repository, error) {
@@ -59,6 +60,9 @@ func (f *fakeRunStore) GetRun(context.Context, string) (store.Run, error) {
 
 func (f *fakeRunStore) CreateRunApproval(_ context.Context, arg store.CreateRunApprovalParams) (store.RunApproval, error) {
 	f.createApprovalParams = arg
+	if arg.Kind == "execution_mode" && arg.Decision == "approved" {
+		f.executionModeApprovals++
+	}
 	return store.RunApproval{
 		ID:        "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
 		RunID:     arg.RunID,
@@ -67,6 +71,13 @@ func (f *fakeRunStore) CreateRunApproval(_ context.Context, arg store.CreateRunA
 		Reason:    arg.Reason,
 		DecidedAt: time.Now(),
 	}, nil
+}
+
+func (f *fakeRunStore) CountApprovedRunApproval(_ context.Context, arg store.CountApprovedRunApprovalParams) (int64, error) {
+	if arg.Kind == "execution_mode" {
+		return f.executionModeApprovals, nil
+	}
+	return 0, nil
 }
 
 func (f *fakeRunStore) UpdateRunStatus(_ context.Context, arg store.UpdateRunStatusParams) (store.Run, error) {
@@ -167,6 +178,55 @@ func TestApproveExecuteQueuesRun(t *testing.T) {
 	}
 	if q.updatedStatus != "queued" || q.createApprovalParams.Kind != "execute" {
 		t.Fatalf("approval=%+v status=%q, want execute approval and queued", q.createApprovalParams, q.updatedStatus)
+	}
+}
+
+func TestApproveExecuteOnDirectRunRequiresExecutionModeApproval(t *testing.T) {
+	run := testRun("awaiting_approval", false)
+	run.ExecutionMode = "direct"
+	q := &fakeRunStore{current: run}
+	h := NewRunHandler(q, nil)
+
+	// Approving execute without first approving the execution_mode must be rejected.
+	req := runRequest(http.MethodPost, "/runs/11111111-1111-1111-1111-111111111111/approvals", `{"kind":"execute","decision":"approved"}`)
+	rec := httptest.NewRecorder()
+	h.ApproveRunAction(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body=%s", rec.Code, rec.Body.String())
+	}
+	if q.updatedStatus == "queued" {
+		t.Fatal("direct run must not be queued without execution_mode approval")
+	}
+
+	// Approve the execution_mode, then execute should queue it.
+	reqMode := runRequest(http.MethodPost, "/runs/11111111-1111-1111-1111-111111111111/approvals", `{"kind":"execution_mode","decision":"approved"}`)
+	recMode := httptest.NewRecorder()
+	h.ApproveRunAction(recMode, reqMode)
+	if recMode.Code != http.StatusOK {
+		t.Fatalf("execution_mode approval status = %d, want 200; body=%s", recMode.Code, recMode.Body.String())
+	}
+
+	reqExec := runRequest(http.MethodPost, "/runs/11111111-1111-1111-1111-111111111111/approvals", `{"kind":"execute","decision":"approved"}`)
+	recExec := httptest.NewRecorder()
+	h.ApproveRunAction(recExec, reqExec)
+	if recExec.Code != http.StatusOK {
+		t.Fatalf("execute status = %d, want 200; body=%s", recExec.Code, recExec.Body.String())
+	}
+	if q.updatedStatus != "queued" {
+		t.Fatalf("updatedStatus=%q, want queued after both approvals", q.updatedStatus)
+	}
+}
+
+func TestApproveExecutionModeOnSandboxRunIsRejected(t *testing.T) {
+	run := testRun("awaiting_approval", false)
+	run.ExecutionMode = "sandbox"
+	q := &fakeRunStore{current: run}
+	h := NewRunHandler(q, nil)
+	req := runRequest(http.MethodPost, "/runs/11111111-1111-1111-1111-111111111111/approvals", `{"kind":"execution_mode","decision":"approved"}`)
+	rec := httptest.NewRecorder()
+	h.ApproveRunAction(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (sandbox needs no mode approval); body=%s", rec.Code, rec.Body.String())
 	}
 }
 

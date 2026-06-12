@@ -25,6 +25,7 @@ type RunStore interface {
 	ListRunsByProject(context.Context, string) ([]store.Run, error)
 	GetRun(context.Context, string) (store.Run, error)
 	CreateRunApproval(context.Context, store.CreateRunApprovalParams) (store.RunApproval, error)
+	CountApprovedRunApproval(context.Context, store.CountApprovedRunApprovalParams) (int64, error)
 	UpdateRunStatus(context.Context, store.UpdateRunStatusParams) (store.Run, error)
 	EnableRunNetwork(context.Context, string) (store.Run, error)
 	EnableRunHostSession(context.Context, string) (store.Run, error)
@@ -205,6 +206,29 @@ func (h *RunHandler) ApproveRunAction(w http.ResponseWriter, r *http.Request) {
 		if kind == "network" && current.RequestedNetwork == 0 {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"message": "este run no solicito red", "code": 400}})
 			return
+		}
+		// El tier "execution_mode" (direct|connected) es opt-in con consentimiento
+		// explícito y separado, como host_session: aprobar el modo solo aplica a
+		// runs que no son sandbox.
+		if kind == "execution_mode" && current.ExecutionMode == "sandbox" {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"message": "el tier sandbox no requiere aprobacion de modo de ejecucion", "code": 400}})
+			return
+		}
+		// Gate: un run direct/connected no puede pasar a queued (execute) sin que
+		// antes se haya aprobado explicitamente su modo de ejecucion.
+		if kind == "execute" && (current.ExecutionMode == "direct" || current.ExecutionMode == "connected") {
+			approved, errCount := h.store.CountApprovedRunApproval(r.Context(), store.CountApprovedRunApprovalParams{
+				RunID: runID,
+				Kind:  "execution_mode",
+			})
+			if errCount != nil {
+				writeWorkError(w, errCount)
+				return
+			}
+			if approved == 0 {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"message": fmt.Sprintf("el modo de ejecucion '%s' requiere aprobacion explicita (kind=execution_mode) antes de execute", current.ExecutionMode), "code": 400}})
+				return
+			}
 		}
 	}
 	approval, err := h.store.CreateRunApproval(r.Context(), store.CreateRunApprovalParams{
@@ -553,7 +577,7 @@ func runIDFromPath(w http.ResponseWriter, r *http.Request) (string, bool) {
 
 func validApprovalKind(value string) bool {
 	switch value {
-	case "execute", "network", "host_session", "commit", "push", "remember":
+	case "execute", "network", "host_session", "commit", "push", "remember", "execution_mode":
 		return true
 	default:
 		return false

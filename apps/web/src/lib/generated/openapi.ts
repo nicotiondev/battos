@@ -1052,7 +1052,7 @@ export interface components {
         RunList: components["schemas"]["Run"][];
         ApprovalInput: {
             /** @enum {string} */
-            kind: "execute" | "network" | "host_session" | "commit" | "push" | "remember";
+            kind: "execute" | "network" | "host_session" | "commit" | "push" | "remember" | "execution_mode";
             /** @enum {string} */
             decision: "approved" | "rejected";
             reason?: string;

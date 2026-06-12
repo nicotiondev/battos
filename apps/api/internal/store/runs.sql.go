@@ -215,6 +215,23 @@ func (q *Queries) CompleteRun(ctx context.Context, arg CompleteRunParams) (Run, 
 	return i, err
 }
 
+const countApprovedRunApproval = `-- name: CountApprovedRunApproval :one
+SELECT COUNT(*) FROM run_approvals
+WHERE run_id = ? AND kind = ? AND decision = 'approved'
+`
+
+type CountApprovedRunApprovalParams struct {
+	RunID string `json:"run_id"`
+	Kind  string `json:"kind"`
+}
+
+func (q *Queries) CountApprovedRunApproval(ctx context.Context, arg CountApprovedRunApprovalParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countApprovedRunApproval, arg.RunID, arg.Kind)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createRun = `-- name: CreateRun :one
 
 INSERT INTO runs (

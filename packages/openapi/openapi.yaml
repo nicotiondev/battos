@@ -1470,7 +1470,7 @@ components:
       properties:
         kind:
           type: string
-          enum: [execute, network, host_session, commit, push, remember]
+          enum: [execute, network, host_session, commit, push, remember, execution_mode]
         decision:
           type: string
           enum: [approved, rejected]

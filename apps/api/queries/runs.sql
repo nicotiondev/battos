@@ -132,6 +132,10 @@ INSERT INTO run_approvals (id, run_id, kind, decision, reason)
 VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?)
 RETURNING id, run_id, kind, decision, reason, decided_at;
 
+-- name: CountApprovedRunApproval :one
+SELECT COUNT(*) FROM run_approvals
+WHERE run_id = ? AND kind = ? AND decision = 'approved';
+
 -- name: ListRunLogs :many
 SELECT id, run_id, stream, message, created_at FROM run_logs
 WHERE run_id = ?
