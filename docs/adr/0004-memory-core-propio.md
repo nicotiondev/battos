@@ -1,6 +1,6 @@
 # ADR-0004: Memory Core propio (SQLite + FTS5 embebido) vs dependencia de Engram
 
-- **Status**: Accepted
+- **Status**: Accepted — **revisado por [ADR-0025](0025-memoria-engram-memoryprovider.md)** (2026-06-11): la premisa "Engram no está en Go" ya es falsa; se adopta `MemoryProvider` con Engram como motor y este Core como fallback offline.
 - **Fecha**: 2026-05-25
 - **Decidido por**: Nico + Claude
 
