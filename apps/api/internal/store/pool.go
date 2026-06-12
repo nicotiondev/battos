@@ -74,6 +74,15 @@ func applyColumnMigrations(ctx context.Context, db *sql.DB) error {
 			return fmt.Errorf("store: migración de columna (%s): %w", stmt, err)
 		}
 	}
+	// Etapa 1 renombró el seed 'gemini-cli' a 'gemini'; el ON CONFLICT DO NOTHING
+	// del seed nunca borra filas viejas, así que el runtime legacy quedaba
+	// duplicado en el catálogo. Borrar solo si nada lo referencia.
+	if _, err := db.ExecContext(ctx, `DELETE FROM agent_runtimes
+WHERE id = 'gemini-cli'
+  AND NOT EXISTS (SELECT 1 FROM agents WHERE runtime_id = 'gemini-cli')
+  AND NOT EXISTS (SELECT 1 FROM runs WHERE runtime_adapter_id = 'gemini-cli')`); err != nil {
+		return fmt.Errorf("store: limpiar runtime legacy gemini-cli: %w", err)
+	}
 	return migrateRunApprovalsKindCheck(ctx, db)
 }
 
