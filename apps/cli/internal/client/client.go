@@ -68,12 +68,23 @@ type SubsystemHealth struct {
 }
 
 type SystemMetrics struct {
-	CPUPercent      float64 `json:"cpu_percent"`
-	MemPercent      float64 `json:"mem_percent"`
-	MemUsedMB       uint64  `json:"mem_used_mb"`
-	MemTotalMB      uint64  `json:"mem_total_mb"`
-	NetUploadKBps   float64 `json:"net_upload_kbps"`
-	NetDownloadKBps float64 `json:"net_download_kbps"`
+	CPUPercent      float64         `json:"cpu_percent"`
+	MemPercent      float64         `json:"mem_percent"`
+	MemUsedMB       uint64          `json:"mem_used_mb"`
+	MemTotalMB      uint64          `json:"mem_total_mb"`
+	NetUploadKBps   float64         `json:"net_upload_kbps"`
+	NetDownloadKBps float64         `json:"net_download_kbps"`
+	DiskPercent     float64         `json:"disk_percent"`
+	DiskUsedGB      float64         `json:"disk_used_gb"`
+	DiskTotalGB     float64         `json:"disk_total_gb"`
+	TopProcesses    []ProcessSample `json:"top_processes,omitempty"`
+}
+
+type ProcessSample struct {
+	PID        int64   `json:"pid"`
+	Name       string  `json:"name"`
+	CPUPercent float64 `json:"cpu_percent"`
+	MemMB      uint64  `json:"mem_mb"`
 }
 
 type StatusResponse struct {

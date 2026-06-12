@@ -1,4 +1,4 @@
-// Package sysmetrics muestrea CPU/MEM/NET del host donde corre el API.
+// Package sysmetrics muestrea CPU/MEM/NET/DISK y procesos del host donde corre el API.
 //
 // Hay un sampler en background que cada N segundos toma una snapshot.
 // Los consumidores piden la última snapshot con Latest() — sin bloquear.
@@ -10,14 +10,26 @@ package sysmetrics
 
 import (
 	"context"
+	"runtime"
+	"sort"
 	"sync"
 	"time"
 
 	"github.com/nicotion/battos/packages/core"
 	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/mem"
 	"github.com/shirou/gopsutil/v3/net"
+	"github.com/shirou/gopsutil/v3/process"
 )
+
+// procRefreshInterval limita cada cuánto se re-enumeran los procesos del host.
+// Enumerar procesos es caro (syscalls por cada PID), así que NO se hace en
+// cada tick de 1s — los ticks intermedios reusan la cache.
+const procRefreshInterval = 5 * time.Second
+
+// topProcessCount es cuántos procesos (top por memoria RSS) se reportan.
+const topProcessCount = 10
 
 // Sampler corre en background y mantiene la última snapshot disponible.
 //
@@ -29,12 +41,16 @@ import (
 type Sampler struct {
 	interval time.Duration
 
-	mu      sync.RWMutex
-	latest  core.SystemMetrics
+	mu     sync.RWMutex
+	latest core.SystemMetrics
 
 	// Estado para calcular net delta entre samples.
 	lastNetTime  time.Time
 	lastNetBytes net.IOCountersStat
+
+	// Cache de procesos — se refresca como mucho cada procRefreshInterval.
+	lastProcSample time.Time
+	procCache      []core.ProcessSample
 }
 
 // New crea un Sampler con el intervalo dado.
@@ -103,9 +119,78 @@ func (s *Sampler) sample(ctx context.Context) {
 		s.mu.Unlock()
 	}
 
+	// Disco — partición principal del host ("C:\" en Windows, "/" en el resto).
+	root := "/"
+	if runtime.GOOS == "windows" {
+		root = "C:\\"
+	}
+	if du, err := disk.UsageWithContext(ctx, root); err == nil {
+		snap.DiskPercent = du.UsedPercent
+		snap.DiskUsedGB = float64(du.Used) / 1024 / 1024 / 1024
+		snap.DiskTotalGB = float64(du.Total) / 1024 / 1024 / 1024
+	}
+
+	// Procesos — top por memoria RSS, con cache (ver topProcesses).
+	snap.TopProcesses = s.topProcesses(ctx)
+
 	s.mu.Lock()
 	s.latest = snap
 	s.mu.Unlock()
+}
+
+// topProcesses devuelve los topProcessCount procesos del host ordenados por
+// memoria RSS descendente. Como enumerar procesos es caro, refresca la lista
+// como mucho cada procRefreshInterval y los ticks intermedios reusan la cache.
+func (s *Sampler) topProcesses(ctx context.Context) []core.ProcessSample {
+	s.mu.RLock()
+	fresh := !s.lastProcSample.IsZero() && time.Since(s.lastProcSample) < procRefreshInterval
+	cached := s.procCache
+	s.mu.RUnlock()
+	if fresh {
+		return cached
+	}
+
+	procs, err := process.ProcessesWithContext(ctx)
+	if err != nil {
+		// Si la enumeración falla, mejor cache vieja que nada.
+		return cached
+	}
+
+	samples := make([]core.ProcessSample, 0, len(procs))
+	for _, p := range procs {
+		// Errores de procesos individuales se ignoran: los procesos mueren
+		// entre la enumeración y la lectura — es normal.
+		mi, err := p.MemoryInfoWithContext(ctx)
+		if err != nil || mi == nil {
+			continue
+		}
+		name, err := p.NameWithContext(ctx)
+		if err != nil || name == "" {
+			continue
+		}
+		// CPUPercent es barato (usa tiempos acumulados, no duerme); si falla, 0.
+		cpuPct, err := p.CPUPercentWithContext(ctx)
+		if err != nil {
+			cpuPct = 0
+		}
+		samples = append(samples, core.ProcessSample{
+			PID:        int64(p.Pid),
+			Name:       name,
+			CPUPercent: cpuPct,
+			MemMB:      mi.RSS / 1024 / 1024,
+		})
+	}
+
+	sort.Slice(samples, func(i, j int) bool { return samples[i].MemMB > samples[j].MemMB })
+	if len(samples) > topProcessCount {
+		samples = samples[:topProcessCount]
+	}
+
+	s.mu.Lock()
+	s.procCache = samples
+	s.lastProcSample = time.Now()
+	s.mu.Unlock()
+	return samples
 }
 
 // Latest devuelve la última snapshot capturada. No bloquea.

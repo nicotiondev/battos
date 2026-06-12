@@ -32,10 +32,10 @@ type VersionResponse struct {
 
 // SubsystemHealth describe el estado de cada componente reportado en /status.
 type SubsystemHealth struct {
-	Name    string       `json:"name"`            // "database", "memory", "config", ...
-	Status  HealthStatus `json:"status"`
-	Detail  string       `json:"detail,omitempty"` // mensaje legible (no técnico)
-	LatencyMs int        `json:"latency_ms,omitempty"`
+	Name      string       `json:"name"` // "database", "memory", "config", ...
+	Status    HealthStatus `json:"status"`
+	Detail    string       `json:"detail,omitempty"` // mensaje legible (no técnico)
+	LatencyMs int          `json:"latency_ms,omitempty"`
 }
 
 // StatusResponse es la respuesta agregada de GET /status.
@@ -49,13 +49,25 @@ type StatusResponse struct {
 	Timestamp  time.Time         `json:"timestamp"`
 }
 
-// SystemMetrics es una snapshot de CPU/MEM/NET del host donde corre el API.
+// SystemMetrics es una snapshot de CPU/MEM/NET/DISK del host donde corre el API.
 // Estos valores también se transmiten en vivo por SSE en /events/system-metrics.
 type SystemMetrics struct {
-	CPUPercent     float64 `json:"cpu_percent"`     // 0..100
-	MemPercent     float64 `json:"mem_percent"`     // 0..100
-	MemUsedMB      uint64  `json:"mem_used_mb"`
-	MemTotalMB     uint64  `json:"mem_total_mb"`
-	NetUploadKBps   float64 `json:"net_upload_kbps"`
-	NetDownloadKBps float64 `json:"net_download_kbps"`
+	CPUPercent      float64         `json:"cpu_percent"` // 0..100
+	MemPercent      float64         `json:"mem_percent"` // 0..100
+	MemUsedMB       uint64          `json:"mem_used_mb"`
+	MemTotalMB      uint64          `json:"mem_total_mb"`
+	NetUploadKBps   float64         `json:"net_upload_kbps"`
+	NetDownloadKBps float64         `json:"net_download_kbps"`
+	DiskPercent     float64         `json:"disk_percent"` // 0..100, partición principal
+	DiskUsedGB      float64         `json:"disk_used_gb"`
+	DiskTotalGB     float64         `json:"disk_total_gb"`
+	TopProcesses    []ProcessSample `json:"top_processes,omitempty"`
+}
+
+// ProcessSample es un proceso del host en la última muestra (top por memoria).
+type ProcessSample struct {
+	PID        int64   `json:"pid"`
+	Name       string  `json:"name"`
+	CPUPercent float64 `json:"cpu_percent"`
+	MemMB      uint64  `json:"mem_mb"`
 }
