@@ -40,14 +40,16 @@ func newMCPInstallCmd(getAPIURL func() string, getToken func() string) *cobra.Co
 
 	cmd := &cobra.Command{
 		Use:   "install",
-		Short: "Registra el servidor MCP de BattOS en Claude Code y/o Codex",
+		Short: "Registra el servidor MCP de BattOS en Claude Code, Codex, Cursor y/o VS Code",
 		Long: `Escribe (o actualiza) la entrada "battos-memory" en los archivos de
 configuración MCP de los agentes seleccionados.
 
 Agentes soportados:
   claude-code  →  .mcp.json en el directorio de trabajo actual
   codex        →  ~/.codex/config.toml
-  all          →  ambos (por defecto)
+  cursor       →  ~/.cursor/mcp.json
+  vscode       →  .vscode/mcp.json en el directorio de trabajo actual
+  all          →  todos (por defecto)
 
 El comando es idempotente: volver a correrlo actualiza la entrada existente
 sin duplicar ni borrar otras configuraciones.
@@ -64,7 +66,7 @@ Con --dry-run imprime el contenido final de cada archivo sin tocar el disco.`,
 		},
 	}
 
-	cmd.Flags().StringVar(&agent, "agent", "all", "Agente target: claude-code | codex | all")
+	cmd.Flags().StringVar(&agent, "agent", "all", "Agente target: claude-code | codex | cursor | vscode | all")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Imprimir el resultado sin escribir ningún archivo")
 
 	return cmd
@@ -101,9 +103,11 @@ func runMCPInstall(_ context.Context, cfg mcpInstallConfig) error {
 
 	doClaude := cfg.agent == "claude-code" || cfg.agent == "all"
 	doCodex := cfg.agent == "codex" || cfg.agent == "all"
+	doCursor := cfg.agent == "cursor" || cfg.agent == "all"
+	doVSCode := cfg.agent == "vscode" || cfg.agent == "all"
 
-	if !doClaude && !doCodex {
-		return fmt.Errorf("mcp install: --agent debe ser claude-code, codex o all (recibido: %q)", cfg.agent)
+	if !doClaude && !doCodex && !doCursor && !doVSCode {
+		return fmt.Errorf("mcp install: --agent debe ser claude-code, codex, cursor, vscode o all (recibido: %q)", cfg.agent)
 	}
 
 	if doClaude {
@@ -113,6 +117,16 @@ func runMCPInstall(_ context.Context, cfg mcpInstallConfig) error {
 	}
 	if doCodex {
 		if err := installCodex(entry, cfg.dryRun, cfg.outFunc); err != nil {
+			return err
+		}
+	}
+	if doCursor {
+		if err := installCursor(entry, cfg.dryRun, cfg.token, cfg.outFunc); err != nil {
+			return err
+		}
+	}
+	if doVSCode {
+		if err := installVSCode(entry, cfg.dryRun, cfg.token, cfg.outFunc); err != nil {
 			return err
 		}
 	}
@@ -195,6 +209,100 @@ func installCodex(entry mcpEntry, dryRun bool, out func(string)) error {
 
 	out(fmt.Sprintf("✓ Codex: escrito %s", path))
 	out("  Próximo paso: el config.toml será leído por Codex en el próximo arranque.")
+
+	return nil
+}
+
+// installCursor gestiona ~/.cursor/mcp.json.
+// Cursor usa el mismo formato JSON que Claude Code.
+func installCursor(entry mcpEntry, dryRun bool, token string, out func(string)) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("mcp install: no se pudo obtener el directorio home: %w", err)
+	}
+	dir := filepath.Join(home, ".cursor")
+	path := filepath.Join(dir, "mcp.json")
+
+	var existing []byte
+	if b, err := os.ReadFile(path); err == nil {
+		existing = b
+	}
+
+	merged, err := mergeMCPJSON(existing, entry)
+	if err != nil {
+		return fmt.Errorf("mcp install (cursor): %w", err)
+	}
+
+	if dryRun {
+		out(fmt.Sprintf("[dry-run] Cursor — %s", path))
+		out(string(merged))
+		return nil
+	}
+
+	// Crear directorio si no existe.
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("mcp install (cursor): crear directorio %s: %w", dir, err)
+	}
+
+	if err := writeWithBackup(path, merged); err != nil {
+		return fmt.Errorf("mcp install (cursor): %w", err)
+	}
+
+	out(fmt.Sprintf("✓ Cursor: escrito %s", path))
+	out("  Próximo paso: reiniciar Cursor para que tome el nuevo servidor MCP.")
+
+	if token != "" {
+		out("")
+		out("  ⚠️  ADVERTENCIA: el archivo mcp.json contiene BATTOS_API_TOKEN (un secreto).")
+		out("  El archivo vive en tu home (~/.cursor/) y no está en ningún repo.")
+	}
+
+	return nil
+}
+
+// installVSCode gestiona .vscode/mcp.json en el directorio de trabajo actual.
+// VS Code usa el mismo formato JSON que Claude Code.
+func installVSCode(entry mcpEntry, dryRun bool, token string, out func(string)) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("mcp install: no se pudo obtener el directorio actual: %w", err)
+	}
+	dir := filepath.Join(cwd, ".vscode")
+	path := filepath.Join(dir, "mcp.json")
+
+	var existing []byte
+	if b, err := os.ReadFile(path); err == nil {
+		existing = b
+	}
+
+	merged, err := mergeMCPJSON(existing, entry)
+	if err != nil {
+		return fmt.Errorf("mcp install (vscode): %w", err)
+	}
+
+	if dryRun {
+		out(fmt.Sprintf("[dry-run] VS Code — %s", path))
+		out(string(merged))
+		return nil
+	}
+
+	// Crear directorio si no existe.
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("mcp install (vscode): crear directorio %s: %w", dir, err)
+	}
+
+	if err := writeWithBackup(path, merged); err != nil {
+		return fmt.Errorf("mcp install (vscode): %w", err)
+	}
+
+	out(fmt.Sprintf("✓ VS Code: escrito %s", path))
+	out("  Próximo paso: recargar la ventana de VS Code para que tome el nuevo servidor MCP.")
+
+	if token != "" {
+		out("")
+		out("  ⚠️  ADVERTENCIA: el archivo .vscode/mcp.json contiene BATTOS_API_TOKEN (un secreto).")
+		out("  Considera agregar .vscode/mcp.json a .gitignore para no exponerlo en el repo.")
+	}
 
 	return nil
 }

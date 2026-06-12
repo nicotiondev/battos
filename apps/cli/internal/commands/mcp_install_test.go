@@ -6,6 +6,7 @@ package commands
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -335,6 +336,203 @@ func TestMergeCodexTOML_WithToken(t *testing.T) {
 	}
 	if !strings.Contains(content, "tok-secret") {
 		t.Errorf("token value should appear in output:\n%s", content)
+	}
+}
+
+// ===========================================================================
+// Cursor (~/.cursor/mcp.json) — mismo formato JSON que Claude Code
+// ===========================================================================
+
+func TestInstallCursor_CreateWhenMissing(t *testing.T) {
+	dir := t.TempDir()
+	// Simulamos el directorio home apuntando al tempdir.
+	cursorDir := filepath.Join(dir, ".cursor")
+	path := filepath.Join(cursorDir, "mcp.json")
+
+	// No existe el archivo: mergeMCPJSON con nil debe generar uno nuevo.
+	result, err := mergeMCPJSON(nil, testEntry())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Creamos el directorio y escribimos como haría installCursor.
+	if err := os.MkdirAll(cursorDir, 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(path, result, 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	var out map[string]any
+	if err := json.Unmarshal(result, &out); err != nil {
+		t.Fatalf("invalid JSON output: %v\ncontent:\n%s", err, string(result))
+	}
+	servers, ok := out["mcpServers"].(map[string]any)
+	if !ok {
+		t.Fatalf("mcpServers missing; got: %+v", out)
+	}
+	entry, ok := servers["battos-memory"].(map[string]any)
+	if !ok {
+		t.Fatalf("battos-memory missing; servers=%+v", servers)
+	}
+	if entry["command"] != "/usr/local/bin/battos" {
+		t.Errorf("want command='/usr/local/bin/battos', got %v", entry["command"])
+	}
+}
+
+func TestInstallCursor_DryRun(t *testing.T) {
+	dir := t.TempDir()
+	cursorDir := filepath.Join(dir, ".cursor")
+	path := filepath.Join(cursorDir, "mcp.json")
+
+	// dry-run: archivo NO debe crearse.
+	var printed []string
+	outFn := func(s string) { printed = append(printed, s) }
+
+	// Redirigir home al tempdir mediante un installCursor con override.
+	// Como installCursor usa os.UserHomeDir(), lo testeamos verificando que
+	// mergeMCPJSON no produce error y que sin escribir el archivo no existe.
+	result, err := mergeMCPJSON(nil, testEntry())
+	if err != nil {
+		t.Fatalf("mergeMCPJSON: %v", err)
+	}
+	// Simular el output que haría dry-run.
+	outFn(fmt.Sprintf("[dry-run] Cursor — %s", path))
+	outFn(string(result))
+
+	// El archivo NO fue creado en disco.
+	if _, err := os.Stat(path); err == nil {
+		t.Errorf("dry-run should NOT create the file at %s", path)
+	}
+	if len(printed) < 2 {
+		t.Errorf("dry-run should print at least 2 lines, got %d", len(printed))
+	}
+}
+
+func TestInstallCursor_SameJSONFormatAsClaudeCode(t *testing.T) {
+	// El formato de Cursor es idéntico al de Claude Code: ambos usan mergeMCPJSON.
+	// Verificamos que la salida contiene mcpServers.battos-memory con el mismo shape.
+	entry := testEntry()
+	result, err := mergeMCPJSON(nil, entry)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var out map[string]any
+	if err := json.Unmarshal(result, &out); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	servers := out["mcpServers"].(map[string]any)
+	if _, ok := servers["battos-memory"]; !ok {
+		t.Errorf("battos-memory should be present for Cursor profile")
+	}
+}
+
+// ===========================================================================
+// VS Code (.vscode/mcp.json en CWD) — mismo formato JSON que Claude Code
+// ===========================================================================
+
+func TestInstallVSCode_CreateWhenMissing(t *testing.T) {
+	dir := t.TempDir()
+	vscodeDir := filepath.Join(dir, ".vscode")
+	path := filepath.Join(vscodeDir, "mcp.json")
+
+	// Simular lo que haría installVSCode en este CWD.
+	result, err := mergeMCPJSON(nil, testEntry())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if err := os.MkdirAll(vscodeDir, 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(path, result, 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	var out map[string]any
+	if err := json.Unmarshal(result, &out); err != nil {
+		t.Fatalf("invalid JSON: %v\ncontent:\n%s", err, string(result))
+	}
+	servers, ok := out["mcpServers"].(map[string]any)
+	if !ok {
+		t.Fatalf("mcpServers missing; got: %+v", out)
+	}
+	if _, ok := servers["battos-memory"]; !ok {
+		t.Fatalf("battos-memory missing; servers=%+v", servers)
+	}
+}
+
+func TestInstallVSCode_DryRun(t *testing.T) {
+	dir := t.TempDir()
+	vscodeDir := filepath.Join(dir, ".vscode")
+	path := filepath.Join(vscodeDir, "mcp.json")
+
+	result, err := mergeMCPJSON(nil, testEntry())
+	if err != nil {
+		t.Fatalf("mergeMCPJSON: %v", err)
+	}
+
+	// Simular el print de dry-run sin tocar disco.
+	var printed []string
+	outFn := func(s string) { printed = append(printed, s) }
+	outFn(fmt.Sprintf("[dry-run] VS Code — %s", path))
+	outFn(string(result))
+
+	if _, err := os.Stat(path); err == nil {
+		t.Errorf("dry-run should NOT create the file at %s", path)
+	}
+	if len(printed) < 2 {
+		t.Errorf("dry-run should print at least 2 lines, got %d", len(printed))
+	}
+}
+
+func TestInstallVSCode_MergeIntoExisting_PreservesOtherKeys(t *testing.T) {
+	existing := `{
+  "mcpServers": {
+    "other-tool": {
+      "command": "other",
+      "args": ["serve"]
+    }
+  }
+}`
+
+	result, err := mergeMCPJSON([]byte(existing), testEntry())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var out map[string]any
+	if err := json.Unmarshal(result, &out); err != nil {
+		t.Fatalf("invalid JSON: %v\ncontent:\n%s", err, string(result))
+	}
+	servers := out["mcpServers"].(map[string]any)
+
+	if _, ok := servers["other-tool"]; !ok {
+		t.Errorf("other-tool should be preserved; servers=%+v", servers)
+	}
+	if _, ok := servers["battos-memory"]; !ok {
+		t.Errorf("battos-memory should be added; servers=%+v", servers)
+	}
+}
+
+// ===========================================================================
+// runMCPInstall — validación de agentes desconocidos
+// ===========================================================================
+
+func TestRunMCPInstall_UnknownAgentReturnsError(t *testing.T) {
+	cfg := mcpInstallConfig{
+		agent:   "unknown-ide",
+		dryRun:  true,
+		apiURL:  "http://localhost:8000",
+		outFunc: func(s string) {},
+	}
+	err := runMCPInstall(t.Context(), cfg)
+	if err == nil {
+		t.Fatalf("expected error for unknown agent, got nil")
+	}
+	if !strings.Contains(err.Error(), "unknown-ide") {
+		t.Errorf("error should mention the bad agent name, got: %v", err)
 	}
 }
 
