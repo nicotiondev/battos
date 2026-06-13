@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -186,8 +187,9 @@ func newStaticHandler(log *slog.Logger) http.Handler {
 	fileServer := http.FileServer(http.FS(fsys))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// SPA fallback: si el archivo no existe en el FS, serve index.html.
-		path := r.URL.Path
-		if path == "" || path == "/" {
+		// embed.FS.Open requiere paths sin "/" inicial.
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		if path == "" {
 			path = "index.html"
 		}
 		if _, err := fsys.Open(path); err != nil {
