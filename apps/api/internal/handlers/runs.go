@@ -86,6 +86,9 @@ type runResponse struct {
 	NetworkEnabled     bool      `json:"network_enabled"`
 	HostSessionEnabled bool      `json:"host_session_enabled"`
 	ExecutionMode      string    `json:"execution_mode"`
+	// ParentRunID enlaza un run delegado con el run del lead que lo creó
+	// (team_spawn_run). Viene de metadata.parent_run_id; vacío si es raíz.
+	ParentRunID        string    `json:"parent_run_id,omitempty"`
 	Status             string    `json:"status"`
 	BranchName         string    `json:"branch_name,omitempty"`
 	ResultSummary      string    `json:"result_summary,omitempty"`
@@ -679,6 +682,7 @@ func runDTO(item store.Run) runResponse {
 		NetworkEnabled:     item.NetworkEnabled != 0,
 		HostSessionEnabled: item.HostSessionEnabled != 0,
 		ExecutionMode:      item.ExecutionMode,
+		ParentRunID:        metadataString(item.Metadata, "parent_run_id"),
 		Status:             item.Status,
 		BranchName:         textValue(item.BranchName),
 		ResultSummary:      textValue(item.ResultSummary),
@@ -689,6 +693,20 @@ func runDTO(item store.Run) runResponse {
 		CreatedAt:          item.CreatedAt,
 		UpdatedAt:          item.UpdatedAt,
 	}
+}
+
+// metadataString extrae un string del JSON de metadata de un run; devuelve ""
+// si el metadata está vacío, es inválido o la key no existe.
+func metadataString(metadata string, key string) string {
+	if strings.TrimSpace(metadata) == "" {
+		return ""
+	}
+	var meta map[string]any
+	if err := json.Unmarshal([]byte(metadata), &meta); err != nil {
+		return ""
+	}
+	value, _ := meta[key].(string)
+	return value
 }
 
 func runApprovalDTO(item store.RunApproval) runApprovalResponse {

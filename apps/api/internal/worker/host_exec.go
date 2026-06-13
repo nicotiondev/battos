@@ -101,8 +101,13 @@ func streamProcess(runCtx context.Context, cmd *exec.Cmd, timeout time.Duration,
 	return nil
 }
 
+// teamMCPConfigFilename es el archivo MCP que el sandbox materializa en el
+// workspace cuando el run lleva tools de equipo (ver ExecutionPlan.MCPConfigJSON).
+const teamMCPConfigFilename = "battos-mcp.json"
+
 // collectArtifacts walks workspace and returns every regular file (except the
-// injected BATTOS_PROMPT.md) as a ProducedArtifact, with relative slash paths.
+// injected BATTOS_PROMPT.md and battos-mcp.json) as a ProducedArtifact, with
+// relative slash paths.
 func collectArtifacts(workspace string, log LogFunc) []ProducedArtifact {
 	var artifacts []ProducedArtifact
 	err := filepath.Walk(workspace, func(path string, info os.FileInfo, err error) error {
@@ -116,7 +121,7 @@ func collectArtifacts(workspace string, log LogFunc) []ProducedArtifact {
 		if err != nil {
 			return err
 		}
-		if rel == "BATTOS_PROMPT.md" {
+		if rel == "BATTOS_PROMPT.md" || rel == teamMCPConfigFilename {
 			return nil
 		}
 		rel = filepath.ToSlash(rel)

@@ -9,6 +9,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -197,6 +198,15 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("parseando config: %w", err)
 	}
 
+	// Instalación de usuario (APPDATA/XDG/~/.config): los paths relativos del
+	// YAML se anclan al directorio del config, NO al cwd del proceso. Sin esto,
+	// arrancar battos desde distintos directorios crea bases de datos y
+	// artifacts distintos (estado partido — bug encontrado en E2E 2026-06-12).
+	// En dev (./config) y docker (/app/config) se mantienen cwd-relativos.
+	if base := userInstallBase(v.ConfigFileUsed()); base != "" {
+		anchorRelativePaths(&cfg, base)
+	}
+
 	cfg.APIToken = os.Getenv("BATTOS_API_TOKEN")
 
 	switch cfg.Auth.Mode {
@@ -273,6 +283,53 @@ func Load() (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+// userInstallBase devuelve el directorio del config cuando se cargó desde una
+// ubicación de instalación de usuario (APPDATA\battos, $XDG_CONFIG_HOME/battos
+// o ~/.config/battos). Para ./config (dev), /app/config (docker) o BATTOS_CONFIG
+// explícito devuelve "" — esos casos siguen siendo cwd-relativos.
+func userInstallBase(configFile string) string {
+	if strings.TrimSpace(configFile) == "" || os.Getenv("BATTOS_CONFIG") != "" {
+		return ""
+	}
+	configDir := filepath.Clean(filepath.Dir(configFile))
+	candidates := []string{}
+	if appData := os.Getenv("APPDATA"); appData != "" {
+		candidates = append(candidates, filepath.Join(appData, "battos"))
+	}
+	if home := os.Getenv("HOME"); home != "" {
+		candidates = append(candidates, filepath.Join(home, ".config", "battos"))
+	}
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		candidates = append(candidates, filepath.Join(xdg, "battos"))
+	}
+	for _, c := range candidates {
+		if strings.EqualFold(configDir, filepath.Clean(c)) {
+			return configDir
+		}
+	}
+	return ""
+}
+
+// anchorRelativePaths resuelve los paths relativos de datos contra base, de
+// modo que la instalación de usuario tenga una única DB/artifacts sin importar
+// desde qué directorio se arranque el proceso.
+func anchorRelativePaths(cfg *Config, base string) {
+	anchor := func(p *string) {
+		if strings.TrimSpace(*p) == "" || filepath.IsAbs(*p) {
+			return
+		}
+		*p = filepath.Join(base, *p)
+	}
+	anchor(&cfg.Database.Path)
+	anchor(&cfg.Memory.DBPath)
+	anchor(&cfg.Knowledge.ArtifactsDir)
+	anchor(&cfg.Logs.Dir)
+	anchor(&cfg.Registries.AgentsDir)
+	anchor(&cfg.Registries.SkillsDir)
+	anchor(&cfg.Execution.WorkspacesDir)
+	anchor(&cfg.Execution.RepositoriesDir)
 }
 
 func validateAuth(cfg *Config) error {

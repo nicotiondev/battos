@@ -21,6 +21,10 @@ type CommandAdapter struct {
 	HostCredentialPath      string
 	ContainerCredentialPath string
 	Timeout                 time.Duration
+	// SupportsMCP indica que el CLI de este adapter sabe consumir un MCP config
+	// (su script usa ${BATTOS_MCP_CONFIG:+...}). El worker solo compone el
+	// config si además tiene TeamMCP cableado.
+	SupportsMCP bool
 }
 
 func (a CommandAdapter) Plan(_ context.Context, run store.Run) (ExecutionPlan, error) {
@@ -52,6 +56,7 @@ func (a CommandAdapter) Plan(_ context.Context, run store.Run) (ExecutionPlan, e
 		Prompt:         run.Prompt,
 		NetworkEnabled: run.NetworkEnabled != 0,
 		Timeout:        timeout,
+		WantsMCP:       a.SupportsMCP,
 	}, nil
 }
 
@@ -105,11 +110,16 @@ func ApprovedAdapters(options AdapterOptions) map[string]Adapter {
 			BaseArgs:    []string{"-c", `codex exec --sandbox workspace-write --skip-git-repo-check --ephemeral --json - < "$BATTOS_PROMPT_FILE"`},
 			ProviderEnv: "OPENAI_API_KEY",
 		},
+		// claude-code: si BATTOS_MCP_CONFIG está presente (lo exporta el sandbox
+		// cuando el run lleva tools de equipo) se agrega --mcp-config en forma
+		// `=` — el flag es variádico y sin `=` se comería el prompt posicional.
+		// --strict-mcp-config aísla al run de los MCP servers del usuario host.
 		"claude-code": CommandAdapter{
 			RuntimeID:   "claude-code",
 			Command:     "sh",
-			BaseArgs:    []string{"-c", `claude --print --verbose --input-format text --output-format stream-json --no-session-persistence --dangerously-skip-permissions "$(cat "$BATTOS_PROMPT_FILE")"`},
+			BaseArgs:    []string{"-c", `claude --print --verbose --input-format text --output-format stream-json --no-session-persistence --dangerously-skip-permissions ${BATTOS_MCP_CONFIG:+--strict-mcp-config --mcp-config="$BATTOS_MCP_CONFIG"} "$(cat "$BATTOS_PROMPT_FILE")"`},
 			ProviderEnv: "ANTHROPIC_API_KEY",
+			SupportsMCP: true,
 		},
 		// gemini: Gemini CLI de Google en modo no-interactivo (-p). --yolo
 		// auto-aprueba tools (seguro porque corre dentro del sandbox/tier).

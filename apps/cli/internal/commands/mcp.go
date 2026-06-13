@@ -15,6 +15,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -322,6 +323,13 @@ func teamSpawnRunToolHandler(ctx context.Context, c *client.Client, args teamSpa
 	if mode == "" {
 		mode = "sandbox"
 	}
+	// Trazabilidad automática: cuando el server MCP corre dentro de un run del
+	// worker, BATTOS_RUN_ID identifica al lead. Si el agente no pasó
+	// parent_run_id explícito, el run delegado queda enlazado igual.
+	parentRunID := strings.TrimSpace(args.ParentRunID)
+	if parentRunID == "" {
+		parentRunID = strings.TrimSpace(os.Getenv("BATTOS_RUN_ID"))
+	}
 	run, err := c.CreateRun(ctx, client.CreateRunRequest{
 		ProjectID:        args.ProjectID,
 		TaskID:           args.TaskID,
@@ -329,7 +337,7 @@ func teamSpawnRunToolHandler(ctx context.Context, c *client.Client, args teamSpa
 		RuntimeAdapterID: args.RuntimeAdapterID,
 		Prompt:           args.Prompt,
 		ExecutionMode:    mode,
-		ParentRunID:      args.ParentRunID,
+		ParentRunID:      parentRunID,
 		RequestedNetwork: args.RequestedNetwork,
 	})
 	if err != nil {
@@ -341,8 +349,8 @@ func teamSpawnRunToolHandler(ctx context.Context, c *client.Client, args teamSpa
 		"execution_mode": run.ExecutionMode,
 		"note":           "el run delegado NO se ejecuta todavía: requiere aprobación humana (approval kind=execute). Usa team_get_run_status para monitorearlo.",
 	}
-	if args.ParentRunID != "" {
-		out["parent_run_id"] = args.ParentRunID
+	if parentRunID != "" {
+		out["parent_run_id"] = parentRunID
 	}
 	return toolJSON(out)
 }

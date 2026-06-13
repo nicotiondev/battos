@@ -109,6 +109,17 @@ func run() error {
 	w.ArtifactsDir = cfg.Knowledge.ArtifactsDir
 	w.WorkspacesDir = cfg.Execution.WorkspacesDir
 	w.RepositoriesDir = cfg.Execution.RepositoriesDir
+	// Tools de equipo (delegación multi-agente) — mismo cableado que cmd/api.
+	if cliPath := runworker.ResolveBattosCLI(); cliPath != "" {
+		mcpHost := cfg.API.Host
+		if mcpHost == "" || mcpHost == "0.0.0.0" {
+			mcpHost = "127.0.0.1"
+		}
+		w.TeamMCP = &runworker.TeamMCPConfig{
+			CLIPath: cliPath,
+			APIURL:  fmt.Sprintf("http://%s:%d", mcpHost, cfg.API.Port),
+		}
+	}
 	memCtxProvider := runworker.MemoryCoreContextProvider{Core: memProvider}
 	w.Memory = memCtxProvider
 	w.MemoryPromote = memCtxProvider

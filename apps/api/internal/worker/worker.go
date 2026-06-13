@@ -73,6 +73,13 @@ type ExecutionPlan struct {
 	WorkDir        string
 	NetworkEnabled bool
 	Timeout        time.Duration
+	// WantsMCP lo declara el adapter cuando su CLI sabe consumir un MCP config
+	// (hoy claude-code vía --mcp-config). El worker lo honra solo si TeamMCP
+	// está configurado.
+	WantsMCP bool
+	// MCPConfigJSON es el contenido de battos-mcp.json que el sandbox
+	// materializa en el workspace y expone vía BATTOS_MCP_CONFIG.
+	MCPConfigJSON string
 }
 
 type Mount struct {
@@ -113,6 +120,9 @@ type Worker struct {
 	// CredResolver resuelve credenciales gestionadas antes de pasarlas al sandbox.
 	// Cuando es nil, solo se usan variables de entorno del proceso.
 	CredResolver CredentialResolver
+	// TeamMCP habilita las tools de equipo (battos mcp) en los runs cuyo
+	// adapter declara WantsMCP. Nil = los runs corren sin tools de equipo.
+	TeamMCP *TeamMCPConfig
 }
 
 // New creates a Worker that uses sandbox for every run regardless of
@@ -270,6 +280,13 @@ func (w *Worker) processClaimedRun(ctx context.Context, run store.Run) (bool, er
 			plan.Prompt = injectMemoryContext(plan.Prompt, memoryContext.Content)
 			_ = w.log(ctx, run.ID, "system", fmt.Sprintf("memory context injected (%d items)", memoryContext.Count))
 		}
+	}
+
+	// Tools de equipo: si el adapter quiere MCP y el worker sabe dónde está el
+	// CLI battos, el plan lleva el battos-mcp.json que el sandbox materializa.
+	if plan.WantsMCP && w.TeamMCP != nil && strings.TrimSpace(w.TeamMCP.CLIPath) != "" {
+		plan.MCPConfigJSON = teamMCPConfigJSON(w.TeamMCP.CLIPath, w.TeamMCP.APIURL, run.ID)
+		_ = w.log(ctx, run.ID, "system", "team mcp: battos team tools enabled for this run")
 	}
 
 	// Resolver credenciales antes de pasarlas al sandbox.

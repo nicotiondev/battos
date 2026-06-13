@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -66,6 +67,18 @@ func (s DirectSandbox) Execute(ctx context.Context, plan ExecutionPlan, log LogF
 	// BATTOS_PROMPT_FILE. plan.EnvKeys are already present via os.Environ(); the
 	// loop re-appends them last so explicit values win (mirrors DockerSandbox -e).
 	cmd.Env = append(os.Environ(), "BATTOS_PROMPT_FILE="+promptPath)
+	// Tools de equipo: materializar el MCP config en el workspace y exponer su
+	// path. El adapter decide usarlo vía ${BATTOS_MCP_CONFIG:+...} en su script.
+	if strings.TrimSpace(plan.MCPConfigJSON) != "" {
+		mcpPath := filepath.Join(workspace, teamMCPConfigFilename)
+		if err := os.WriteFile(mcpPath, []byte(plan.MCPConfigJSON), 0o600); err != nil {
+			return Result{}, fmt.Errorf("direct sandbox: write mcp config: %w", err)
+		}
+		cmd.Env = append(cmd.Env, "BATTOS_MCP_CONFIG="+mcpPath)
+		if err := log("system", "team mcp: battos-mcp.json available in workspace"); err != nil {
+			return Result{}, err
+		}
+	}
 	for _, key := range plan.EnvKeys {
 		// Prefer pre-resolved values (inline_encrypted secrets, managed credentials)
 		// over the host environment so secrets are never stored in process env.

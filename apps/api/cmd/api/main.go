@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -72,7 +73,16 @@ func run() error {
 		return fmt.Errorf("database: %w", err)
 	}
 	defer db.Close()
-	logger.Info("sqlite database ready", "path", cfg.Database.Path)
+	// Path absoluto + cwd + pid: con dos instalaciones de battos en la misma
+	// máquina (repo dev + installer), identificar qué instancia escribe en qué
+	// DB es vital — el E2E 2026-06-12 encontró dos APIs peleando el puerto 8000
+	// con DBs distintas y estado partido en silencio.
+	absDB, errAbs := filepath.Abs(cfg.Database.Path)
+	if errAbs != nil {
+		absDB = cfg.Database.Path
+	}
+	cwd, _ := os.Getwd()
+	logger.Info("sqlite database ready", "path", absDB, "cwd", cwd, "pid", os.Getpid())
 
 	// --- 5. Memory Core sobre la misma base SQLite ---
 	memCore, err := memory.OpenWithDB(db)
@@ -193,6 +203,22 @@ func run() error {
 		w.ArtifactsDir = cfg.Knowledge.ArtifactsDir
 		w.WorkspacesDir = cfg.Execution.WorkspacesDir
 		w.RepositoriesDir = cfg.Execution.RepositoriesDir
+		// Tools de equipo para runs (delegación multi-agente): localizar el CLI
+		// battos y apuntar su MCP server a esta misma API. Sin CLI → los runs
+		// corren sin tools de equipo (degradación logueada, no fatal).
+		if cliPath := runworker.ResolveBattosCLI(); cliPath != "" {
+			mcpHost := cfg.API.Host
+			if mcpHost == "" || mcpHost == "0.0.0.0" {
+				mcpHost = "127.0.0.1"
+			}
+			w.TeamMCP = &runworker.TeamMCPConfig{
+				CLIPath: cliPath,
+				APIURL:  fmt.Sprintf("http://%s:%d", mcpHost, cfg.API.Port),
+			}
+			logger.Info("worker.team_mcp enabled", "cli", cliPath)
+		} else {
+			logger.Warn("worker.team_mcp disabled: battos CLI not found in PATH or alongside the API binary")
+		}
 		memCtx := runworker.MemoryCoreContextProvider{Core: memProvider}
 		w.Memory = memCtx
 		w.MemoryPromote = memCtx
